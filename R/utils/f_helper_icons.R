@@ -19,7 +19,7 @@ f_recolor_svg    <- function(svg_txt, color_hex)       recolor_svg(svg_txt, colo
 f_svg_to_png_raw <- function(svg_txt, size = 64)       svg_to_png_raw(svg_txt, size)
 
 # Build DB payload
-f_build_payload  <- function(icon_name, svg_txt)       build_payload(icon_name, svg_txt)
+f_build_payload  <- function(icon_name, svg_txt, primary_color = NULL)       build_payload(icon_name, svg_txt, color_hex = primary_color)
 
 # f_icons_bind_search_upload() — wire ENTER search, magnifier click, and upload trigger
 # ns: the module NS() function (pass `ns` from inside your UI)

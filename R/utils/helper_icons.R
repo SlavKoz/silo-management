@@ -119,7 +119,7 @@ svg_to_png_raw <- function(svg_txt, size = 64) {
     stop("Need magick or rsvg installed to rasterize SVG")
   }
   if (requireNamespace("magick", quietly = TRUE)) {
-    img <- magick::image_read_svg(svg_txt, width = size, height = size, dpi = 72)
+    img <- magick::image_read_svg(svg_txt, width = size, height = size)
     return(magick::image_write(img, format = "PNG"))
   } else {
     tmp <- tempfile(fileext = ".svg")
@@ -138,20 +138,16 @@ raw_to_b64 <- function(xraw) {
 # ---- Build a DB-ready payload (icons table contract) ----
 # Returns a named list you can pass to insert_icon(conn, payload)
 # Fields: icon_name, svg, png_24_b64, png_32_b64, png_48_b64
-build_payload <- function(icon_name, svg_txt) {
-  if (is.null(icon_name) || !nzchar(icon_name)) icon_name <- "icon"
-  if (is.null(svg_txt) || !nzchar(svg_txt)) stop("Empty SVG in build_payload()")
+build_payload <- function(icon_name, svg_txt, color_hex = NULL) {
+  if (!nzchar(svg_txt)) stop("Empty SVG")
   
-  # Produce common sizes (tune as needed)
-  png24 <- raw_to_b64(svg_to_png_raw(svg_txt, size = 24))
+  # Only generate one PNG size for thumbnails
   png32 <- raw_to_b64(svg_to_png_raw(svg_txt, size = 32))
-  png48 <- raw_to_b64(svg_to_png_raw(svg_txt, size = 48))
   
   list(
-    icon_name   = icon_name,
-    svg         = svg_txt,
-    png_24_b64  = png24,
-    png_32_b64  = png32,
-    png_48_b64  = png48
+    icon_name = icon_name,
+    svg = svg_txt,
+    png_32_b64 = png32,
+    primary_color = color_hex  
   )
 }

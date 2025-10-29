@@ -236,3 +236,126 @@ icons_lib_delete <- function(conn, ids) {
   DBI::dbExecute(conn, q)
 }
 
+# ---- Icon Browser Wrappers ----
+# These functions match the interface expected by f_browser_icons.R
+
+# Check if Icons table exists and has correct schema
+check_icons_table <- function(conn) {
+  # Check if table exists
+  table_check <- tryCatch({
+    DBI::dbGetQuery(conn, "
+      SELECT OBJECT_ID('Icons', 'U') AS table_id
+    ")
+  }, error = function(e) NULL)
+
+  if (is.null(table_check) || is.na(table_check$table_id[1])) {
+    return(list(exists = FALSE, message = "Icons table does not exist"))
+  }
+
+  # Check column definitions
+  cols <- tryCatch({
+    DBI::dbGetQuery(conn, "
+      SELECT
+        c.name AS column_name,
+        t.name AS data_type,
+        c.max_length
+      FROM sys.columns c
+      JOIN sys.types t ON c.user_type_id = t.user_type_id
+      WHERE c.object_id = OBJECT_ID('Icons')
+    ")
+  }, error = function(e) NULL)
+
+  if (is.null(cols) || nrow(cols) == 0) {
+    return(list(exists = FALSE, message = "Could not read Icons table schema"))
+  }
+
+  # Check for svg column and its size
+  svg_col <- cols[cols$column_name == "svg", ]
+  if (nrow(svg_col) == 0) {
+    return(list(exists = FALSE, message = "Icons table missing 'svg' column"))
+  }
+
+  # Check if svg is nvarchar(max) (max_length = -1)
+  if (svg_col$data_type != "nvarchar" || svg_col$max_length != -1) {
+    return(list(
+      exists = TRUE,
+      needs_fix = TRUE,
+      message = sprintf("SVG column is %s(%s) but should be nvarchar(max)",
+                       svg_col$data_type,
+                       if(svg_col$max_length == -1) "max" else as.character(svg_col$max_length))
+    ))
+  }
+
+  return(list(exists = TRUE, needs_fix = FALSE, message = "Icons table schema is correct"))
+}
+
+# Fetch all icons for library display
+fetch_icons <- function(conn) {
+  sql <- "
+    SELECT
+      id,
+      icon_name,
+      primary_color,
+      png_32_b64
+    FROM Icons
+    ORDER BY id DESC
+  "
+
+  df <- DBI::dbGetQuery(conn, sql)
+
+  # Convert varbinary to base64 in R (more reliable than SQL)
+  if (nrow(df) > 0 && "png_32_b64" %in% names(df)) {
+    df$png_32_b64 <- sapply(df$png_32_b64, function(x) {
+      if (is.null(x) || length(x) == 0) return("")
+      if (is.list(x)) x <- x[[1]]  # Unwrap if it's a list
+      if (is.raw(x)) {
+        base64enc::base64encode(x)
+      } else {
+        ""
+      }
+    })
+  }
+
+  df
+}
+
+# Insert new icon
+# payload: list with icon_name, svg, png_32_b64, primary_color
+insert_icon <- function(conn, payload) {
+  # Decode base64 PNG
+  png32 <- base64enc::base64decode(payload$png_32_b64)
+
+  # Truncate fields to safe sizes to avoid SQL truncation errors
+  icon_name <- substr(payload$icon_name, 1, 100)  # Assuming nvarchar(100)
+  primary_color <- substr(payload$primary_color, 1, 7)  # Just #RRGGBB
+
+  # Log sizes for debugging
+  cat("Insert sizes - icon_name:", nchar(icon_name),
+      "primary_color:", nchar(primary_color),
+      "svg:", nchar(payload$svg),
+      "png32:", length(png32), "bytes\n")
+
+  sql <- "
+    INSERT INTO Icons (icon_name, primary_color, svg, png_32_b64, created_at)
+    VALUES (?, ?, ?, ?, SYSUTCDATETIME())
+  "
+
+  # Use blob package to properly handle binary data
+  if (!requireNamespace("blob", quietly = TRUE)) {
+    stop("blob package required for binary data. Install with: install.packages('blob')")
+  }
+
+  DBI::dbExecute(conn, sql, params = list(
+    icon_name,
+    primary_color,
+    payload$svg,
+    blob::blob(png32)
+  ))
+}
+
+# Delete icon by ID
+delete_icon <- function(conn, id) {
+  sql <- "DELETE FROM Icons WHERE id = ?"
+  DBI::dbExecute(conn, sql, params = list(as.integer(id)))
+}
+
