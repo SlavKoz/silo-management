@@ -1,0 +1,41 @@
+# Secrets - DO NOT COMMIT
+Secrets/
+
+# R and RStudio
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj.user
+rsconnect/
+
+# IDE
+.vscode/
+.idea/
+
+# Old/Legacy files
+*_old.R
+*_old.*
+*.old
+
+# Temporary and backup files
+*.bak
+*.tmp
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node modules (if any)
+node_modules/
+
+# Database connection files (backup - Secrets folder already excluded)
+**/creds_private.R
+
+# Test files
+test.R
+icontests.R
+
+# Archives
+*.zip

@@ -1,0 +1,231 @@
+/* ==========================================================================
+   React Table (scoped)
+   Scope: ONLY inside .react-table-root
+   Purpose: Provide BS5 utility shims + tidy defaults so your tested main.jsx
+            renders identically under Bootstrap 4 / bs4Dash.
+   ========================================================================== */
+
+.react-table-root {
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* -------- BS5 utility shims used in main.jsx -------- */
+
+/* typography */
+.react-table-root .fw-semibold { font-weight: 600; } /* BS5 */
+
+/* flex gap (BS4 lacks gap utilities) */
+.react-table-root .gap-2 { gap: .5rem; } /* BS5 */
+
+/* grid gutters (approximate g-3) */
+.react-table-root .row.g-3 {
+  --rt-gutter: 1rem;
+  margin-right: calc(-.5 * var(--rt-gutter));
+  margin-left:  calc(-.5 * var(--rt-gutter));
+}
+.react-table-root .row.g-3 > [class^="col"] {
+  padding-right: calc(.5 * var(--rt-gutter));
+  padding-left:  calc(.5 * var(--rt-gutter));
+  margin-bottom: var(--rt-gutter);
+}
+
+/* -------- Controls & widgets -------- */
+
+/* Toggle switch (form-switch) */
+.react-table-root .form-check.form-switch { padding-left: 0; }
+.react-table-root .form-check.form-switch .form-check-input {
+  width: 2.5em;
+  height: 1.25em;
+  background-color: #e9ecef;
+  border: 1px solid rgba(0,0,0,.25);
+  border-radius: 2.5em;
+  appearance: none;
+  position: relative;
+  outline: 0;
+  cursor: pointer;
+  transition: background-color .15s ease-in-out;
+  margin: 0; /* keep aligned in FieldTemplate */
+}
+.react-table-root .form-check.form-switch .form-check-input::before {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: calc(1.25em - 4px);
+  height: calc(1.25em - 4px);
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .15s ease-in-out;
+}
+.react-table-root .form-check.form-switch .form-check-input:checked {
+  background-color: #0d6efd;
+}
+.react-table-root .form-check.form-switch .form-check-input:checked::before {
+  transform: translateX(1.25em);
+}
+
+/* Icon radio group */
+.react-table-root .btn-group { display: inline-flex; flex-wrap: wrap; }
+.react-table-root .btn {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.25rem;
+}
+.react-table-root .btn.active {
+  background-color: #e9ecef;
+}
+
+/* Plaintext display fields */
+.react-table-root .form-control-plaintext {
+  padding-left: 0;
+  padding-right: 0;
+  color: inherit;
+}
+
+/* Field layout harmony (matches your FieldTemplate) */
+.react-table-root .col-form-label { white-space: nowrap; }
+.react-table-root .mb-2 { margin-bottom: .5rem !important; }
+
+/* Inputs in this area should have a consistent size */
+.react-table-root .form-control {
+  min-height: 2rem;
+  line-height: 1.25rem;
+}
+
+/* -------- React-Select (classNamePrefix='rs') --------
+   You already pass inline styles via the component; these are light resets
+   so it looks tidy even without the upstream CSS.
+*/
+.react-table-root .rs__control {
+  border: 1px solid rgba(0,0,0,.125);
+  min-height: 2rem;
+  box-shadow: none;
+}
+.react-table-root .rs__control--is-focused {
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 .2rem rgba(0,123,255,.25);
+}
+.react-table-root .rs__value-container { padding: 0 .5rem; }
+.react-table-root .rs__input-container { margin: 0; padding: 0; }
+.react-table-root .rs__menu {
+  z-index: 2000; /* above bs4Dash cards */
+  box-shadow: 0 6px 20px rgba(0,0,0,.1);
+}
+.react-table-root .rs__option--is-focused { background: #f8f9fa; }
+.react-table-root .rs__option--is-selected { background: #e9ecef; color: inherit; }
+
+/* -------- Datalist-based selectize widget -------- */
+.react-table-root input[list] {
+  background-image: none; /* keep clean in various browsers */
+}
+
+/* -------- Container polish / scrolling -------- */
+.react-table-root .rt-wrapper { display: block; }
+.react-table-root .rt-scroll {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* -------- Accessibility focus outlines (non-intrusive) -------- */
+.react-table-root :focus {
+  outline: none;
+}
+.react-table-root :focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+/* React table / RJSF pane: compact, neutral typography */
+/* === Tidy, compact typography for the RJSF/React area only === */
+.react-table-root,
+.react-table-root * {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
+  font-size: 11px !important;         /* smaller */
+  line-height: 1.25 !important;
+  font-style: normal !important;       /* squash italics */
+  font-weight: 400 !important;         /* squash bold */
+}
+
+/* Inputs / selects / React-Select control */
+.react-table-root .form-control,
+.react-table-root .form-select,
+.react-table-root .rs__control {
+  font-size: 11px !important;
+  min-height: 24px !important;
+  height: 24px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+/* Labels */
+.react-table-root label,
+.react-table-root .form-label {
+  font-size: 11px !important;
+  margin-bottom: 2px !important;
+  font-weight: 400 !important;
+}
+
+/* Headings/strong/emphasis inside the pane: neutralize */
+.react-table-root h1,
+.react-table-root h2,
+.react-table-root h3,
+.react-table-root h4,
+.react-table-root h5,
+.react-table-root h6,
+.react-table-root strong,
+.react-table-root b {
+  font-weight: 400 !important;
+}
+.react-table-root em,
+.react-table-root i {
+  font-style: normal !important;
+}
+
+/* Slightly tighter vertical rhythm */
+.react-table-root .mb-2 { margin-bottom: .35rem !important; }
+.react-table-root .mb-3 { margin-bottom: .5rem !important; }
+
+/* Layout tweaks for the title bar */
+.pane-header.bg-primary {
+  border: 1px solid rgba(0,0,0,.08);
+}
+
+/* Compact, neutral type inside the React pane */
+.react-table-root,
+.react-table-root * {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  font-style: normal !important;
+  font-weight: 400 !important;
+}
+
+/* Inputs/selects baseline border (non-edit) */
+.react-table-root .form-control,
+.react-table-root .form-select,
+.react-table-root .rs__control {
+  border-color: #222 !important;        /* black when not editing */
+  box-shadow: none !important;
+}
+
+/* When Edit mode is ON, flip to green borders */
+.react-table-root.is-edit .form-control,
+.react-table-root.is-edit .form-select,
+.react-table-root.is-edit .rs__control {
+  border-color: #28a745 !important;     /* bootstrap-ish green */
+  box-shadow: 0 0 0 1px rgba(40,167,69,.15) !important;
+}
+
+/* Radio button outline in edit mode (for iconRadio) */
+.react-table-root.is-edit .btn.btn-outline-secondary {
+  border-color: #28a745 !important;
+}
+
+/* Make iconRadio compact */
+.react-table-root .btn-group .btn {
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+}
+

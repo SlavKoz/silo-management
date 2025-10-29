@@ -1,0 +1,129 @@
+/* ====== Layout basics ====== */
+
+/* Blue title bar */
+.pane-header.bg-primary {
+  border-radius: .5rem;
+  border: 1px solid rgba(0,0,0,.08);
+}
+
+/* 40/60 split for the two main columns (md+) */
+@media (min-width: 768px) {
+  .col-flex-40 { flex: 0 0 40%; max-width: 40%; }
+  .col-flex-60 { flex: 1 1 60%; max-width: 60%; }
+}
+
+/* Small spacers in the header action row */
+.header-actions .header-spacer  { display:inline-block; width: 12px; height: 1px; }
+.header-actions .header-spacer-lg { display:inline-block; width: 18px; height: 1px; }
+
+/* ====== shinyWidgets buttons (actionBttn with style='fill') ====== */
+/* These selectors gently enhance spacing/weight without fighting shinyWidgets colors. */
+
+.header-actions .bttn {
+  margin: 0 6px;                 /* wider breathing room between New / Delete */
+  font-weight: 700;              /* clearer labels on the blue bar */
+  letter-spacing: .2px;
+}
+.rt-toolbar .bttn {
+  margin-right: 10px;            /* toolbar buttons near the React pane */
+  font-weight: 700;
+}
+
+/* Remove any accidental tiny box-shadows from certain themes */
+.header-actions .bttn,
+.rt-toolbar .bttn {
+  box-shadow: none !important;
+}
+
+/* Keep a visible border ring around fill buttons on the header */
+.header-actions .bttn.bttn-success,
+.header-actions .bttn.bttn-primary,
+.header-actions .bttn.bttn-danger {
+  border: 2px solid currentColor !important;  /* uses the button’s own color */
+}
+
+/* ====== Edit controls ====== */
+
+/* Align the material / pretty switch or radio a touch lower to match button height */
+.rt-toolbar .rt-toggle-pt .custom-control.material-switch,
+.rt-toolbar .rt-toggle-pt .pretty.p-switch {
+  padding-top: 2px;   /* tweak 1–4px to taste */
+}
+
+/* Compact radio group buttons for Edit ON/OFF (if using radioGroupButtons) */
+.edit-radio .btn-group > .btn {
+  padding: 6px 12px;
+  font-weight: 700;
+  border-radius: 8px !important;
+}
+
+/* ====== Misc small polish ====== */
+
+/* Prevent command labels from wrapping in awkward ways */
+.btn-stack .btn,
+.header-actions .bttn { white-space: nowrap; }
+
+/* Align toggle vertically with button */
+.rt-toolbar .rt-toggle .custom-control.material-switch {
+  padding-top: 2px;     /* adjust 1–4px if needed */
+}
+
+/* Nudge Save a bit left from the toggle so it aligns visually under Delete */
+.rt-toolbar .rt-save {
+  margin-left: 10px;
+}
+
+/* Keep toolbar contents right-aligned to match header buttons on the right */
+.rt-toolbar {
+  /* already right-aligned via justify-content-end in UI; nothing else needed */
+}
+
+/* Align the single Save/Edit button under the Delete button on the header */
+.rt-toolbar {
+  justify-content: end;  /* right align */
+}
+
+/* Make the shinyWidgets fill button look same weight as header buttons */
+.rt-toolbar .rt-save-bttn .bttn {
+  border: 2px solid currentColor !important;  /* visible ring like header */
+  padding: 6px 14px !important;               /* similar density to header */
+  font-weight: 700 !important;
+  letter-spacing: .2px;
+}
+
+/* --- Read-only lock when NOT in edit mode --- */
+/* We already toggle .is-edit on the React mount via 'react-edit-state' message. */
+/* When not editing, block interaction and soften backgrounds. */
+.react-table-root:not(.is-edit) .form-control,
+.react-table-root:not(.is-edit) .form-select,
+.react-table-root:not(.is-edit) .rs__control,
+.react-table-root:not(.is-edit) input,
+.react-table-root:not(.is-edit) textarea,
+.react-table-root:not(.is-edit) .btn,
+.react-table-root:not(.is-edit) .btn-group,
+.react-table-root:not(.is-edit) .custom-control,
+.react-table-root:not(.is-edit) .rs__menu {
+  pointer-events: none !important;
+}
+
+.react-table-root:not(.is-edit) .form-control,
+.react-table-root:not(.is-edit) .form-select,
+.react-table-root:not(.is-edit) .rs__control {
+  background-color: #f8f9fa !important;
+  border-color: #222 !important;  /* black borders when locked */
+  opacity: 1 !important;          /* keep readable */
+}
+
+/* Keep iconRadio buttons visually static when locked */
+.react-table-root:not(.is-edit) .btn.btn-outline-secondary {
+  border-color: #222 !important;
+}
+
+
+/* Make the round search button match text input height better */
+.icons-search-btn .btn {
+  line-height: 1;
+  padding: 0.45rem;   /* tighten circle */
+}
+
+/* In edit mode, keep your green borders (from your existing rules) */

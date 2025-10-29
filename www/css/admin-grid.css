@@ -1,0 +1,21 @@
+/* Universal grid utilities */
+.ui-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--ui-grid-min, 120px), 1fr));
+  gap: var(--ui-grid-gap, .75rem);
+}
+.ui-card, .ui-tile {
+  border: 1px solid #e5e7eb;
+  border-radius: .5rem;
+  padding: .5rem;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+}
+.ui-card.selected { outline: 2px solid #0d6efd; }
+.ui-card img { display: block; margin: .25rem auto .5rem; width: 64px; height: 64px; }
+.ui-card .ui-label { font-size: .85rem; color: #555; }
+.ui-preview svg { width: 96px; height: 96px; display: block; }
+
+/* optional width helpers */
+.w-120 { width: 120px; } .w-140 { width: 140px; }

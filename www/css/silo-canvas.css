@@ -1,0 +1,241 @@
+/* ==========================================================================
+   Silo Canvas Styles (scoped)
+   Scope containers: .silo-canvas-root, .canvas-viewport
+   Elements used in UI: <canvas id="...-canvas"> + <div id="...-labels">
+   ========================================================================== */
+
+.silo-canvas-root {
+  position: relative;
+}
+
+.canvas-viewport {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;          /* hide drag overscroll */
+  background: #f8f9fa;       /* soft backdrop behind the canvas */
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0,0,0,.06);
+  box-shadow: 0 1px 2px rgba(0,0,0,.03);
+}
+
+/* Canvas scales fluidly but keeps pixel-perfect drawing via device ratio in JS */
+.canvas-viewport canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  touch-action: none;        /* allow custom pinch/drag handlers */
+}
+
+/* Labels layer sits on top of the canvas for crisp text and hit targets */
+.canvas-viewport > [id$="-labels"] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;      /* JS will toggle on interactive elements */
+  font-family: inherit;
+}
+
+/* ---- Labels / Badges ---- */
+.canvas-label {
+  position: absolute;
+  transform: translate(-50%, -50%); /* center on anchor (cx, cy) */
+  padding: .15rem .35rem;
+  font-size: .78rem;
+  line-height: 1rem;
+  color: #243447;
+  background: rgba(255,255,255,.9);
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: .35rem;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: auto;      /* enable click/hover on the label */
+}
+
+.canvas-label.is-selected {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 .2rem rgba(13,110,253,.15);
+}
+
+.canvas-label.is-hovered:not(.is-selected) {
+  border-color: rgba(13,110,253,.4);
+}
+
+/* Small helper tag inside label for codes (e.g., SiloCode) */
+.canvas-label .code {
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+
+/* ---- Selection box / drag rubberband ---- */
+.canvas-select-box {
+  position: absolute;
+  border: 1px dashed #0d6efd;
+  background: rgba(13,110,253,.08);
+  pointer-events: none;
+}
+
+/* ---- Drag handles (for resizing/rotating shapes) ---- */
+.handle {
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #fff;
+  border: 1px solid #0d6efd;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+  pointer-events: auto;
+}
+.handle:hover { background: #e9f2ff; }
+
+/* rotation handle variant */
+.handle-rot {
+  border-color: #20c997;
+}
+.handle-rot:hover {
+  background: #e6fffa;
+}
+
+/* ---- Guides & grid (optional) ---- */
+.canvas-guide-h,
+.canvas-guide-v {
+  position: absolute;
+  background: rgba(13,110,253,.45);
+  pointer-events: none;
+}
+.canvas-guide-h { height: 1px; left: 0; right: 0; }
+.canvas-guide-v { width: 1px;  top: 0; bottom: 0; }
+
+.canvas-grid {
+  position: absolute;
+  inset: 0;
+  background-size: 20px 20px;
+  background-image:
+    linear-gradient(to right, rgba(0,0,0,.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0,0,0,.045) 1px, transparent 1px);
+  pointer-events: none;
+  opacity: .6;
+}
+.canvas-grid.is-off { display: none; }
+
+/* Snap indicator dot */
+.snap-dot {
+  position: absolute;
+  width: 7px; height: 7px;
+  transform: translate(-50%, -50%);
+  background: #0d6efd;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  pointer-events: none;
+}
+
+/* ---- Tooltip (lightweight, for hover details) ---- */
+.canvas-tooltip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 8px));
+  background: #212529;
+  color: #fff;
+  font-size: .75rem;
+  line-height: 1.1rem;
+  padding: .35rem .5rem;
+  border-radius: .35rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+.canvas-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -5px;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #212529;
+}
+
+/* ---- Context menu (custom) ---- */
+.ctx-menu {
+  position: absolute;
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: .5rem;
+  box-shadow: 0 10px 24px rgba(0,0,0,.12);
+  z-index: 20;
+  padding: .25rem;
+}
+.ctx-menu .item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .4rem .55rem;
+  border-radius: .35rem;
+  color: #212529;
+  cursor: pointer;
+}
+.ctx-menu .item:hover {
+  background: #f1f3f5;
+}
+
+/* ---- Zoom HUD / controls ---- */
+.zoom-hud {
+  position: absolute;
+  right: .5rem; bottom: .5rem;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  background: rgba(255,255,255,.9);
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: .5rem;
+  padding: .2rem .35rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  pointer-events: auto;
+}
+.zoom-hud .btn {
+  border: 1px solid rgba(0,0,0,.12);
+  background: #fff;
+  border-radius: .4rem;
+  padding: .25rem .45rem;
+  line-height: 1;
+}
+.zoom-hud .level {
+  min-width: 3ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: .8rem;
+}
+
+/* ---- Keyboard focus ring for interactive overlay items ---- */
+.canvas-viewport [tabindex]:focus-visible,
+.canvas-viewport .canvas-label:focus-visible,
+.canvas-viewport .btn:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+/* ---- Print considerations (optional) ---- */
+@media print {
+  .canvas-viewport {
+    box-shadow: none !important;
+    border-color: transparent !important;
+  }
+  .zoom-hud, .ctx-menu { display: none !important; }
+}
+
+/* Debug HUD */
+.canvas-debug {
+  position: absolute;
+  left: .5rem; bottom: .5rem;
+  z-index: 30;
+  font: 12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: rgba(0,0,0,.75);
+  color: #fff;
+  border-radius: .5rem;
+  padding: .4rem .6rem;
+  pointer-events: none;
+  white-space: nowrap;
+  display: none; /* hidden by default */
+}
+.canvas-debug .kv { opacity: .85; }
+.canvas-debug .id { font-weight: 700; color: #ffd166; }
+

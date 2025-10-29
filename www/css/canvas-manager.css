@@ -1,0 +1,18 @@
+/* canvas-manager.css — styles moved out of R */
+
+/* Generic layout */
+.inline-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.grid-wrap { display:flex; flex-wrap:wrap; gap:10px; }
+.grid-card { width:220px; border:1px solid #eee; border-radius:10px; padding:10px; text-align:center; cursor:pointer; }
+.grid-card .thumb { width:180px; height:auto; display:block; margin:4px auto 8px; }
+.selected { outline:2px solid #0d6efd; }
+.muted { color:#666; font-size:12px; }
+.panel-box { border:1px solid #eee; border-radius:10px; padding:10px; background:#fafafa; }
+
+/* Editor shell, sticky toolbar, scroll behavior */
+.cm-editor-shell { position: relative; max-height: 80vh; overflow: auto; background:#fff; border:1px solid #eee; border-radius:10px; }
+.cm-editor-shell.fullscreen { position: fixed; inset: 10px; z-index: 9999; max-height: none; overflow: auto; background:#fff; border-radius:10px; }
+.cm-editor-shell .editor-toolbar { position: sticky; top: 0; z-index: 10000; background:#fff; border-bottom:1px solid #eee; padding:8px 10px; }
+.cm-editor-shell .editor-canvas { padding: 10px; }
+.cm-editor-shell .editor-canvas img,
+.cm-editor-shell .editor-canvas canvas { max-width:100%; height:auto; display:block; margin:0 auto; }
