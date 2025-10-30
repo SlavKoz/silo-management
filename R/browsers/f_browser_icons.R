@@ -29,6 +29,7 @@ f_browser_icons_ui <- function(id) {
       ".result-card{border:1px solid #e9ecef;border-radius:.5rem;padding:8px;text-align:center;transition:all 0.2s;}",
       ".result-card:hover{border-color:#2185d0; box-shadow:0 2px 4px rgba(0,0,0,0.1);}",
       ".result-card img{height:48px;width:48px;object-fit:contain;display:block;margin:0 auto 6px;}",
+      ".result-card svg{height:48px;width:48px;object-fit:contain;display:block;margin:0 auto 6px;}",
       ".result-card .label{font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 2px 6px;}",
       ".result-card .ui.button{font-size:.8rem;padding:.3rem .5rem; margin-top:4px;}",
       
@@ -58,15 +59,7 @@ f_browser_icons_ui <- function(id) {
       ".color-swatches{display:flex; gap:0.5rem; flex-wrap:wrap;}",
       ".color-swatch-btn{cursor:pointer !important; transition:all 0.2s !important; min-width:40px !important; flex-shrink:0 !important;}",
       ".color-swatch-btn:hover{transform:scale(1.1) !important; border-color:#2185d0 !important; box-shadow:0 2px 4px rgba(0,0,0,0.2) !important;}",
-      ".color-swatch-btn:focus{outline:none !important; box-shadow:0 0 0 3px rgba(33,133,208,0.3) !important;}",
-      
-      # Library
-      ".library-grid{margin-top:1rem;}",
-      ".library-card{border:1px solid #ddd; border-radius:8px; padding:12px; text-align:center; cursor:pointer; transition:all 0.2s;}",
-      ".library-card:hover{border-color:#2185d0; box-shadow:0 2px 4px rgba(0,0,0,0.1);}",
-      ".library-card.selected{border-color:#21ba45; border-width:2px; background:#f0fff4;}",
-      ".library-card img{width:48px; height:48px; margin:0 auto 8px; display:block;}",
-      ".library-card .name{font-size:11px; color:#666; margin-top:4px;}"
+      ".color-swatch-btn:focus{outline:none !important; box-shadow:0 0 0 3px rgba(33,133,208,0.3) !important;}"
     )),
     
     div(id = ns("root"),
@@ -211,11 +204,7 @@ f_browser_icons_ui <- function(id) {
             div(class = "ui right aligned basic segment",
                 actionButton(ns("btn_refresh"), "Refresh", class = "ui small button")
             ),
-            uiOutput(ns("library_ui")),
-            div(class = "ui basic segment",
-                actionButton(ns("btn_delete"), "Delete Selected",
-                             class = "ui red button")
-            )
+            uiOutput(ns("library_ui"))
         ),
         
         # JavaScript - Preview handler with detailed logging
@@ -432,8 +421,9 @@ f_browser_icons_server <- function(id, pool = NULL) {
     )
 
     search_results <- reactiveVal(character(0))
-    selected_library_ids <- reactiveVal(integer(0))
     top_colors <- reactiveVal(c("#2185d0", "#000000", "#db2828"))  # Default placeholders
+    library_data <- reactiveVal(NULL)  # Store library icons data
+    delete_icon_id <- reactiveVal(NULL)  # Track which icon delete button was clicked
     
     # Get helper functions
     .get <- function(...) {
@@ -592,6 +582,51 @@ f_browser_icons_server <- function(id, pool = NULL) {
       toupper(f_or(input$color_hex, "#2185D0"))
     })
 
+    # LIBRARY UI - Render icons
+    output$library_ui <- renderUI({
+      df <- library_data()
+
+      if (is.null(df)) {
+        return(div(class = "ui info message", "Loading icons..."))
+      }
+
+      if (is.data.frame(df) && nrow(df) == 0) {
+        return(div(class = "ui warning message", "No icons saved yet"))
+      }
+
+      if (!is.data.frame(df)) {
+        return(div(class = "ui error message", "Error loading library"))
+      }
+
+      # Use same grid as search results
+      div(class = "ui doubling stackable grid results-grid",
+          lapply(seq_len(nrow(df)), function(i) {
+            safe_id <- gsub("[^A-Za-z0-9_]", "_", paste0("icon_", df$id[i]))
+            div(class = "two wide computer four wide tablet eight wide mobile column",
+                div(class = "result-card",
+                    # Display SVG directly
+                    if (!is.null(df$svg[i]) && nzchar(df$svg[i])) {
+                      HTML(df$svg[i])
+                    } else if (!is.null(df$png_32_b64[i]) && nzchar(df$png_32_b64[i])) {
+                      tags$img(src = paste0("data:image/png;base64,", df$png_32_b64[i]))
+                    } else {
+                      tags$i(class = "question circle outline icon", style = "font-size:48px;color:#ccc;")
+                    },
+                    div(class = "label", sprintf("#%d: %s", df$id[i], df$icon_name[i])),
+                    actionButton(ns(paste0("delete_", safe_id)), "Delete",
+                                 class = "ui tiny red button fluid",
+                                 style = "margin-top:4px;",
+                                 onclick = sprintf("Shiny.setInputValue('%s', %d, {priority: 'event'})",
+                                                  ns("delete_clicked"), df$id[i]))
+                )
+            )
+          })
+      )
+    })
+
+    # CRITICAL: Force output to render even when panel is hidden
+    outputOptions(output, "library_ui", suspendWhenHidden = FALSE)
+
     # Update swatch colors when top_colors changes
     observeEvent(top_colors(), {
       colors <- top_colors()
@@ -684,7 +719,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     session$onFlushed(function(){
       cat("\n>>> INITIALIZING ICON BROWSER\n")
       shinyjs::disable("btn_save")
-      shinyjs::disable("btn_delete")
 
       # Load top colors from database
       cat("Connection available:", !is.null(conn), "\n")
@@ -730,8 +764,8 @@ f_browser_icons_server <- function(id, pool = NULL) {
         top_colors(colors)
         cat("Top colors set to:", paste(colors, collapse=", "), "\n")
 
-        # Initialize library on startup
-        cat("Initializing library\n")
+        # Load library on startup
+        cat("Loading library on startup\n")
         refresh_library()
       } else {
         cat("WARNING: No database connection available!\n")
@@ -821,75 +855,76 @@ f_browser_icons_server <- function(id, pool = NULL) {
     output$results_ui <- renderUI({
       ids <- search_results()
       if (!length(ids)) return(NULL)
-      
+
       div(class = "ui doubling stackable grid results-grid",
           lapply(ids, function(id) {
             parts <- strsplit(id, ":", fixed = TRUE)[[1]]
             safe_id <- gsub("[^A-Za-z0-9_]", "_", id)
-            
+
             div(class = "two wide computer four wide tablet eight wide mobile column",
                 div(class = "result-card",
                     if (length(parts) == 2) {
                       tags$img(src = sprintf("%s/%s/%s.svg?height=48", ICONIFY_BASE, parts[1], parts[2]))
                     },
                     div(class = "label", htmltools::htmlEscape(id)),
-                    actionButton(ns(paste0("load_", safe_id)), "Load", class = "ui tiny black button fluid")
+                    actionButton(ns(paste0("load_", safe_id)), "Load",
+                                class = "ui tiny black button fluid",
+                                onclick = sprintf("Shiny.setInputValue('%s', '%s', {priority: 'event'})",
+                                                 ns("load_icon_clicked"), id))
                 )
             )
           })
       )
     })
+
+    # Ensure search results render even when panel is hidden
+    outputOptions(output, "results_ui", suspendWhenHidden = FALSE)
     
-    # LOAD ICON TO TRAY
-    observe({
-      ids <- search_results()
-      lapply(ids, function(id) {
-        safe_id <- gsub("[^A-Za-z0-9_]", "_", id)
-        observeEvent(input[[paste0("load_", safe_id)]], {
-          cat("\n>>> LOADING ICON:", id, "\n")
+    # LOAD ICON TO TRAY - Single observer for all load button clicks
+    observeEvent(input$load_icon_clicked, {
+      id <- input$load_icon_clicked
+      cat("\n>>> LOADING ICON:", id, "\n")
 
-          svg <- tryCatch(fetch_svg(id), error = function(e) "")
-          if (!nzchar(svg)) {
-            showNotification("Failed to fetch icon", type = "error")
-            return()
-          }
+      svg <- tryCatch(fetch_svg(id), error = function(e) "")
+      if (!nzchar(svg)) {
+        showNotification("Failed to fetch icon", type = "error")
+        return()
+      }
 
-          clean <- tryCatch(sanitize_svg(svg), error = function(e) "")
-          if (!nzchar(clean)) {
-            showNotification("Failed to process icon", type = "error")
-            return()
-          }
+      clean <- tryCatch(sanitize_svg(svg), error = function(e) "")
+      if (!nzchar(clean)) {
+        showNotification("Failed to process icon", type = "error")
+        return()
+      }
 
-          # Extract original color from SVG
-          original_color <- extract_svg_color(clean)
-          cat("Detected original color:", original_color, "\n")
+      # Extract original color from SVG
+      original_color <- extract_svg_color(clean)
+      cat("Detected original color:", original_color, "\n")
 
-          # Store color in reactive value
-          rv$current_color <- original_color
+      # Store color in reactive value
+      rv$current_color <- original_color
 
-          # Update color picker to match (without triggering recolor)
-          session$sendCustomMessage("icons-set-color", list(color = original_color))
+      # Update color picker to match (without triggering recolor)
+      session$sendCustomMessage("icons-set-color", list(color = original_color))
 
-          # Store original SVG
-          rv$current_svg <- clean
+      # Store original SVG
+      rv$current_svg <- clean
 
-          # Show preview with original color (pass color directly)
-          render_preview(clean, color = original_color)
+      # Show preview with original color (pass color directly)
+      render_preview(clean, color = original_color)
 
-          # Set name
-          updateTextInput(session, "display_name", value = gsub(":", "-", id))
+      # Set name
+      updateTextInput(session, "display_name", value = gsub(":", "-", id))
 
-          # Enable save
-          shinyjs::enable(ns("btn_save"))
+      # Enable save
+      shinyjs::enable(ns("btn_save"))
 
-          # Go to tray
-          session$sendCustomMessage("icons-set-step", list(
-            rootId = ns("root"),
-            step = "tray"
-          ))
-        }, ignoreInit = TRUE, once = TRUE)
-      })
-    })
+      # Go to tray
+      session$sendCustomMessage("icons-set-step", list(
+        rootId = ns("root"),
+        step = "tray"
+      ))
+    }, ignoreInit = TRUE)
     
     # COLOR CHANGE
     observeEvent(input$color_hex, {
@@ -956,117 +991,82 @@ f_browser_icons_server <- function(id, pool = NULL) {
       if (success) {
         cat("Icon saved successfully!\n")
         showNotification("Icon saved!", type = "message")
-        refresh_library()
         # Update top colors after saving
         top_colors(fetch_top_colors())
+        # Refresh library to show new icon
+        refresh_library()
+        # Switch to library panel to make it visible
         session$sendCustomMessage("icons-set-step", list(rootId = ns("root"), step = "library"))
       }
     }, ignoreInit = TRUE)
-    
-    # LIBRARY
+
+    # LIBRARY - Refresh function updates reactive value
     refresh_library <- function() {
-      cat("\n>>> REFRESHING LIBRARY\n")
-
-      # Clear selection and disable delete button
-      selected_library_ids(integer(0))
-      shinyjs::disable("btn_delete")
-
       df <- tryCatch(fetch_icons(conn), error = function(e) {
         cat("ERROR fetching icons:", conditionMessage(e), "\n")
         NULL
       })
-
-      if (is.null(df)) {
-        cat("fetch_icons returned NULL\n")
-        output$library_ui <- renderUI({
-          div(class = "ui error message", "Error loading library")
-        })
-        return()
-      }
-
-      cat("Fetched", nrow(df), "icons\n")
-
-      if (!nrow(df)) {
-        output$library_ui <- renderUI({
-          div(class = "ui message", "No icons saved yet")
-        })
-        return()
-      }
-
-      cat("Rendering library grid with", nrow(df), "icons\n")
-
-      output$library_ui <- renderUI({
-        div(class = "ui four column doubling stackable grid library-grid",
-            lapply(seq_len(nrow(df)), function(i) {
-              cat("Rendering icon", i, ":", df$icon_name[i], "\n")
-              div(class = "column",
-                  div(class = "library-card",
-                      `data-id` = df$id[i],
-                      onclick = sprintf("toggleLibIcon('%s',%d)", ns("root"), df$id[i]),
-                      if (!is.null(df$png_32_b64[i]) && nzchar(df$png_32_b64[i])) {
-                        tags$img(src = paste0("data:image/png;base64,", df$png_32_b64[i]))
-                      },
-                      div(class = "name", sprintf("#%d: %s", df$id[i], df$icon_name[i]))
-                  )
-              )
-            })
-        )
-      })
-
-      cat("Library UI rendered\n")
+      library_data(df)
     }
     
+    # Refresh library when Library tab is clicked
+    observeEvent(input$current_step, {
+      if (input$current_step == "library") {
+        req(conn)
+        refresh_library()
+      }
+    }, ignoreInit = TRUE)
+
     observeEvent(input$btn_refresh, {
       req(conn)
       refresh_library()
     }, ignoreInit = TRUE)
-    
-    # Selection tracking
-    observeEvent(input$library_selected, {
-      ids <- as.integer(f_or(input$library_selected, integer()))
-      selected_library_ids(ids)
-      if (length(ids) > 0) {
-        shinyjs::enable("btn_delete")
-      } else {
-        shinyjs::disable("btn_delete")
-      }
-    }, ignoreInit = TRUE)
-    
-    # DELETE
-    observeEvent(input$btn_delete, {
+
+    # DELETE HANDLER - Single observer for all delete button clicks
+    observeEvent(input$delete_clicked, {
       req(conn)
-      ids <- selected_library_ids()
-      if (!length(ids)) return()
-      
-      for (id in ids) {
-        tryCatch(delete_icon(conn, id), error = function(e) NULL)
+      icon_id <- input$delete_clicked
+
+      cat("\n>>> DELETE BUTTON CLICKED for icon ID:", icon_id, "\n")
+
+      # Check usage
+      usage <- tryCatch({
+        check_icon_usage(conn, icon_id)
+      }, error = function(e) {
+        cat("Error checking usage for icon", icon_id, ":", conditionMessage(e), "\n")
+        list()
+      })
+
+      if (length(usage) > 0) {
+        # Icon is in use - show warning
+        usage_text <- sapply(names(usage), function(table) {
+          sprintf("%s (%d)", table, usage[[table]])
+        })
+        showNotification(
+          HTML(paste0(
+            "<strong>Cannot delete icon #", icon_id, ":</strong><br/>",
+            "Used in: ", paste(usage_text, collapse=", ")
+          )),
+          type = "warning",
+          duration = 10
+        )
+        return()
       }
-      
-      showNotification(sprintf("Deleted %d icon(s)", length(ids)), type = "message")
-      selected_library_ids(integer(0))
-      shinyjs::disable("btn_delete")
-      refresh_library()
+
+      # Safe to delete
+      success <- tryCatch({
+        delete_icon(conn, icon_id)
+        TRUE
+      }, error = function(e) {
+        cat("Error deleting icon", icon_id, ":", conditionMessage(e), "\n")
+        showNotification(paste("Delete failed:", conditionMessage(e)), type = "error")
+        FALSE
+      })
+
+      if (success) {
+        showNotification(sprintf("Deleted icon #%d", icon_id), type = "message")
+        refresh_library()
+      }
     }, ignoreInit = TRUE)
-    
-    # Library selection JS
-    session$onFlushed(function(){
-      session$sendCustomMessage("eval", list(js = sprintf("
-if (!window.toggleLibIcon) {
-  window.toggleLibIcon = function(rootId, id) {
-    var root = document.getElementById(rootId);
-    if (!root) return;
-    var card = root.querySelector('.library-card[data-id=\"' + id + '\"]');
-    if (!card) return;
-    card.classList.toggle('selected');
-    var selected = Array.from(root.querySelectorAll('.library-card.selected')).map(function(c){
-      return parseInt(c.getAttribute('data-id'));
-    });
-    if (window.Shiny) {
-      Shiny.setInputValue('%s', selected, {priority: 'event'});
-    }
-  };
-}
-      ", ns("library_selected"))))
-    }, once = TRUE)
   })
 }

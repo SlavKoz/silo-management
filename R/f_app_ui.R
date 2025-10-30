@@ -18,6 +18,11 @@ f_app_ui <- function() {
       if (!root || !root._setStep) return;
       root._setStep(msg.step || 'search');
     });
+    Shiny.addCustomMessageHandler('canvas-set-step', function(msg){
+      var root = document.getElementById(msg.rootId);
+      if (!root || !root._setStep) return;
+      root._setStep(msg.step || 'upload');
+    });
   }
 ")),
       tags$style(HTML("
@@ -60,14 +65,14 @@ f_app_ui <- function() {
             # Note: data-route attributes drive router
             a(class = "item", `data-route` = "#/icons",
               tags$i(class = "icons icon"),     span(class = "item-label", "Icons")),
+            a(class = "item", `data-route` = "#/canvases",
+              tags$i(class = "image outline icon"),      span(class = "item-label", "Canvases")),
             a(class = "item", `data-route` = "#/containers",
               tags$i(class = "boxes icon"),     span(class = "item-label", "Containers")),
             a(class = "item", `data-route` = "#/silos",
               tags$i(class = "warehouse icon"), span(class = "item-label", "Silos")),
             a(class = "item", `data-route` = "#/placements",
               tags$i(class = "map marker alternate icon"), span(class = "item-label", "Placements")),
-            a(class = "item", `data-route` = "#/canvas",
-              tags$i(class = "project diagram icon"),      span(class = "item-label", "Canvas")),
             
             # Bottom collapse toggle
             div(class = "menu-bottom",

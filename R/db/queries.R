@@ -296,6 +296,7 @@ fetch_icons <- function(conn) {
       id,
       icon_name,
       primary_color,
+      svg,
       png_32_b64
     FROM Icons
     ORDER BY id DESC
@@ -353,9 +354,155 @@ insert_icon <- function(conn, payload) {
   ))
 }
 
+# Check if icon is used in other tables
+check_icon_usage <- function(conn, id) {
+  # List of tables and columns that reference icons
+  # Add more as schema evolves
+  usage_checks <- list(
+    list(table = "ContainerTypes", column = "Icon", label = "Container Types")
+    # Add more tables here as they're added to the schema
+    # list(table = "OtherTable", column = "IconID", label = "Other Items")
+  )
+
+  usage <- list()
+
+  for (check in usage_checks) {
+    sql <- sprintf("
+      SELECT COUNT(*) AS n
+      FROM SiloOps.dbo.%s
+      WHERE %s = ?
+    ", check$table, check$column)
+
+    count <- tryCatch({
+      result <- DBI::dbGetQuery(conn, sql, params = list(as.integer(id)))
+      result$n[1]
+    }, error = function(e) {
+      # If column doesn't exist yet (schema not migrated), return 0
+      0L
+    })
+
+    if (count > 0) {
+      usage[[check$label]] <- count
+    }
+  }
+
+  usage
+}
+
 # Delete icon by ID
 delete_icon <- function(conn, id) {
   sql <- "DELETE FROM Icons WHERE id = ?"
+  DBI::dbExecute(conn, sql, params = list(as.integer(id)))
+}
+
+
+# ==============================================================================
+# CANVASES QUERIES
+# ==============================================================================
+
+# Check if Canvases table exists
+check_canvases_table <- function(conn) {
+  table_check <- tryCatch({
+    DBI::dbGetQuery(conn, "SELECT OBJECT_ID('Canvases', 'U') AS table_id")
+  }, error = function(e) NULL)
+
+  if (is.null(table_check) || is.na(table_check$table_id[1])) {
+    return(list(exists = FALSE, message = "Canvases table does not exist"))
+  }
+
+  return(list(exists = TRUE, message = "Canvases table exists"))
+}
+
+# Fetch all canvases for library display
+fetch_canvases <- function(conn) {
+  sql <- "
+    SELECT
+      id,
+      canvas_name,
+      width_px,
+      height_px,
+      bg_png_b64
+    FROM Canvases
+    ORDER BY id DESC
+  "
+
+  df <- DBI::dbGetQuery(conn, sql)
+
+  # Convert varbinary to base64 if needed
+  if (nrow(df) > 0 && "bg_png_b64" %in% names(df)) {
+    df$bg_png_b64 <- sapply(df$bg_png_b64, function(x) {
+      if (is.null(x) || length(x) == 0) return("")
+      if (is.list(x)) x <- x[[1]]
+      if (is.raw(x)) {
+        base64enc::base64encode(x)
+      } else if (is.character(x)) {
+        x  # Already a string
+      } else {
+        ""
+      }
+    })
+  }
+
+  df
+}
+
+# Insert new canvas
+# payload: list with canvas_name, width_px, height_px, bg_png_b64
+insert_canvas <- function(conn, payload) {
+  # Truncate name to safe size
+  canvas_name <- substr(payload$canvas_name, 1, 200)
+
+  cat("Insert canvas - name:", canvas_name,
+      "dimensions:", payload$width_px, "x", payload$height_px,
+      "png size:", nchar(payload$bg_png_b64), "chars\n")
+
+  sql <- "
+    INSERT INTO Canvases (canvas_name, width_px, height_px, bg_png_b64, created_utc, updated_utc)
+    VALUES (?, ?, ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME())
+  "
+
+  DBI::dbExecute(conn, sql, params = list(
+    canvas_name,
+    as.integer(payload$width_px),
+    as.integer(payload$height_px),
+    payload$bg_png_b64
+  ))
+}
+
+# Check if canvas is used (placeholder for future use - e.g., in layouts, placements)
+check_canvas_usage <- function(conn, id) {
+  # Placeholder - add tables that reference canvases as they're created
+  usage_checks <- list(
+    # Example: list(table = "Layouts", column = "CanvasID", label = "Layouts")
+  )
+
+  usage <- list()
+
+  for (check in usage_checks) {
+    sql <- sprintf("
+      SELECT COUNT(*) AS n
+      FROM SiloOps.dbo.%s
+      WHERE %s = ?
+    ", check$table, check$column)
+
+    count <- tryCatch({
+      result <- DBI::dbGetQuery(conn, sql, params = list(as.integer(id)))
+      result$n[1]
+    }, error = function(e) {
+      0L
+    })
+
+    if (count > 0) {
+      usage[[check$label]] <- count
+    }
+  }
+
+  usage
+}
+
+# Delete canvas by ID
+delete_canvas <- function(conn, id) {
+  sql <- "DELETE FROM Canvases WHERE id = ?"
   DBI::dbExecute(conn, sql, params = list(as.integer(id)))
 }
 

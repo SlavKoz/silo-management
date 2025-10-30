@@ -1,6 +1,5 @@
-# f_helper_core.R — minimal core utilities for the new f_* model
-# NOTE: We do NOT redefine legacy %||%. We rely on it if present.
-# Keep this file tiny; add only things shared by multiple f_* modules.
+# f_helper_core.R — Core utilities
+# Consolidated from helper_core.R and f_helper_core.R
 
 # --- Safe OR without redefining %||% ---
 f_or <- function(x, y) {
@@ -76,3 +75,24 @@ f_scoped_css <- function(ns_id, rules_vec) {
   }, character(1)), collapse = "")
   tags$style(HTML(css))
 }
+
+# ==============================================================================
+# UNUSED FUNCTIONS (from helper_core.R - commented out as not used anywhere)
+# ==============================================================================
+
+# who_defined <- function(name) {
+#   stopifnot(is.character(name), length(name) == 1)
+#   where <- find(name)
+#   cat("Found in:", paste(where, collapse = " | "), "\n")
+#   obj <- getAnywhere(name)
+#   if (length(obj$objs) >= 1) {
+#     f <- obj$objs[[1]]
+#     env <- environment(f)
+#     cat("Environment:", environmentName(env), "\n")
+#     fn <- try(utils::getSrcFilename(f, full.names = TRUE), silent = TRUE)
+#     ln <- try(utils::getSrcLocation(f), silent = TRUE)
+#     if (!inherits(fn, "try-error") && !is.na(fn)) cat("File:", fn, "\n")
+#     if (!inherits(ln, "try-error")) cat("Line:", paste(ln, collapse = ","), "\n")
+#   }
+#   invisible(where)
+# }

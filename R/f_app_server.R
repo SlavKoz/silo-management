@@ -59,16 +59,14 @@ f_app_server <- function(input, output, session) {
         else if (exists("browser_placements_server")) browser_placements_server("placements", pool)
       }
     ),
-    "canvas" = list(
-      title = "Canvas",
+    "canvases" = list(
+      title = "Canvases",
       ui    = function() {
-        if (exists("f_canvas_ui")) f_canvas_ui("canvas")
-        else if (exists("canvas_ui")) canvas_ui("canvas")
-        else div("Canvas UI placeholder")
+        if (exists("f_browser_canvas_ui")) f_browser_canvas_ui("canvases")
+        else div("Canvases UI placeholder")
       },
       server = function() {
-        if (exists("f_canvas_server")) f_canvas_server("canvas", pool)
-        else if (exists("canvas_server")) canvas_server("canvas", pool)
+        if (exists("f_browser_canvas_server")) f_browser_canvas_server("canvases", pool)
       }
     )
   )
@@ -107,9 +105,9 @@ f_app_server <- function(input, output, session) {
   # This approach mounts all available servers once; simple and safe.
   isolate({
     if (!is.null(route_map$icons$server))      route_map$icons$server()
+    if (!is.null(route_map$canvases$server))   route_map$canvases$server()
     if (!is.null(route_map$containers$server)) route_map$containers$server()
     if (!is.null(route_map$silos$server))      route_map$silos$server()
     if (!is.null(route_map$placements$server)) route_map$placements$server()
-    if (!is.null(route_map$canvas$server))     route_map$canvas$server()
   })
 }
