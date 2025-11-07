@@ -73,31 +73,31 @@ f_app_server <- function(input, output, session) {
   
   # Parse the '#/section/sub' hash into c('section','sub')
   parse_route <- function(h) {
-    h <- sub("^#/", "", f_or(h, "icons"))
+    h <- sub("^#/", "", f_or(h, "containers"))
     parts <- strsplit(h, "/", fixed = TRUE)[[1]]
     parts[nzchar(parts)]
   }
-  
+
   # Current route
-  current <- reactiveVal(c("icons"))
-  
+  current <- reactiveVal(c("containers"))
+
   observeEvent(input$f_route, {
     parts <- parse_route(input$f_route)
-    if (!length(parts)) parts <- c("icons")
+    if (!length(parts)) parts <- c("containers")
     current(parts)
   }, ignoreInit = FALSE)
-  
+
   # Title
   output$f_page_title <- renderText({
     parts <- current(); key <- parts[1]
-    info <- route_map[[key]] %||% route_map[["icons"]]
+    info <- route_map[[key]] %||% route_map[["containers"]]
     info$title
   })
-  
+
   # Route outlet UI
   output$f_route_outlet <- renderUI({
     parts <- current(); key <- parts[1]
-    info <- route_map[[key]] %||% route_map[["icons"]]
+    info <- route_map[[key]] %||% route_map[["containers"]]
     info$ui()
   })
   

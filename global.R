@@ -1,9 +1,15 @@
 ## global.R — Silo app bootstrap (with f_-override support)
 
 suppressPackageStartupMessages({
-  library(shiny); library(bs4Dash); library(shinyWidgets); library(shinyjs)
+  library(shiny); 
+  library(bs4Dash); 
+  library(shinyWidgets); 
+  library(shinyjs)
   library(shiny.semantic)
-  library(jsonlite); library(httr); library(xml2); library(base64enc)
+  library(jsonlite); 
+  library(httr); 
+  library(xml2); 
+  library(base64enc)
   library(magick)
   library(rsvg)
 })
@@ -61,12 +67,14 @@ source_dir("R/db", first = c("creds_public.R", "connect_wrappers.R"), last = c("
 # 3) React table shared
 source_dir("R/react_table",
            first = c("react_table_dsl.R", "react_table_helpers.R"),
-           last  = c("mod_react_table.R", "react_table_auto.R"))
+           last  = c("html_form_renderer.R", "mod_html_form.R", "mod_react_table.R", "react_table_auto.R"))
 
 # 4) Feature modules (legacy + f_* modules)
 source_dir("R/browsers")
 source_dir("R/canvas")
 
+# Test modules
+if (file.exists("R/test_2column_form.R")) source("R/test_2column_form.R", local = globalenv())
 
 # 5) App shell (export app_ui/app_server to globalenv)
 # f_ app shell

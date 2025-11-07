@@ -63,12 +63,12 @@ f_app_ui <- function() {
             div(class = "item header", "Silo"),
             
             # Note: data-route attributes drive router
+            a(class = "item", `data-route` = "#/containers",
+              tags$i(class = "boxes icon"),     span(class = "item-label", "Containers")),
             a(class = "item", `data-route` = "#/icons",
               tags$i(class = "icons icon"),     span(class = "item-label", "Icons")),
             a(class = "item", `data-route` = "#/canvases",
               tags$i(class = "image outline icon"),      span(class = "item-label", "Canvases")),
-            a(class = "item", `data-route` = "#/containers",
-              tags$i(class = "boxes icon"),     span(class = "item-label", "Containers")),
             a(class = "item", `data-route` = "#/silos",
               tags$i(class = "warehouse icon"), span(class = "item-label", "Silos")),
             a(class = "item", `data-route` = "#/placements",
@@ -117,7 +117,7 @@ f_app_ui <- function() {
         document.addEventListener('DOMContentLoaded', syncCollapse);
 
         // simple hash router
-        function normRoute(h){ return h && h.startsWith('#/') ? h : '#/icons'; }
+        function normRoute(h){ return h && h.startsWith('#/') ? h : '#/containers'; }
         function setActiveRoute(h){
           var items = document.querySelectorAll('.sb-rail .item[data-route]');
           items.forEach(function(it){ it.classList.toggle('nav-active', it.getAttribute('data-route') === h); });
@@ -131,7 +131,7 @@ f_app_ui <- function() {
         document.addEventListener('click', function(e){
           var it = e.target.closest('.sb-rail .item[data-route]');
           if (!it) return;
-          var h = it.getAttribute('data-route') || '#/icons';
+          var h = it.getAttribute('data-route') || '#/containers';
           if (location.hash !== h) location.hash = h; else syncRoute(); // also handle same-route click
         });
 
