@@ -1,14 +1,3 @@
-# Vector-safe null-coalesce used by the DSL (shadows any global %||%)
-`%||%` <- function(a, b) {
-  if (is.null(a)) return(b)
-  if (!length(a)) return(b)
-  # If vector: return b only when *all* values are NA; otherwise keep a
-  if (length(a) > 1) return(if (all(is.na(a))) b else a)
-  # length 1
-  if (is.na(a)) b else a
-}
-
-
 field <- function(name, type,
                   title = NULL, enum = NULL, source = NULL,
                   min = NULL, max = NULL, default = NULL,
@@ -33,7 +22,7 @@ field <- function(name, type,
   }
   if (type %in% c("switch","toggle")) {        # ⬅️ NEW alias for switch
     base_type <- "boolean"
-    wid <- wid %||% "toggle"                   # use our ToggleWidget
+    wid <- f_or(wid, "toggle")                 # use our ToggleWidget
   }
   
   # Fill enum from source for selects
@@ -62,7 +51,7 @@ group <- function(name, title = NULL, collapsible = FALSE, collapsed = FALSE, co
   list(
     kind        = "group",
     name        = name,
-    title       = title %||% name,
+    title       = f_or(title, name),
     collapsible = isTRUE(collapsible),
     collapsed   = isTRUE(collapsed),
     column      = column
@@ -72,7 +61,7 @@ group <- function(name, title = NULL, collapsible = FALSE, collapsed = FALSE, co
 .set_nested <- function(obj, path, value) {
   if (length(path) == 1) { obj[[path]] <- value; return(obj) }
   head <- path[1]; tail <- path[-1]
-  obj[[head]] <- .set_nested(obj[[head]] %||% list(), tail, value)
+  obj[[head]] <- .set_nested(f_or(obj[[head]], list()), tail, value)
   obj
 }
 
@@ -91,12 +80,12 @@ compile_rjsf <- function(title, props, groups = list(), columns = 1, hide_submit
       ginfo <- gmap[[gname]]
       schema$properties[[gname]] <<- list(
         type = "object",
-        title = (ginfo$title %||% gname),
+        title = f_or(ginfo$title, gname),
         properties = list()
       )
-      uiSchema[[gname]] <<- uiSchema[[gname]] %||% list()
+      uiSchema[[gname]] <<- f_or(uiSchema[[gname]], list())
       uiSchema[[gname]][["ui:options"]] <<- modifyList(
-        uiSchema[[gname]][["ui:options"]] %||% list(),
+        f_or(uiSchema[[gname]][["ui:options"]], list()),
         list(
           collapsible = isTRUE(ginfo$collapsible),
           collapsed   = isTRUE(ginfo$collapsed),
@@ -117,18 +106,24 @@ compile_rjsf <- function(title, props, groups = list(), columns = 1, hide_submit
     if (!is.null(f$min))      fs$minimum  <- f$min
     if (!is.null(f$max))      fs$maximum  <- f$max
     if (!is.null(f$default))  fs$default  <- f$default
-    
+
     set_field_ui <- function(root, name) {
+      # Initialize field ui if needed
+      if (is.null(root[[name]])) root[[name]] <- list()
+
       # ui:options (column/fullWidth)
       if (!is.null(f$column) || isTRUE(f$fullWidth)) {
         opts <- list()
         if (!is.null(f$column))   opts$column    <- f$column
         if (isTRUE(f$fullWidth))  opts$fullWidth <- TRUE
-        root <<- .set_nested(root %||% list(), c(name, "ui:options"), opts)
+        root[[name]][["ui:options"]] <- modifyList(
+          f_or(root[[name]][["ui:options"]], list()),
+          opts
+        )
       }
       # ui:widget (e.g., textarea/password)
       if (!is.null(f$widget)) {
-        root <<- .set_nested(root %||% list(), c(name, "ui:widget"), f$widget)
+        root[[name]][["ui:widget"]] <- f$widget
       }
       root
     }
@@ -138,7 +133,7 @@ compile_rjsf <- function(title, props, groups = list(), columns = 1, hide_submit
       schema$properties[[f$group]]$properties[[f$name]] <- fs
       uiSchema[[f$group]] <- set_field_ui(uiSchema[[f$group]], f$name)
       if (!is.null(f$default)) {
-        formData[[f$group]] <- formData[[f$group]] %||% list()
+        formData[[f$group]] <- f_or(formData[[f$group]], list())
         formData[[f$group]][[f$name]] <- f$default
       }
     } else {

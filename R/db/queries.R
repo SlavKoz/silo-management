@@ -150,14 +150,13 @@ list_container_types <- function(code_like = NULL,
   if (!is.null(code_like)) { where <- c(where, "TypeCode LIKE ?"); params <- c(params, list(code_like)) }
   where_sql <- if (length(where)) paste("WHERE", paste(where, collapse = " AND ")) else ""
   
-  # NOTE: Icon column is virtual for now (see browser module); DB does not have it yet.
   sql <- sprintf("
     SELECT
       ContainerTypeID, TypeCode, TypeName, Description,
       CreatedAt, UpdatedAt,
       DefaultFill, DefaultBorder, DefaultBorderPx,
       BottomType,
-      CAST(NULL AS nvarchar(30)) AS Icon   -- placeholder until DB migration
+      Icon
     FROM SiloOps.dbo.ContainerTypes
     %s
     %s
@@ -174,10 +173,21 @@ get_container_type_by_id <- function(id) {
       CreatedAt, UpdatedAt,
       DefaultFill, DefaultBorder, DefaultBorderPx,
       BottomType,
-      CAST(NULL AS nvarchar(30)) AS Icon
+      Icon
     FROM SiloOps.dbo.ContainerTypes
     WHERE ContainerTypeID = ?
   ", list(as.integer(id)))
+}
+
+# Get icons for picker (display names with optional thumbnails)
+list_icons_for_picker <- function(limit = 200) {
+  db_query_params("
+    SELECT TOP (?)
+      Display AS icon_name,
+      Display AS icon_label
+    FROM SiloOps.dbo.Icons
+    ORDER BY Display
+  ", list(as.integer(limit)))
 }
 
 # Delete guard checks (for later wiring)

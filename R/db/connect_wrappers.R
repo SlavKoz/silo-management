@@ -8,8 +8,6 @@ suppressPackageStartupMessages({
   library(odbc)
 })
 
-`%||%` <- function(a, b) if (is.null(a) || is.na(a) || identical(a, "")) b else a
-
 # ---- Load public (no-password) config from inside Silo ----
 source(file.path("R", "db", "creds_public.R"), local = TRUE)
 
@@ -95,10 +93,10 @@ db_pool <- function() {
     Database = cfg$database,
     UID      = cfg$uid,
     PWD      = cfg$pwd,
-    Port     = cfg$port %||% 1433,
-    Encrypt  = cfg$encrypt %||% "yes",
-    TrustServerCertificate = cfg$trust_server_certificate %||% "yes",
-    timeout  = cfg$timeout %||% 10
+    Port     = f_or(cfg$port, 1433),
+    Encrypt  = f_or(cfg$encrypt, "yes"),
+    TrustServerCertificate = f_or(cfg$trust_server_certificate, "yes"),
+    timeout  = f_or(cfg$timeout, 10)
   )
   .db_pool_env$pool <- p
   p

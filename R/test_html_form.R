@@ -67,7 +67,8 @@ test_html_form_server <- function(id) {
     schema_config = schema_config,
     form_data = formData,
     title_field = "ItemName",
-    show_header = TRUE
+    show_header = TRUE,
+    show_delete_button = TRUE
   )
 }
 

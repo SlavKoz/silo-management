@@ -1,0 +1,34 @@
+Context & token discipline
+Keep outputs concise. Default to bullet points and short paragraphs.
+Before answering, quickly plan silently; then produce only the final answer.
+If a task would exceed token limits, propose a smaller plan ("Step 1/2/3") and ask which parts to run.
+When the chat is long, summarize prior turns into 5–8 bullets and discard details unless explicitly requested.
+Prefer retrieval (look up only the needed snippets) over pasting large documents.
+When listing code/logs, include only minimal, relevant excerpts; offer a downloadable file if the user wants full content.
+If you're near the output limit, end with: "I truncated for brevity—ask for any section to expand."
+Never repeat unchanged context. Refer back with short labels ("Spec v2 §Auth", "Design A").
+For tables longer than 30 rows, provide a compact summary + top 10; offer to filter/page.
+For iterative work, carry forward only decisions, constraints, and open questions; compress the rest.
+
+React Table & React List - Global vs Local Changes
+ALWAYS check with the user if a change should be:
+  - GLOBAL (template): Affects the reusable modules in R/react_table/ and R/utils/
+  - LOCAL (specific): Only affects the current implementation (e.g., f_browser_containers.R)
+
+Component definitions:
+  - "React Table" = The form/table component tested in R/test_html_form.R (run_html_form_test)
+    - Template files: R/react_table/*.R
+    - Uses: mod_html_form_ui() and mod_html_form_server()
+  - "React List" = The compact list component on the left side of browsers (e.g., f_browser_containers.R)
+    - Template files: R/utils/f_mod_compact_list.R
+    - Uses: compact_list_ui() and compact_list_server()
+
+Before making changes to these components, ask: "Should this be global (template) or local (this implementation only)?"
+
+f_or Operator Usage (Mandatory)
+ALWAYS use f_or() for null-coalescing, NEVER create or use %||%
+  - Read R/utils/f_helper_core.R to see the unified f_or() implementation
+  - Syntax: f_or(value, default) returns default if value is NULL, length 0, or NA
+  - Example: name <- f_or(input$name, "Unknown")
+  - Do NOT define %||% anywhere in the codebase
+  - Replace any %||% usage with f_or() calls

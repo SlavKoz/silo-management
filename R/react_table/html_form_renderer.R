@@ -8,28 +8,17 @@ if (!exists("div", mode = "function")) {
 }
 
 # Helper operator - use f_or if available, otherwise define
-if (!exists("f_or", mode = "function")) {
-  f_or <- function(a, b) {
-    if (is.null(a)) return(b)
-    if (length(a) == 0) return(b)
-    if (all(is.na(a))) return(b)
-    a
-  }
-}
-
-`%||%` <- function(a, b) f_or(a, b)
-
-render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_header = TRUE, title_field = NULL, module_id = NULL) {
+render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_header = TRUE, title_field = NULL, module_id = NULL, show_footer = TRUE, on_delete = NULL, delete_disabled = FALSE) {
   if (is.null(schema) || is.null(schema$properties)) {
     return(div("No schema provided"))
   }
 
   # Get column count (1-4 columns supported)
-  columns <- uiSchema[["ui:options"]]$columns %||% 1
+  columns <- f_or(uiSchema[["ui:options"]]$columns, 1)
   columns <- max(1, min(4, columns))  # Clamp to 1-4
 
   # Get field order
-  order <- uiSchema[["ui:order"]] %||% names(schema$properties)
+  order <- f_or(uiSchema[["ui:order"]], names(schema$properties))
 
   # Split fields into columns
   fields <- schema$properties
@@ -44,16 +33,16 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
   # Distribute fields to columns
   for (fname in field_names) {
     field_schema <- fields[[fname]]
-    field_ui <- uiSchema[[fname]] %||% list()
+    field_ui <- f_or(uiSchema[[fname]], list())
     field_value <- formData[[fname]]
 
     # Determine which column this field belongs to
     # For groups (type = "object"), check ui:options at the group level
     # For regular fields, check ui:options at the field level
     if (field_schema$type == "object") {
-      field_column <- field_ui[["ui:options"]]$column %||% 1
+      field_column <- f_or(field_ui[["ui:options"]]$column, 1)
     } else {
-      field_column <- field_ui[["ui:options"]]$column %||% 1
+      field_column <- f_or(field_ui[["ui:options"]]$column, 1)
     }
 
     field_column <- max(1, min(columns, field_column))  # Clamp to valid range
@@ -76,7 +65,7 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
             type = "text",
             id = title_id,
             class = "form-control form-control-title",
-            value = title_value %||% "Item",
+            value = f_or(title_value, "Item"),
             readonly = "readonly"  # Start in locked mode
           )
         ),
@@ -96,12 +85,39 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
     )
   }
 
+  # Footer with Delete button
+  footer_html <- NULL
+  if (show_footer) {
+    delete_btn_id <- paste0(ns_prefix, "delete_btn")
+    delete_click <- if (!is.null(module_id)) {
+      sprintf("confirmDelete_%s(this)", gsub("-", "_", module_id))
+    } else {
+      "confirmDelete(this)"
+    }
+
+    footer_html <- div(class = "form-footer mt-3",
+      div(class = "d-flex align-items-center justify-content-end",
+        tags$button(
+          type = "button",
+          class = "btn btn-delete",
+          id = delete_btn_id,
+          onclick = delete_click,
+          disabled = if (delete_disabled) "disabled" else NULL,
+          `data-disabled-on-new` = "true",
+          tags$i(class = "bi bi-trash"),
+          tags$span(" Delete")
+        )
+      )
+    )
+  }
+
   # Wrap in columns dynamically with frame
   if (columns == 1) {
     # Single column - no grid needed
     div(class = "form-wrapper border rounded p-3",
       header_html,
-      div(column_fields[[1]])
+      div(column_fields[[1]]),
+      footer_html
     )
   } else {
     # Multi-column layout (2-4 columns)
@@ -125,15 +141,16 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
     # Wrap everything in a frame
     div(class = "form-wrapper border rounded p-3",
       header_html,
-      div(class = "row flex-nowrap", column_divs)
+      div(class = "row flex-nowrap", column_divs),
+      footer_html
     )
   }
 }
 
 render_field <- function(name, schema, ui, value, ns_prefix) {
-  type <- schema$type %||% "string"
-  title <- schema$title %||% name
-  widget <- ui[["ui:widget"]] %||% NULL
+  type <- f_or(schema$type, "string")
+  title <- f_or(schema$title, name)
+  widget <- f_or(ui[["ui:widget"]], NULL)
   is_plaintext <- identical(ui[["ui:field"]], "plaintext")
 
   # Handle object type (groups)
@@ -160,10 +177,10 @@ render_field <- function(name, schema, ui, value, ns_prefix) {
     # Regular field - inline label and input
     div(class = "mb-3 row align-items-center",
       tags$label(`for` = paste0(ns_prefix, name),
-                 class = "col-sm-3 col-form-label",
+                 class = "col-sm-4 col-form-label",
                  style = "padding-right: 0.5rem; word-wrap: break-word;",
                  title),
-      div(class = "col-sm-9",
+      div(class = "col-sm-8",
         render_input(name, schema, ui, value, is_plaintext, ns_prefix)
       )
     )
@@ -175,7 +192,7 @@ render_object_fields <- function(parent_name, schema, ui, value, ns_prefix) {
 
   lapply(names(schema$properties), function(fname) {
     field_schema <- schema$properties[[fname]]
-    field_ui <- ui[[fname]] %||% list()
+    field_ui <- f_or(ui[[fname]], list())
     field_value <- if (!is.null(value)) value[[fname]] else NULL
     field_full_name <- paste0(parent_name, ".", fname)
 
@@ -185,7 +202,7 @@ render_object_fields <- function(parent_name, schema, ui, value, ns_prefix) {
 
 render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
   input_id <- paste0(ns_prefix, name)
-  type <- schema$type %||% "string"
+  type <- f_or(schema$type, "string")
   widget <- ui[["ui:widget"]]
   format <- schema$format
 
@@ -216,7 +233,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
 
   # Select dropdown
   if (!is.null(schema$enum) && length(schema$enum) > 0) {
-    enum_names <- schema$enumNames %||% schema$enum
+    enum_names <- f_or(schema$enumNames, schema$enum)
     options_list <- mapply(function(val, label) {
       tags$option(value = val, selected = if (identical(val, value)) NA else NULL, label)
     }, schema$enum, enum_names, SIMPLIFY = FALSE, USE.NAMES = FALSE)

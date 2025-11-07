@@ -13,13 +13,13 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
   ns <- NS(id)
 
   tagList(
-    # Bootstrap 5 from CDN (for form styling)
-    tags$link(rel = "stylesheet",
-              href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"),
-
-    # Bootstrap Icons for edit/save button
-    tags$link(rel = "stylesheet",
-              href = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"),
+    # Bootstrap 5 from CDN (for form styling) - singleton to load once
+    shiny::singleton(tags$head(
+      tags$link(rel = "stylesheet",
+                href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"),
+      tags$link(rel = "stylesheet",
+                href = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css")
+    )),
 
     # Font protection and styling CSS - scoped to this module instance
     tags$style(HTML(sprintf("
@@ -70,7 +70,7 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
 
       /* Header styling */
       #%s .form-header {
-        padding: 0.75rem;
+        padding: 0.375rem;
         background: #f8f9fa;
         border-radius: 0.375rem;
         border: 1px solid #dee2e6;
@@ -81,8 +81,8 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
         border: none !important;
         background: transparent !important;
         padding: 0 !important;
-        font-size: 1.75rem !important;
-        font-weight: 700;
+        font-size: 3rem !important;
+        font-weight: 900;
         color: #2563eb !important;
         text-transform: uppercase !important;
         height: auto !important;
@@ -98,11 +98,11 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
       /* Header title is always read-only (never editable) */
 
       #%s .btn-edit-toggle {
-        padding: 0.5rem 1rem;
+        padding: 0.25rem 0.5rem;
         background: #e9ecef;
         border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        font-size: 14px;
+        border-radius: 0.25rem;
+        font-size: 12px;
         transition: all 0.2s;
       }
 
@@ -127,10 +127,44 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
         margin-right: 0.75rem !important;
       }
 
+      /* Reduce spacing between inputs */
+      #%s .mb-3 {
+        margin-bottom: 0.5rem !important;
+      }
+
       /* Field labels - small and not bold */
       #%s .col-form-label {
         font-size: 11px !important;
         font-weight: normal !important;
+      }
+
+      /* Footer styling */
+      #%s .form-footer {
+        padding: 0.375rem;
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        border: 1px solid #dee2e6;
+        margin: 1rem 0 0 0;
+      }
+
+      #%s .btn-delete {
+        padding: 0.25rem 0.5rem;
+        background: #dc3545;
+        color: white;
+        border: 1px solid #dc3545;
+        border-radius: 0.25rem;
+        font-size: 12px;
+        transition: all 0.2s;
+      }
+
+      #%s .btn-delete:hover:not(:disabled) {
+        background: #c82333;
+        border-color: #bd2130;
+      }
+
+      #%s .btn-delete:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
 
       /* Static fields - no frame */
@@ -138,6 +172,14 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
         font-size: 10px !important;
         color: #6c757d;
         line-height: 1.25rem;
+      }
+
+      /* Group headers - same size as labels */
+      #%s summary,
+      #%s summary strong,
+      #%s legend {
+        font-size: 11px !important;
+        font-weight: normal !important;
       }
 
       /* Fix details/summary in columns */
@@ -149,7 +191,8 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
        ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
        ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
        ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
-       ns("form"), ns("form"), ns("form")))),
+       ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
+       ns("form"), ns("form"), ns("form"), ns("form"), ns("form")))),
 
     # JavaScript for edit/save toggle - scoped to this module instance
     tags$script(HTML(sprintf("
@@ -158,9 +201,13 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
 
         window['toggleEditMode_%s'] = function(btn) {
           const container = document.getElementById(moduleId);
-          if (!container) return;
+          if (!container) {
+            console.error('[toggleEditMode] Container not found:', moduleId);
+            return;
+          }
 
           const isEditing = btn.classList.contains('editing');
+          console.log('[toggleEditMode] Current state:', isEditing ? 'editing' : 'locked');
 
           if (isEditing) {
             // Switch to locked mode
@@ -172,11 +219,17 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
             const titleInput = container.querySelector('.form-control-title');
             if (titleInput) titleInput.setAttribute('readonly', 'readonly');
 
-            // Disable all form inputs
-            container.querySelectorAll('.form-container input:not(.form-control-title), .form-container select, .form-container textarea').forEach(el => {
+            // Disable all form inputs - use more specific selectors
+            const inputs = container.querySelectorAll('input:not(.form-control-title):not([type=\"button\"]):not([type=\"submit\"])');
+            const selects = container.querySelectorAll('select');
+            const textareas = container.querySelectorAll('textarea');
+
+            [...inputs, ...selects, ...textareas].forEach(el => {
               el.setAttribute('readonly', 'readonly');
               el.setAttribute('disabled', 'disabled');
             });
+
+            console.log('[toggleEditMode] Locked', inputs.length + selects.length + textareas.length, 'elements');
           } else {
             // Switch to editing mode
             btn.classList.add('editing');
@@ -186,12 +239,52 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
             // Header title always stays readonly (never editable)
 
             // Enable all form inputs (except static ones and header title)
-            container.querySelectorAll('.form-container input:not(.form-control-title), .form-container select, .form-container textarea').forEach(el => {
-              if (!el.closest('.form-static-value')) {
+            const inputs = container.querySelectorAll('input:not(.form-control-title):not([type=\"button\"]):not([type=\"submit\"])');
+            const selects = container.querySelectorAll('select');
+            const textareas = container.querySelectorAll('textarea');
+
+            [...inputs, ...selects, ...textareas].forEach(el => {
+              // Skip static fields
+              if (!el.closest('.form-static-value') && !el.hasAttribute('data-static')) {
                 el.removeAttribute('readonly');
                 el.removeAttribute('disabled');
               }
             });
+
+            console.log('[toggleEditMode] Unlocked', inputs.length + selects.length + textareas.length, 'elements');
+          }
+        };
+
+        // Delete confirmation function
+        window['confirmDelete_%s'] = function(btn) {
+          if (btn.disabled) return;
+
+          const container = document.getElementById(moduleId);
+          if (!container) return;
+
+          const titleInput = container.querySelector('.form-control-title');
+          const itemName = titleInput ? titleInput.value : 'this item';
+
+          if (confirm('Are you sure you want to delete ' + itemName + '?\\n\\nThis action cannot be undone.')) {
+            // Trigger Shiny input event
+            if (window.Shiny) {
+              Shiny.setInputValue(moduleId.replace('-form', '') + '-form-delete_confirmed', Date.now(), {priority: 'event'});
+            }
+          }
+        };
+
+        // Function to update delete button state
+        window['setDeleteButtonState_%s'] = function(disabled) {
+          const container = document.getElementById(moduleId);
+          if (!container) return;
+
+          const deleteBtn = container.querySelector('.btn-delete');
+          if (deleteBtn) {
+            if (disabled) {
+              deleteBtn.setAttribute('disabled', 'disabled');
+            } else {
+              deleteBtn.removeAttribute('disabled');
+            }
           }
         };
 
@@ -199,10 +292,22 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
         const observer = new MutationObserver(function(mutations) {
           const container = document.getElementById(moduleId);
           if (container && container.querySelector('.form-container')) {
+            // Lock all inputs
             container.querySelectorAll('.form-container input:not(.form-control-title), .form-container select, .form-container textarea').forEach(el => {
               el.setAttribute('readonly', 'readonly');
               el.setAttribute('disabled', 'disabled');
             });
+
+            // Check if title is empty (indicates add new mode)
+            const titleInput = container.querySelector('.form-control-title');
+            const isEmpty = !titleInput || !titleInput.value || titleInput.value.trim() === '';
+
+            // Disable delete button if empty
+            const deleteBtn = container.querySelector('.btn-delete');
+            if (deleteBtn && isEmpty) {
+              deleteBtn.setAttribute('disabled', 'disabled');
+            }
+
             observer.disconnect();
           }
         });
@@ -212,7 +317,7 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
           observer.observe(targetNode, { childList: true, subtree: true });
         }
       })();
-    ", ns("form"), gsub("-", "_", id)))),
+    ", ns("form"), gsub("-", "_", ns("form")), gsub("-", "_", ns("form")), gsub("-", "_", ns("form"))))),
 
     div(id = ns("form"), style = sprintf("max-width: %s; margin: %s; padding: 0 1rem;", max_width, margin),
         div(class = "form-container",
@@ -233,10 +338,12 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
 #' @param form_data Reactive or list containing form data
 #' @param title_field Character string for field to use as header title
 #' @param show_header Logical, whether to show header (default: TRUE)
+#' @param show_delete_button Logical, whether to show delete button (default: TRUE)
 #'
 #' @return Module server function
 mod_html_form_server <- function(id, schema_config, form_data,
-                                  title_field = NULL, show_header = TRUE) {
+                                  title_field = NULL, show_header = TRUE,
+                                  show_delete_button = TRUE) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -255,11 +362,11 @@ mod_html_form_server <- function(id, schema_config, form_data,
 
       rjsf_auto_compile(
         fields = config$fields,
-        groups = config$groups %||% list(),
+        groups = f_or(config$groups, list()),
         title = NULL,
-        columns = config$columns %||% 2,
-        widgets = config$widgets %||% list(),
-        static_fields = config$static_fields %||% character(0)
+        columns = f_or(config$columns, 2),
+        widgets = f_or(config$widgets, list()),
+        static_fields = f_or(config$static_fields, character(0))
       )
     })
 
@@ -270,14 +377,27 @@ mod_html_form_server <- function(id, schema_config, form_data,
 
     # Render form with header
     output$form_content <- renderUI({
+      current_data <- data()
+
+      # Determine if delete button should be disabled
+      # Disable if in "add new" mode (title field is empty/NA)
+      is_add_new <- if (!is.null(title_field)) {
+        title_val <- current_data[[title_field]]
+        is.null(title_val) || is.na(title_val) || identical(title_val, "")
+      } else {
+        FALSE
+      }
+
       render_html_form(
         schema = compiled_schema()$schema,
         uiSchema = compiled_schema()$uiSchema,
-        formData = data(),
+        formData = current_data,
         ns_prefix = ns("field_"),
         show_header = show_header,
         title_field = title_field,
-        module_id = id  # Pass module ID for namespaced JavaScript
+        module_id = ns("form"),
+        show_footer = show_delete_button,  # Show footer only if delete button enabled
+        delete_disabled = is_add_new  # Disable if in add new mode
       )
     })
 

@@ -1,13 +1,9 @@
 # f_helper_core.R — Core utilities
 # Consolidated from helper_core.R and f_helper_core.R
 
-# --- Safe OR without redefining %||% ---
+# --- Safe OR (unified replacement for %||%) ---
 f_or <- function(x, y) {
-  # Prefer legacy %||% if available; otherwise inline check.
-  if (exists("%||%", mode = "function", inherits = TRUE)) {
-    return(get("%||%", inherits = TRUE)(x, y))
-  }
-  if (is.null(x) || length(x) == 0) y else x
+  if (is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))) y else x
 }
 
 f_is_empty <- function(x) is.null(x) || length(x) == 0 || (is.character(x) && !nzchar(x[1]))
@@ -54,8 +50,8 @@ f_source_dir <- function(path, pattern = "\\.R$", recursive = FALSE, first = NUL
   base <- files[!grepl("(^|/|\\\\)f_.*\\.R$", files)]
   fres <- setdiff(files, base)
   
-  take <- function(vec, names) vec[basename(vec) %in% (names %||% character(0))]
-  drop <- function(vec, names) vec[!basename(vec) %in% (names %||% character(0))]
+  take <- function(vec, names) vec[basename(vec) %in% f_or(names, character(0))]
+  drop <- function(vec, names) vec[!basename(vec) %in% f_or(names, character(0))]
   
   head <- take(base, first)
   tail <- take(base, last)

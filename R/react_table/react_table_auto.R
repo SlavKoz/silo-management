@@ -1,14 +1,6 @@
 # R/react_table/rjsf_auto.R
 suppressPackageStartupMessages({ library(jsonlite) })
 
-# vector-safe coalesce
-`%||%` <- function(a, b) {
-  if (is.null(a)) return(b)
-  if (!length(a)) return(b)
-  if (length(a) > 1) return(if (all(is.na(a))) b else a)
-  if (is.na(a)) b else a
-}
-
 # ---- 1) Compile DSL and return (schema, uiSchema) with sane defaults ----------
 rjsf_auto_compile <- function(fields, groups = list(),
                               title = NULL, columns = 1,
@@ -45,44 +37,64 @@ rjsf_auto_compile <- function(fields, groups = list(),
   }
   
   # Attach widgets (uiSchema) by path
-  ui <- dsl$uiSchema %||% list()
+  ui <- f_or(dsl$uiSchema, list())
+
+  # Helper to build nested list from path
+  build_nested <- function(path_parts, value) {
+    if (length(path_parts) == 1) {
+      result <- list()
+      result[[path_parts]] <- value
+      return(result)
+    } else {
+      result <- list()
+      result[[path_parts[1]]] <- build_nested(path_parts[-1], value)
+      return(result)
+    }
+  }
+
+  # Helper to get existing value at path
+  get_ui_at <- function(path_parts) {
+    current <- ui
+    for (p in path_parts) {
+      if (is.null(current[[p]])) return(list())
+      current <- current[[p]]
+    }
+    current
+  }
+
   set_ui_at <- function(path, val) {
     parts <- strsplit(path, "\\.")[[1]]
-    node <- ui
-    for (i in seq_len(length(parts) - 1)) {
-      p <- parts[i]
-      node[[p]] <- node[[p]] %||% list()
-      node <- node[[p]]
-    }
-    node_name <- tail(parts, 1)
-    node[[node_name]] <- (node[[node_name]] %||% list())
-    node[[node_name]] <- modifyList(node[[node_name]], val, keep.null = TRUE)
-    # write back (rebuild ui)
-    ui <<- modifyList(ui, do.call(.rebuild_path, list(parts, node[[node_name]])), keep.null = TRUE)
-  }
-  .rebuild_path <- function(parts, leaf) {
-    if (!length(parts)) return(leaf)
-    k <- tail(parts, 1)
-    parent <- if (length(parts) > 1) do.call(.rebuild_path, list(head(parts, -1), list())) else list()
-    parent[[k]] <- leaf
-    parent
+
+    # Get existing value at this path
+    existing <- get_ui_at(parts)
+
+    # Merge with new value
+    merged <- modifyList(existing, val, keep.null = TRUE)
+
+    # Build nested structure
+    nested <- build_nested(parts, merged)
+
+    # Merge into ui
+    ui <<- modifyList(ui, nested, keep.null = TRUE)
   }
   
   # Static/plaintext fields
-  for (p in static_fields) set_ui_at(p, list("ui:field" = "plaintext"))
+  for (p in static_fields) {
+    set_ui_at(p, list("ui:field" = "plaintext"))
+  }
   # Hidden fields
   for (p in hidden_fields) set_ui_at(p, list("ui:widget" = "hidden"))
   # Custom widgets
   for (nm in names(widgets)) set_ui_at(nm, widgets[[nm]])
   
   # Root layout hints
-  ui[["ui:options"]] <- modifyList(ui[["ui:options"]] %||% list(), list(columns = columns), keep.null = TRUE)
+  ui[["ui:options"]] <- modifyList(f_or(ui[["ui:options"]], list()), list(columns = columns), keep.null = TRUE)
   
   # ui:order (explicit control; groups usually last)
   if (!is.null(root_order)) {
     ui[["ui:order"]] <- c(root_order, "*")
   }
-  
+
   list(schema = dsl$schema, uiSchema = ui)
 }
 
@@ -143,7 +155,7 @@ rjsf_set <- function(obj, path, value) {
   headp <- head(parts, -1); leaf <- tail(parts, 1)
   cur <- obj
   for (p in headp) {
-    cur[[p]] <- cur[[p]] %||% list()
+    cur[[p]] <- f_or(cur[[p]], list())
     cur <- cur[[p]]
   }
   cur[[leaf]] <- value

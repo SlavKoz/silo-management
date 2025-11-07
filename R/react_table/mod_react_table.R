@@ -2,89 +2,88 @@
 rjsfGridDeps <- function() {
   shiny::singleton(
     shiny::tags$head(
-      # No Bootstrap 5!
-      
+      # Bootstrap 5 from CDN (OK per user's request)
+      shiny::tags$link(rel = "stylesheet",
+                       href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"),
+
       # Small polyfill
       shiny::tags$script(shiny::HTML(
-        "window.global = window;
-         window.process = window.process || { env: { NODE_ENV: 'production' } };"
+        "window.global = window; window.process = window.process || { env: { NODE_ENV: 'production' } };"
       )),
-      
-      # Try preferred path, then fallback (adjust if needed)
-      # Place the file at one of:
-      #   www/vendor/rjsf-grid.js  (preferred)
-      #   www/rjsf-grid.js         (fallback)
+
+      # RJSF Grid bundle (local)
       shiny::tags$script(src = "vendor/rjsf-grid.js"),
-      shiny::tags$script(src = "rjsf-grid.js"),
-      
-      # Handlers + debug logs
-      # inside rjsfGridDeps(), replace the existing "function render(cfg) { ... }" with:
-      
+
+      # Debug: Log the script path
+      shiny::tags$script(shiny::HTML(
+        "console.log('[rjsf] Looking for JS at path:', document.currentScript?.previousElementSibling?.src || 'unknown');"
+      )),
+
+      # Handlers (simplified, working version from TestReact)
       shiny::tags$script(shiny::HTML(
         "(function(){
-     if (window.__rjsf_handlers_initialized) return;
-     window.__rjsf_handlers_initialized = true;
+           console.log('[rjsf] Initializing handlers...');
+           console.log('[rjsf] window.renderRJSFGrid exists?', typeof window.renderRJSFGrid);
 
-     window.__rjsf_queue = window.__rjsf_queue || [];
+           if (window.__rjsf_handlers_initialized) {
+             console.log('[rjsf] Handlers already initialized');
+             return;
+           }
+           window.__rjsf_handlers_initialized = true;
 
-     function debugLog(tag, obj){
-       try { console.debug('[react-table]', tag, obj); } catch(e){}
-     }
+           window.__rjsf_queue = window.__rjsf_queue || [];
 
-     function normalizeCfg(cfg){
-       // If R sent df as JSON string, parse it to objects (rows)
-       if (cfg && typeof cfg.data === 'string') {
-         try { cfg.data = JSON.parse(cfg.data); } catch(e){ debugLog('data JSON parse failed', e); }
-       }
-       return cfg;
-     }
+           if (window.Shiny && window.Shiny.addCustomMessageHandler) {
+             Shiny.addCustomMessageHandler('rjsf-grid-props', function(cfg){
+               console.log('[rjsf-grid-props]', cfg);
+               console.log('[rjsf] window.renderRJSFGrid?', typeof window.renderRJSFGrid);
+               if (window.renderRJSFGrid) {
+                 console.log('[rjsf] Calling renderRJSFGrid...');
+                 window.renderRJSFGrid(cfg.elId, cfg);
+               } else {
+                 console.warn('[rjsf] renderRJSFGrid not available, queueing');
+                 window.__rjsf_queue.push(cfg);
+               }
+             });
 
-     function render(cfg){
-       cfg = normalizeCfg(cfg);
-       debugLog('render called with', cfg);
+             Shiny.addCustomMessageHandler('react-table-props', function(cfg){
+               console.log('[react-table-props]', cfg);
+               if (window.renderRJSFGrid) {
+                 window.renderRJSFGrid(cfg.elId, cfg);
+               } else {
+                 console.warn('[rjsf] renderRJSFGrid not available, queueing');
+                 window.__rjsf_queue.push(cfg);
+               }
+             });
 
-       // Verify the mount target exists
-       var el = cfg && cfg.elId ? document.getElementById(cfg.elId) : null;
-       if (!el) {
-         console.error('[react-table] mount target not found:', cfg && cfg.elId, 'existing roots:', document.querySelectorAll('.react-table-root'));
-         // queue it for later (e.g., if UI not in DOM yet)
-         window.__rjsf_queue.push(cfg);
-         return;
-       }
+             Shiny.addCustomMessageHandler('rjsf-grid-value', function(msg){
+               if (window.Shiny && window.Shiny.setInputValue) {
+                 window.Shiny.setInputValue(msg.elId + '_value', msg.value, { priority: 'event' });
+               }
+             });
 
+             console.log('[rjsf] Message handlers registered');
+           }
 
-       // Call the bundle
-       if (window.renderRJSFGrid) {
-         try { window.renderRJSFGrid(cfg.elId, cfg); }
-         catch(e){ console.error('renderRJSFGrid error:', e); }
-       } else {
-         window.__rjsf_queue.push(cfg);
-         debugLog('queued (bundle not ready yet); queue size', window.__rjsf_queue.length);
-       }
-     }
+           function flush(){
+             console.log('[rjsf] Flush called, renderRJSFGrid?', typeof window.renderRJSFGrid);
+             if (!window.renderRJSFGrid) {
+               console.warn('[rjsf] Cannot flush - renderRJSFGrid not loaded');
+               return;
+             }
+             var q = window.__rjsf_queue; window.__rjsf_queue = [];
+             console.log('[rjsf] Flushing', q.length, 'queued items');
+             q.forEach(function(cfg){ window.renderRJSFGrid(cfg.elId, cfg); });
+           }
 
-     if (window.Shiny && window.Shiny.addCustomMessageHandler) {
-       Shiny.addCustomMessageHandler('rjsf-grid-props', render);
-       Shiny.addCustomMessageHandler('react-table-props', render);
+           window.addEventListener('load', flush);
+           document.addEventListener('readystatechange', flush);
 
-       Shiny.addCustomMessageHandler('rjsf-grid-value', function(msg){
-         if (window.Shiny && window.Shiny.setInputValue) {
-           window.Shiny.setInputValue(msg.elId + '_value', msg.value, { priority: 'event' });
-         }
-       });
-     }
-
-     function flush(){
-       if (!window.renderRJSFGrid) return;
-       var q = window.__rjsf_queue; window.__rjsf_queue = [];
-       debugLog('flushing queue items', q.length);
-       q.forEach(render);
-     }
-     window.addEventListener('load', flush);
-     document.addEventListener('readystatechange', flush);
-   })();"
+           // Try flushing after a delay to catch late loads
+           setTimeout(flush, 1000);
+           setTimeout(flush, 2000);
+         })();"
       ))
-      
     )
   )
 }
@@ -181,20 +180,99 @@ rjsfGridUI <- function(id, compact=TRUE, divider=TRUE, label_cols=3L, class="car
   )
 }
 
-# --- React Table: UI ----------------------------------------------------------
-react_table_ui <- function(id, height = "60vh") {
+# --- React Table: UI (simplified, working version) ---------------------------
+react_table_ui <- function(id, height = "60vh", compact = TRUE, divider = FALSE, label_cols = 3L) {
   ns <- NS(id)
+  scope <- paste0("#", ns("root"))
+  input_cols <- 12L - label_cols
+
+  # Compact CSS
+  compact_css <- if (compact) {
+    sprintf("
+      %s .mb-2 { margin-bottom: .25rem !important; }
+      %s fieldset { padding: .5rem !important; }
+      %s details > summary { margin-bottom: .25rem; }
+
+      %s input[type='text']:not(.rs__input),
+      %s input[type='search']:not(.rs__input),
+      %s input[type='number'],
+      %s select,
+      %s textarea {
+        padding: .25rem .5rem !important;
+        height: 2rem !important;
+        line-height: 1.25rem !important;
+        border-radius: .25rem !important;
+      }
+
+      %s input[type='color'] {
+        height: 2rem !important; width: 2.5rem !important; padding: 0 !important;
+      }
+    ", scope, scope, scope, scope, scope, scope, scope, scope, scope)
+  } else ""
+
+  # Divider CSS
+  divider_css <- if (divider) {
+    sprintf("
+      @media (min-width:768px){
+        %s section > .row.g-3 > [class*='col-md-']:not(:first-child){
+          border-left:1px solid #e5e7eb; padding-left:.75rem;
+        }
+        %s section > .row.g-3 { column-gap:0 !important; }
+      }
+    ", scope, scope)
+  } else ""
+
   tagList(
     rjsfGridDeps(),
+    tags$style(HTML(paste(compact_css, divider_css, collapse = "\n"))),
     div(
       id = ns("root"),
-      class = "react-table-root",
+      class = "card card-body",
       style = paste0("min-height:", height, ";")
     )
   )
 }
 
-# --- React Table: Server ------------------------------------------------------
+# --- RJSF Grid Server (for forms with schema) --------------------------------
+rjsfGridServer <- function(id, schema, uiSchema = NULL, formData = NULL) {
+  shiny::moduleServer(id, function(input, output, session) {
+    elId <- session$ns("root")
+
+    # Initial render when client is ready
+    session$onFlushed(function() {
+      cat("[rjsfGridServer] Sending initial config to", elId, "\n")
+      session$sendCustomMessage("rjsf-grid-props", list(
+        elId     = elId,
+        schema   = schema,
+        uiSchema = uiSchema,
+        formData = formData
+      ))
+      # Sync the initial value so value() matches the UI
+      session$sendCustomMessage("rjsf-grid-value", list(
+        elId = elId, value = f_or(formData, list())
+      ))
+    }, once = TRUE)
+
+    value <- shiny::reactive({ input$root_value })
+
+    # set() updates form data
+    set <- function(v, sync_input = TRUE) {
+      session$sendCustomMessage("rjsf-grid-props", list(
+        elId     = elId,
+        schema   = schema,
+        uiSchema = uiSchema,
+        formData = v
+      ))
+      if (isTRUE(sync_input)) {
+        session$sendCustomMessage("rjsf-grid-value", list(elId = elId, value = v))
+      }
+    }
+
+    list(value = value, set = set)
+  })
+}
+
+# --- React Table: Server (for data tables) -----------------------------------
 react_table_server <- function(id, columns, data_fn,
                                selection = c("none","single","multiple"),
                                key = NULL,
@@ -203,21 +281,20 @@ react_table_server <- function(id, columns, data_fn,
   selection <- match.arg(selection)
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    
+
     send_cfg <- function(df) {
       cfg <- list(
         elId      = ns("root"),
         columns   = columns,
         selection = selection,
-        key       = key %||% (if (NROW(df)) colnames(df)[1] else NULL),
+        key       = f_or(key, if (NROW(df)) colnames(df)[1] else NULL),
         data      = df
-        #data      = jsonlite::toJSON(df, dataframe = "rows", na = "null", auto_unbox = TRUE)
       )
       if (!is.null(uiSchema)) cfg$uiSchema <- uiSchema
       if (!is.null(extra))    cfg <- utils::modifyList(cfg, extra, keep.null = TRUE)
       session$sendCustomMessage("react-table-props", cfg)
     }
-    
+
     observe({
       df <- try(data_fn(), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) df <- data.frame()
