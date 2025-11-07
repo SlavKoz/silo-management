@@ -1,3 +1,26 @@
+Context & token discipline
+Keep outputs concise. Default to bullet points and short paragraphs.
+Before answering, quickly plan silently; then produce only the final answer.
+If a task would exceed token limits, propose a smaller plan ("Step 1/2/3") and ask which parts to run.
+When the chat is long, summarize prior turns into 5–8 bullets and discard details unless explicitly requested.
+Prefer retrieval (look up only the needed snippets) over pasting large documents.
+When listing code/logs, include only minimal, relevant excerpts; offer a downloadable file if the user wants full content.
+If you're near the output limit, end with: "I truncated for brevity—ask for any section to expand."
+Never repeat unchanged context. Refer back with short labels ("Spec v2 §Auth", "Design A").
+For tables longer than 30 rows, provide a compact summary + top 10; offer to filter/page.
+For iterative work, carry forward only decisions, constraints, and open questions; compress the rest.
+
+
+
+f_or Operator Usage (Mandatory)
+ALWAYS use f_or() for null-coalescing, NEVER create or use %||%
+  - Syntax: f_or(value, default) returns default if value is NULL, length 0, or NA
+  - Example: name <- f_or(input$name, "Unknown")
+  - Do NOT define %||% anywhere in the codebase
+
+
+
+
 # Project Conventions & Naming
 
 ## Component Naming
@@ -121,3 +144,8 @@ compact_list_ui("list_id", show_filter = TRUE)
 # Server
 compact_list_server("list_id", items = reactive_items, add_new_item = TRUE)
 ```
+
+
+Always read  R/utils/f_helper_core.R at the start of a session - place there all universal functions.
+
+Keep record on what we are doing in the session_summary.md

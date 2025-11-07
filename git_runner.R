@@ -1,14 +1,3 @@
-# # 1. Load helper
-# source("git_helper.R")
-# 
-# # 2. Check what changed
-# git_status()
-# 
-# # 3. Stage all changes
-# git_add("-A")
-# 
-# # 4. Commit
-# git_commit("Git runner test")
 
 
 # commit_all.R
