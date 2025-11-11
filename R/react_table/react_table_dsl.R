@@ -2,7 +2,7 @@ field <- function(name, type,
                   title = NULL, enum = NULL, source = NULL,
                   min = NULL, max = NULL, default = NULL,
                   group = NULL, column = NULL, fullWidth = FALSE,
-                  format = NULL, widget = NULL) {
+                  format = NULL, widget = NULL, icon_metadata = NULL) {
   # ---- normalize "friendly" types to JSON Schema types ----
   base_type <- type
   fmt <- format
@@ -31,19 +31,20 @@ field <- function(name, type,
   }
   
   list(
-    kind      = "field",
-    name      = name,
-    type      = base_type,
-    format    = fmt,
-    widget    = wid,
-    title     = title,
-    enum      = enum,
-    min       = min,
-    max       = max,
-    default   = default,
-    group     = group,
-    column    = column,
-    fullWidth = isTRUE(fullWidth)
+    kind         = "field",
+    name         = name,
+    type         = base_type,
+    format       = fmt,
+    widget       = wid,
+    title        = title,
+    enum         = enum,
+    min          = min,
+    max          = max,
+    default      = default,
+    group        = group,
+    column       = column,
+    fullWidth    = isTRUE(fullWidth),
+    icon_metadata = icon_metadata
   )
 }
 
@@ -102,7 +103,19 @@ compile_rjsf <- function(title, props, groups = list(), columns = 1, hide_submit
     fs <- list(type = f$type)
     if (!is.null(f$format))   fs$format   <- f$format
     if (!is.null(f$title))    fs$title    <- f$title
-    if (!is.null(f$enum))     fs$enum     <- f$enum
+
+    # Handle enum - if it's a named vector, split into enum (values) and enumNames (labels)
+    if (!is.null(f$enum)) {
+      if (!is.null(names(f$enum)) && length(names(f$enum)) > 0) {
+        # Named vector: names are labels, values are the actual enum values
+        fs$enum <- unname(f$enum)
+        fs$enumNames <- names(f$enum)
+      } else {
+        # Unnamed vector: use as-is
+        fs$enum <- f$enum
+      }
+    }
+
     if (!is.null(f$min))      fs$minimum  <- f$min
     if (!is.null(f$max))      fs$maximum  <- f$max
     if (!is.null(f$default))  fs$default  <- f$default
@@ -111,11 +124,14 @@ compile_rjsf <- function(title, props, groups = list(), columns = 1, hide_submit
       # Initialize field ui if needed
       if (is.null(root[[name]])) root[[name]] <- list()
 
-      # ui:options (column/fullWidth)
-      if (!is.null(f$column) || isTRUE(f$fullWidth)) {
+      # ui:options (column/fullWidth/iconMetadata)
+      if (!is.null(f$column) || isTRUE(f$fullWidth) || !is.null(f$icon_metadata)) {
         opts <- list()
-        if (!is.null(f$column))   opts$column    <- f$column
-        if (isTRUE(f$fullWidth))  opts$fullWidth <- TRUE
+        if (!is.null(f$column))        opts$column       <- f$column
+        if (isTRUE(f$fullWidth))       opts$fullWidth    <- TRUE
+        if (!is.null(f$icon_metadata)) {
+          opts$iconMetadata <- f$icon_metadata
+        }
         root[[name]][["ui:options"]] <- modifyList(
           f_or(root[[name]][["ui:options"]], list()),
           opts

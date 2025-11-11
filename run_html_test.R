@@ -13,11 +13,16 @@ for (pkg in required) {
 }
 
 # Load modules
-
+source("R/utils/f_helper_core.R", local = TRUE)
+source("R/db/connect_wrappers.R", local = TRUE)
+source("R/db/queries.R", local = TRUE)
 source("R/react_table/react_table_dsl.R", local = TRUE)
 source("R/react_table/react_table_auto.R", local = TRUE)
+source("R/react_table/html_form_renderer.R", local = TRUE)
+source("R/react_table/mod_html_form.R", local = TRUE)
 source("R/test_html_form.R", local = TRUE)
 
 
 
 run_html_form_test()
+

@@ -21,6 +21,9 @@ options(shiny.error = function() {
   cat("\n--- shiny.error triggered ---\n"); traceback(2)
 })
 
+# ------------------- Constants -------------------
+ICONIFY_BASE <- "https://api.iconify.design"
+
 # ------------------- deterministic loader (f_ overrides last) -------------------
 source_dir <- function(path, pattern = "\\.R$", recursive = FALSE,
                        first = NULL, last = NULL, env = globalenv()) {

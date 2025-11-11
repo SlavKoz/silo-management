@@ -30,8 +30,13 @@ browser_containers_server <- function(id, pool) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    # Reactive value to trigger list refresh
+    trigger_refresh <- reactiveVal(0)
+
     # ---- Data (full list) ----
     raw_types <- reactive({
+      # Depend on trigger to force refresh
+      trigger_refresh()
       df <- try(
         list_container_types(
           code_like = NULL,
@@ -42,14 +47,18 @@ browser_containers_server <- function(id, pool) {
       if (inherits(df, "try-error") || is.null(df)) df <- data.frame()
       if (!nrow(df)) return(df)
 
-      # Icon now comes from database; fallback if null
-      df$Icon <- vapply(seq_len(nrow(df)), function(i) {
-        ico <- df$Icon[i]
-        if (is.null(ico) || is.na(ico) || !nzchar(ico)) {
+      # Format icons as HTML img tags
+      df$IconDisplay <- vapply(seq_len(nrow(df)), function(i) {
+        # Check if we have IconImage base64 data
+        if (!is.null(df$IconImage) && !is.na(df$IconImage[i]) && nzchar(df$IconImage[i])) {
+          # Render as img tag with base64 data
+          sprintf('<img src="data:image/png;base64,%s" style="width:20px;height:20px;vertical-align:middle;" />',
+                  df$IconImage[i])
+        } else {
+          # Fallback to emoji based on BottomType
           bt <- toupper(as.character(f_or(df$BottomType[i], "")))
-          ico <- if (bt == "HOPPER") "🔻" else if (bt == "FLAT") "▭" else "◻️"
+          if (bt == "HOPPER") "🔻" else if (bt == "FLAT") "▭" else "◻️"
         }
-        ico
       }, character(1))
       df
     })
@@ -69,7 +78,7 @@ browser_containers_server <- function(id, pool) {
 
       data.frame(
         id = df$ContainerTypeID,
-        icon = df$Icon,
+        icon = df$IconDisplay,
         title = toupper(df$TypeName),
         description = df$TypeCode,
         stringsAsFactors = FALSE
@@ -88,39 +97,73 @@ browser_containers_server <- function(id, pool) {
 
     selected_id <- list_result$selected_id
 
-    # Debug: log when selection changes
-    observeEvent(selected_id(), {
-      cat("\n[Containers] selected_id changed to:", selected_id(), "\n")
+    # ---- Fetch icons for picker ----
+    # Note: This will be made reactive to edit mode in form module below
+    fetch_icons <- function() {
+      df <- try(list_icons_for_picker(limit = 1000), silent = TRUE)
+      if (inherits(df, "try-error") || is.null(df) || !nrow(df)) {
+        return(list(choices = c("(none)" = ""), metadata = list()))
+      }
+
+      # Create named vector: display name = id
+      icons <- setNames(as.character(df$id), df$icon_name)
+      choices <- c("(none)" = "", icons)
+
+      # Build metadata with thumbnails
+      metadata <- lapply(seq_len(nrow(df)), function(i) {
+        list(
+          id = as.character(df$id[i]),
+          name = df$icon_name[i],
+          thumbnail = if (!is.null(df$png_32_b64) && !is.na(df$png_32_b64[i]) && nzchar(df$png_32_b64[i])) {
+            paste0("data:image/png;base64,", df$png_32_b64[i])
+          } else {
+            NULL
+          }
+        )
+      })
+
+      list(choices = choices, metadata = metadata)
+    }
+
+    # Initial icons data
+    icons_data <- reactiveVal(fetch_icons())
+
+    # ---- Schema configuration (reactive for dynamic icon list) ----
+    schema_config <- reactive({
+      icon_info <- icons_data()
+
+      list(
+        fields = list(
+          # Column 1
+          field("TypeName",       "text",     title="Name", column = 1),
+          field("TypeCode",       "text",     title="Code", column = 1),
+          field("Description",    "textarea", title="Description", column = 1),
+          field("BottomType",     "select",   title="Bottom Type", enum=c("HOPPER", "FLAT"), default="HOPPER", column = 1),
+          field("IconID",         "select",   title="Icon", enum=icon_info$choices, widget="icon-select", icon_metadata=icon_info$metadata, column = 1),
+
+          # Column 2 - Graphics
+          field("DefaultFill",     "color",   title="Fill",      group="Graphics"),
+          field("DefaultBorder",   "color",   title="Border",    group="Graphics"),
+          field("DefaultBorderPx", "number", title="Border px", min=0, max=20, group="Graphics"),
+
+          # Column 2 - Meta
+          field("CreatedAt","text", title="Created", group="Meta"),
+          field("UpdatedAt","text", title="Updated", group="Meta")
+        ),
+        groups = list(
+          group("Graphics", title="Graphics", collapsible=TRUE, collapsed=TRUE, column=2),
+          group("Meta",     title="Meta",     collapsible=TRUE, collapsed=TRUE, column=2)
+        ),
+        columns = 2,
+        static_fields = c("Meta.CreatedAt", "Meta.UpdatedAt")
+      )
     })
-
-    # ---- Schema configuration (static) ----
-    schema_config <- list(
-      fields = list(
-        # Column 1
-        field("TypeName",       "text",     title="Name", column = 1),
-        field("TypeCode",       "text",     title="Code", column = 1),
-        field("Description",    "textarea", title="Description", column = 1),
-        field("BottomType",     "select",   title="Bottom Type", enum=c("HOPPER", "FLAT"), default="HOPPER", column = 1),
-
-        # Column 2 - Graphics
-        field("DefaultFill",     "color",   title="Fill",      group="Graphics"),
-        field("DefaultBorder",   "color",   title="Border",    group="Graphics"),
-        field("DefaultBorderPx", "number", title="Border px", min=0, max=20, group="Graphics"),
-
-        # Column 2 - Meta
-        field("CreatedAt","text", title="Created", group="Meta"),
-        field("UpdatedAt","text", title="Updated", group="Meta")
-      ),
-      groups = list(
-        group("Graphics", title="Graphics", collapsible=TRUE, collapsed=TRUE, column=2),
-        group("Meta",     title="Meta",     collapsible=TRUE, collapsed=TRUE, column=2)
-      ),
-      columns = 2,
-      static_fields = c("Meta.CreatedAt", "Meta.UpdatedAt")
-    )
 
     # ---- Reactive form data based on selection ----
     form_data <- reactive({
+      # Depend on trigger_refresh to re-fetch after save
+      trigger_refresh()
+
       sid <- selected_id()
 
       # No selection - return empty data
@@ -130,6 +173,7 @@ browser_containers_server <- function(id, pool) {
           TypeCode = "",
           Description = "",
           BottomType = "HOPPER",
+          IconID = "",
           Graphics = list(
             DefaultFill = "#cccccc",
             DefaultBorder = "#333333",
@@ -149,6 +193,7 @@ browser_containers_server <- function(id, pool) {
           TypeCode = "",
           Description = "",
           BottomType = "HOPPER",
+          IconID = "",
           Graphics = list(
             DefaultFill = "#cccccc",
             DefaultBorder = "#333333",
@@ -168,11 +213,14 @@ browser_containers_server <- function(id, pool) {
       }
 
       # Transform to nested format
+      # Note: database column "Icon" maps to form field "IconID"
       list(
+        ContainerTypeID = as.integer(f_or(df1$ContainerTypeID, 0)),  # Include ID for updates
         TypeName = f_or(df1$TypeName, ""),
         TypeCode = f_or(df1$TypeCode, ""),
         Description = f_or(df1$Description, ""),
         BottomType = f_or(df1$BottomType, "HOPPER"),
+        IconID = as.character(f_or(df1$Icon, "")),
         Graphics = list(
           DefaultFill = f_or(df1$DefaultFill, "#cccccc"),
           DefaultBorder = f_or(df1$DefaultBorder, "#333333"),
@@ -186,14 +234,42 @@ browser_containers_server <- function(id, pool) {
     })
 
     # ---- Initialize HTML form module ----
-    mod_html_form_server(
+    form_module <- mod_html_form_server(
       id = "form",
       schema_config = schema_config,
       form_data = form_data,
       title_field = "TypeName",
       show_header = TRUE,
-      show_delete_button = TRUE  # Show delete button (disabled on add new)
+      show_delete_button = TRUE,  # Show delete button (disabled on add new)
+      on_save = function(data) {
+        tryCatch({
+          saved_id <- upsert_container_type(data)
+
+          # Update selected ID if this was a new record
+          if (is.null(data$ContainerTypeID) || data$ContainerTypeID == 0 || data$ContainerTypeID == "") {
+            selected_id(saved_id)
+          }
+
+          # Trigger list refresh
+          trigger_refresh(trigger_refresh() + 1)
+
+          return(TRUE)
+        }, error = function(e) {
+          cat("[Save Error]:", conditionMessage(e), "\n")
+          return(FALSE)
+        })
+      },
+      on_delete = function() {
+        # TODO: Implement delete functionality
+        return(FALSE)
+      }
     )
+
+    # Refresh dynamic selects (icons, etc.) when edit mode is entered
+    observeEvent(form_module$edit_refresh_trigger(), {
+      cat("[Container Browser] Edit mode triggered, refreshing icons...\n")
+      icons_data(fetch_icons())
+    }, ignoreInit = TRUE)
 
     return(list(selected_container_type_id = selected_id))
   })

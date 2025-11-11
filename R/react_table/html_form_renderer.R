@@ -234,16 +234,117 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
   # Select dropdown
   if (!is.null(schema$enum) && length(schema$enum) > 0) {
     enum_names <- f_or(schema$enumNames, schema$enum)
+
+    # Check if this is an icon-select widget
+    is_icon_select <- !is.null(widget) && length(widget) > 0 && widget == "icon-select"
+
+    # Get icon metadata if available (passed via ui options)
+    icon_metadata <- f_or(ui[["ui:options"]]$iconMetadata, list())
+
     options_list <- mapply(function(val, label) {
-      tags$option(value = val, selected = if (identical(val, value)) NA else NULL, label)
+      # For icon-select, add data attribute for thumbnail
+      if (is_icon_select && length(icon_metadata) > 0) {
+        # Find matching icon metadata - convert both to character for comparison
+        icon_info <- NULL
+        val_str <- as.character(val)
+        for (icon in icon_metadata) {
+          if (!is.null(icon$id) && as.character(icon$id) == val_str) {
+            icon_info <- icon
+            break
+          }
+        }
+
+        # Add thumbnail as data attribute if found
+        if (!is.null(icon_info) && !is.null(icon_info$thumbnail)) {
+          tags$option(
+            value = val,
+            selected = if (identical(val, value)) NA else NULL,
+            `data-thumbnail` = icon_info$thumbnail,
+            label
+          )
+        } else {
+          tags$option(value = val, selected = if (identical(val, value)) NA else NULL, label)
+        }
+      } else {
+        tags$option(value = val, selected = if (identical(val, value)) NA else NULL, label)
+      }
     }, schema$enum, enum_names, SIMPLIFY = FALSE, USE.NAMES = FALSE)
 
-    return(tags$select(
+    # Add special class for icon-select
+    select_class <- if (is_icon_select) "form-select icon-select" else "form-select"
+
+    select_element <- tags$select(
       id = input_id,
-      class = "form-select",
+      class = select_class,
       disabled = "disabled",
       options_list
-    ))
+    )
+
+    # For icon-select, create custom visual dropdown with thumbnails IN the list
+    if (is_icon_select) {
+      # Build custom dropdown HTML with thumbnails
+      dropdown_options <- mapply(function(val, label) {
+        # Find thumbnail for this option
+        thumbnail_url <- ""
+        if (length(icon_metadata) > 0) {
+          val_str <- as.character(val)
+          for (icon in icon_metadata) {
+            if (!is.null(icon$id) && as.character(icon$id) == val_str) {
+              thumbnail_url <- f_or(icon$thumbnail, "")
+              break
+            }
+          }
+        }
+
+        # Build option HTML with thumbnail
+        div(class = "icon-option", `data-value` = val,
+          if (nzchar(thumbnail_url)) {
+            tags$img(src = thumbnail_url, class = "icon-thumb", style = "width:24px;height:24px;margin-right:8px;vertical-align:middle;border:1px solid #dee2e6;border-radius:3px;")
+          } else {
+            tags$span(class = "icon-thumb-placeholder", style = "display:inline-block;width:24px;height:24px;margin-right:8px;background:#f0f0f0;border:1px solid #dee2e6;border-radius:3px;vertical-align:middle;")
+          },
+          tags$span(class = "icon-label", label)
+        )
+      }, schema$enum, enum_names, SIMPLIFY = FALSE, USE.NAMES = FALSE)
+
+      # Find selected option for display
+      selected_label <- "(none)"
+      selected_thumbnail <- ""
+      if (!is.null(value) && nzchar(value)) {
+        idx <- which(schema$enum == value)
+        if (length(idx) > 0) {
+          selected_label <- enum_names[idx[1]]
+          # Find thumbnail
+          val_str <- as.character(value)
+          for (icon in icon_metadata) {
+            if (!is.null(icon$id) && as.character(icon$id) == val_str) {
+              selected_thumbnail <- f_or(icon$thumbnail, "")
+              break
+            }
+          }
+        }
+      }
+
+      # Return custom dropdown
+      return(div(class = "icon-picker-custom", id = input_id, `data-value` = value, `data-disabled` = "true",
+        # Display (what user sees when closed)
+        div(class = "icon-picker-display",
+          if (nzchar(selected_thumbnail)) {
+            tags$img(src = selected_thumbnail, class = "icon-thumb", style = "width:24px;height:24px;margin-right:8px;vertical-align:middle;border:1px solid #dee2e6;border-radius:3px;")
+          } else {
+            tags$span(class = "icon-thumb-placeholder", style = "display:inline-block;width:24px;height:24px;margin-right:8px;background:#f0f0f0;border:1px solid #dee2e6;border-radius:3px;vertical-align:middle;")
+          },
+          tags$span(class = "icon-label", selected_label),
+          tags$i(class = "dropdown-arrow", style = "margin-left:auto;")
+        ),
+        # Dropdown list (shown when opened)
+        div(class = "icon-picker-dropdown", style = "display:none;",
+          dropdown_options
+        )
+      ))
+    } else {
+      return(select_element)
+    }
   }
 
   # Number input
@@ -263,12 +364,21 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
 
   # Color picker
   if (!is.null(format) && length(format) > 0 && format == "color") {
-    return(tags$input(
-      type = "color",
-      id = input_id,
-      class = "form-control form-control-color",
-      value = val_str,
-      disabled = "disabled"
+    # Use both a visible disabled color input and a hidden input for Shiny binding
+    return(tagList(
+      tags$input(
+        type = "color",
+        id = paste0(input_id, "_display"),
+        class = "form-control form-control-color",
+        value = val_str,
+        disabled = "disabled",
+        onchange = sprintf("document.getElementById('%s').value = this.value; if(window.Shiny) Shiny.setInputValue('%s', this.value);", input_id, input_id)
+      ),
+      tags$input(
+        type = "hidden",
+        id = input_id,
+        value = val_str
+      )
     ))
   }
 

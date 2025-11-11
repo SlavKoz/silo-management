@@ -1,14 +1,18 @@
 # R/f_app_server.R — Server with hash router
 
 f_app_server <- function(input, output, session) {
-  
+
   # Optional DB pool
   pool <- NULL
   try({ if (exists("db_pool")) pool <- db_pool() }, silent = TRUE)
   if (!is.null(pool) && inherits(pool, "Pool")) {
     onStop(function() try(pool::poolClose(pool), silent = TRUE))
   }
-  
+
+  # Initialize global state for cross-module synchronization
+  # This ensures reactive dependencies can be established before values are set
+  session$userData$icons_version <- 0
+
   # Map route -> title and UI function
   route_map <- list(
     "icons" = list(

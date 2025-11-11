@@ -56,6 +56,8 @@ container_type_icons <- function() {
 
 # Source: Silo/R/utils/helper_icons.R
 fetch_iconify_svg <- function(id_or_prefix, name = NULL) {
+  base_url <- tryCatch(get("ICONIFY_BASE", envir = .GlobalEnv), error = function(e) "https://api.iconify.design")
+
   if (!is.null(name)) {
     prefix <- id_or_prefix
     icon   <- name
@@ -64,7 +66,7 @@ fetch_iconify_svg <- function(id_or_prefix, name = NULL) {
     if (length(parts) != 2) return("")
     prefix <- parts[1]; icon <- parts[2]
   }
-  url <- sprintf("%s/%s/%s.svg", ICONIFY_BASE, prefix, icon)
+  url <- sprintf("%s/%s/%s.svg", base_url, prefix, icon)
   txt <- try(paste(readLines(url, warn = FALSE), collapse = "\n"), silent = TRUE)
   if (inherits(txt, "try-error")) "" else txt
 }
@@ -124,16 +126,41 @@ iconify_search_all <- function(query, limit = 24, page_size = 200, max_results =
 
 # Source: Silo/R/utils/helper_icons.R
 iconify_search_page <- function(query, start = 0, limit = 200) {
+  base_url <- tryCatch(get("ICONIFY_BASE", envir = .GlobalEnv), error = function(e) "https://api.iconify.design")
+  search_url <- sprintf("%s/search", base_url)
+  cat("Iconify search URL:", search_url, "query:", query, "\n")
+
   resp <- try(httr::GET(
-    sprintf("%s/search", ICONIFY_BASE),
+    search_url,
     query = list(query = query, start = start, limit = limit)
   ), silent = TRUE)
-  if (inherits(resp, "try-error") || httr::http_error(resp)) return(character(0))
+
+  if (inherits(resp, "try-error")) {
+    cat("HTTP request error:", conditionMessage(attr(resp, "condition")), "\n")
+    return(character(0))
+  }
+
+  if (httr::http_error(resp)) {
+    cat("HTTP error status:", httr::status_code(resp), "\n")
+    return(character(0))
+  }
+
   txt <- httr::content(resp, "text", encoding = "UTF-8")
+  cat("Response length:", nchar(txt), "chars\n")
+
   if (!is.character(txt) || !nzchar(txt)) return(character(0))
+
   j <- try(jsonlite::fromJSON(txt), silent = TRUE)
-  if (inherits(j, "try-error") || is.null(j$icons)) return(character(0))
-  
+  if (inherits(j, "try-error")) {
+    cat("JSON parse error:", conditionMessage(attr(j, "condition")), "\n")
+    return(character(0))
+  }
+
+  if (is.null(j$icons)) {
+    cat("Response structure:", paste(names(j), collapse = ", "), "\n")
+    return(character(0))
+  }
+
   # j$icons can be a character vector or a list; coerce both safely
   if (is.character(j$icons)) return(j$icons)
   as.character(unlist(j$icons, use.names = FALSE))
@@ -245,24 +272,23 @@ svg_to_png_raw <- function(svg_txt, size = 64) {
 
 # === UNUSED / REDUNDANT (commented) ===
 
-# # Source: Silo/R/utils/f_helper_icons.R
-# f_fetch_iconify_svg <- function(id_or_prefix, name = NULL) {
-#   fetch_iconify_svg(id_or_prefix, name)
-# }
+# Source: Silo/R/utils/f_helper_icons.R
+f_fetch_iconify_svg <- function(id_or_prefix, name = NULL) {
+  fetch_iconify_svg(id_or_prefix, name)
+}
 
-# # Source: Silo/R/utils/f_helper_icons.R
-# f_iconify_search_all <- function(query, limit = 24, page_size = 200, max_results = 5000) {
-#   # if your legacy helper already supports (query, limit), just delegate:
-#   iconify_search_all(query, limit = limit)
-# }
+# Source: Silo/R/utils/f_helper_icons.R
+f_iconify_search_all <- function(query, limit = 24, page_size = 200, max_results = 5000) {
+  # if your legacy helper already supports (query, limit), just delegate:
+  iconify_search_all(query, limit = limit)
+}
 
-# # Source: Silo/R/utils/f_helper_icons.R
-# f_sanitize_svg   <- function(svg_txt)                  sanitize_svg(svg_txt)
-# f_recolor_svg    <- function(svg_txt, color_hex)       recolor_svg(svg_txt, color_hex)
-# f_svg_to_png_raw <- function(svg_txt, size = 64)       svg_to_png_raw(svg_txt, size)
-# 
-# # Build DB payload
-# f_build_payload  <- function(icon_name, svg_txt, primary_color = NULL)       build_payload(icon_name, svg_txt, color_hex = primary_color)
+# Source: Silo/R/utils/f_helper_icons.R
+# Wrapper functions with f_ prefix (used by browsers)
+f_sanitize_svg   <- function(svg_txt)                                sanitize_svg(svg_txt)
+f_recolor_svg    <- function(svg_txt, color_hex)                    recolor_svg(svg_txt, color_hex)
+f_svg_to_png_raw <- function(svg_txt, size = 64)                    svg_to_png_raw(svg_txt, size)
+f_build_payload  <- function(icon_name, svg_txt, primary_color = NULL) build_payload(icon_name, svg_txt, color_hex = primary_color)
 # 
 # # f_icons_bind_search_upload() — wire ENTER search, magnifier click, and upload trigger
 # # ns: the module NS() function (pass `ns` from inside your UI)

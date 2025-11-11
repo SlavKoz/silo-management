@@ -152,12 +152,15 @@ list_container_types <- function(code_like = NULL,
   
   sql <- sprintf("
     SELECT
-      ContainerTypeID, TypeCode, TypeName, Description,
-      CreatedAt, UpdatedAt,
-      DefaultFill, DefaultBorder, DefaultBorderPx,
-      BottomType,
-      Icon
-    FROM SiloOps.dbo.ContainerTypes
+      ct.ContainerTypeID, ct.TypeCode, ct.TypeName, ct.Description,
+      ct.CreatedAt, ct.UpdatedAt,
+      ct.DefaultFill, ct.DefaultBorder, ct.DefaultBorderPx,
+      ct.BottomType,
+      ct.Icon,
+      -- Get icon image as base64 string
+      CAST('' AS xml).value('xs:base64Binary(sql:column(\"png_32_b64\"))', 'varchar(max)') AS IconImage
+    FROM SiloOps.dbo.ContainerTypes ct
+    LEFT JOIN SiloOps.dbo.Icons i ON ct.Icon = i.id
     %s
     %s
     OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
@@ -179,16 +182,96 @@ get_container_type_by_id <- function(id) {
   ", list(as.integer(id)))
 }
 
+# Save (upsert) container type
+# If id is NULL or 0, creates new; otherwise updates existing
+upsert_container_type <- function(data) {
+  # Extract ID (NULL or 0 means new record)
+  id <- f_or(data$ContainerTypeID, 0)
+  is_new <- is.null(id) || id == 0 || id == ""
+
+  if (is_new) {
+    # INSERT new record
+    sql <- "
+      INSERT INTO SiloOps.dbo.ContainerTypes (
+        TypeCode, TypeName, Description,
+        DefaultFill, DefaultBorder, DefaultBorderPx,
+        BottomType, Icon, CreatedAt, UpdatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE());
+      SELECT SCOPE_IDENTITY() AS NewID;
+    "
+    params <- list(
+      as.character(f_or(data$TypeCode, "")),
+      as.character(f_or(data$TypeName, "")),
+      as.character(f_or(data$Description, "")),
+      as.character(f_or(data$Graphics$DefaultFill, "#cccccc")),
+      as.character(f_or(data$Graphics$DefaultBorder, "#333333")),
+      as.numeric(f_or(data$Graphics$DefaultBorderPx, 1)),
+      as.character(f_or(data$BottomType, "FLAT")),
+      if (!is.null(data$IconID) && nzchar(data$IconID)) as.integer(data$IconID) else NULL
+    )
+
+    result <- db_query_params(sql, params)
+    return(if (nrow(result) > 0) as.integer(result$NewID[1]) else NULL)
+
+  } else {
+    # UPDATE existing record
+    sql <- "
+      UPDATE SiloOps.dbo.ContainerTypes
+      SET TypeCode = ?,
+          TypeName = ?,
+          Description = ?,
+          DefaultFill = ?,
+          DefaultBorder = ?,
+          DefaultBorderPx = ?,
+          BottomType = ?,
+          Icon = ?,
+          UpdatedAt = GETDATE()
+      WHERE ContainerTypeID = ?
+    "
+    params <- list(
+      as.character(f_or(data$TypeCode, "")),
+      as.character(f_or(data$TypeName, "")),
+      as.character(f_or(data$Description, "")),
+      as.character(f_or(data$Graphics$DefaultFill, "#cccccc")),
+      as.character(f_or(data$Graphics$DefaultBorder, "#333333")),
+      as.numeric(f_or(data$Graphics$DefaultBorderPx, 1)),
+      as.character(f_or(data$BottomType, "FLAT")),
+      if (!is.null(data$IconID) && nzchar(data$IconID)) as.integer(data$IconID) else NULL,
+      as.integer(id)
+    )
+
+    db_execute_params(sql, params)
+    return(as.integer(id))
+  }
+}
+
 # Get icons for picker (display names with optional thumbnails)
-list_icons_for_picker <- function(limit = 200) {
+# list_icons_for_picker <- function(limit = 1000) {
+#   db_query_params("
+#     SELECT TOP (?)
+#       id,
+#       icon_name,
+#       CAST(png_32_b64 AS VARCHAR(MAX)) AS png_32_b64
+#     FROM SiloOps.dbo.Icons
+#     ORDER BY icon_name
+#   ", list(as.integer(limit)))
+# }
+
+# R/db/queries.R (or where list_icons_for_picker() lives)
+list_icons_for_picker <- function(limit = 1000) {
   db_query_params("
     SELECT TOP (?)
-      Display AS icon_name,
-      Display AS icon_label
-    FROM SiloOps.dbo.Icons
-    ORDER BY Display
+      id,
+      icon_name,
+      -- Convert VARBINARY(MAX) -> base64 string (no prefix)
+      CAST('' AS xml).value('xs:base64Binary(sql:column(\"png_32_b64\"))', 'varchar(max)') AS png_32_b64,
+      svg,
+      primary_color
+    FROM dbo.Icons
+    ORDER BY icon_name
   ", list(as.integer(limit)))
 }
+
 
 # Delete guard checks (for later wiring)
 # 1) Silos referencing this type (if there's a FK/column)
@@ -514,5 +597,116 @@ check_canvas_usage <- function(conn, id) {
 delete_canvas <- function(conn, id) {
   sql <- "DELETE FROM Canvases WHERE id = ?"
   DBI::dbExecute(conn, sql, params = list(as.integer(id)))
+}
+
+# ==============================================================================
+# REFERENCE INTEGRITY CHECKS (Metadata-Driven)
+# ==============================================================================
+
+#' Check if a record can be safely deleted (referential integrity check)
+#'
+#' Uses REFERENCE_MAP from R/db/reference_config.R to check dependencies
+#'
+#' @param table_name Name of table (e.g., "Icons", "ContainerTypes")
+#' @param record_id ID value to check
+#' @return List with:
+#'   - can_delete: logical, TRUE if safe to delete
+#'   - usage: list of data.frames, one per dependency with actual records
+#'   - message: character, user-friendly message
+#'   - message_html: character, HTML formatted message for showNotification
+#' @examples
+#' check_deletion_safety("Icons", 42)
+#' # Returns: list(can_delete = FALSE, usage = list(...), message = "...", message_html = "...")
+check_deletion_safety <- function(table_name, record_id) {
+  # Load reference configuration
+  if (!exists("REFERENCE_MAP", envir = .GlobalEnv)) {
+    source("R/db/reference_config.R", envir = .GlobalEnv)
+  }
+
+  config <- get("REFERENCE_MAP", envir = .GlobalEnv)[[table_name]]
+
+  if (is.null(config)) {
+    return(list(
+      can_delete = TRUE,
+      usage = NULL,
+      message = "No dependencies defined",
+      message_html = NULL
+    ))
+  }
+
+  usage_list <- list()
+  usage_summary <- character()
+
+  # Check each dependency
+  for (dep in config$dependencies) {
+    # Build query to find records using this ID
+    select_cols <- paste(dep$display_columns, collapse = ", ")
+    sql <- sprintf("
+      SELECT %s
+      FROM %s
+      WHERE %s = ?
+    ", select_cols, dep$table, dep$foreign_key)
+
+    result <- tryCatch({
+      db_query_params(sql, list(record_id))
+    }, error = function(e) {
+      data.frame() # Empty on error
+    })
+
+    if (!is.null(result) && nrow(result) > 0) {
+      usage_list[[dep$display_name_plural]] <- result
+
+      # Create summary text
+      count <- nrow(result)
+      display_name <- if (count == 1) dep$display_name else dep$display_name_plural
+      usage_summary <- c(usage_summary, sprintf("%d %s", count, display_name))
+    }
+  }
+
+  # Build result
+  if (length(usage_list) > 0) {
+    # Create user-friendly message
+    message_text <- sprintf("Cannot delete: used by %s", paste(usage_summary, collapse = ", "))
+
+    # Create HTML message with details
+    html_parts <- c("<strong>Cannot delete this record</strong><br/>")
+    html_parts <- c(html_parts, sprintf("It is currently used by %s:<br/><br/>", paste(usage_summary, collapse = ", ")))
+
+    for (dep_name in names(usage_list)) {
+      records <- usage_list[[dep_name]]
+      html_parts <- c(html_parts, sprintf("<strong>%s:</strong><br/>", dep_name))
+
+      # Show first 5 records
+      show_count <- min(5, nrow(records))
+      for (i in 1:show_count) {
+        row_text <- paste(vapply(seq_along(records), function(j) {
+          as.character(records[i, j])
+        }, character(1)), collapse = " - ")
+        html_parts <- c(html_parts, sprintf("• %s<br/>", row_text))
+      }
+
+      if (nrow(records) > 5) {
+        html_parts <- c(html_parts, sprintf("• ... and %d more<br/>", nrow(records) - 5))
+      }
+      html_parts <- c(html_parts, "<br/>")
+    }
+
+    html_parts <- c(html_parts, "Please remove or reassign these references before deleting.")
+
+    return(list(
+      can_delete = FALSE,
+      usage = usage_list,
+      message = message_text,
+      message_html = paste(html_parts, collapse = "")
+    ))
+  }
+
+  # Safe to delete
+  return(list(
+    can_delete = TRUE,
+    usage = NULL,
+    message = "Safe to delete",
+    message_html = NULL
+  ))
 }
 

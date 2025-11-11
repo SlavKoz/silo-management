@@ -22,7 +22,8 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
     )),
 
     # Font protection and styling CSS - scoped to this module instance
-    tags$style(HTML(sprintf("
+    {
+      css_template <- "
       #%s .form-container {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
         font-size: 14px !important;
@@ -187,19 +188,98 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
         display: block;
         width: 100%%;
       }
-    ", ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
-       ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
-       ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
-       ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
-       ns("form"), ns("form"), ns("form"), ns("form"), ns("form"),
-       ns("form"), ns("form"), ns("form"), ns("form"), ns("form")))),
+
+      /* Icon Picker Custom - Visual dropdown with thumbnails */
+      #%s .icon-picker-custom {
+        position: relative;
+        width: 100%%;
+      }
+
+      #%s .icon-picker-display {
+        display: flex;
+        align-items: center;
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        background: white;
+        cursor: pointer;
+        min-height: 2rem;
+      }
+
+      #%s .icon-picker-display:hover {
+        border-color: #adb5bd;
+      }
+
+      #%s .icon-picker-custom[data-disabled='true'] .icon-picker-display {
+        background-color: #e9ecef !important;
+        cursor: not-allowed !important;
+        opacity: 0.6;
+        pointer-events: none !important;
+      }
+
+      #%s .icon-picker-custom[data-disabled='false'] .icon-picker-display {
+        cursor: pointer !important;
+        pointer-events: auto !important;
+      }
+
+      #%s .dropdown-arrow::before {
+        content: '▼';
+        font-size: 0.7em;
+        color: #6c757d;
+      }
+
+      #%s .icon-picker-dropdown {
+        position: absolute;
+        top: 100%%;
+        left: 0;
+        right: 0;
+        max-height: 300px;
+        overflow-y: auto;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 1000;
+        margin-top: 2px;
+      }
+
+      #%s .icon-option {
+        display: flex;
+        align-items: center;
+        padding: 0.4rem 0.5rem;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      #%s .icon-option:hover {
+        background-color: #f8f9fa;
+      }
+
+      #%s .icon-option.selected {
+        background-color: #e7f5ff;
+      }
+
+      #%s .icon-label {
+        font-size: 11px;
+      }
+    "
+
+      # Auto-count placeholders and generate args
+      n_css <- length(gregexpr("%s", css_template, fixed = TRUE)[[1]])
+      tags$style(HTML(do.call(sprintf, c(list(css_template), rep(list(ns("form")), n_css)))))
+    },
 
     # JavaScript for edit/save toggle - scoped to this module instance
-    tags$script(HTML(sprintf("
-      (function() {
-        const moduleId = '%s';
+    # NOTE: Using paste0 instead of sprintf to avoid 8192 char format limit
+    {
+      module_id <- ns("form")
+      module_id_js <- gsub("-", "_", module_id)
 
-        window['toggleEditMode_%s'] = function(btn) {
+      js_code <- paste0("
+      (function() {
+        const moduleId = '", module_id, "';
+
+        window['toggleEditMode_", module_id_js, "'] = function(btn) {
           const container = document.getElementById(moduleId);
           if (!container) {
             console.error('[toggleEditMode] Container not found:', moduleId);
@@ -207,9 +287,15 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
           }
 
           const isEditing = btn.classList.contains('editing');
-          console.log('[toggleEditMode] Current state:', isEditing ? 'editing' : 'locked');
 
           if (isEditing) {
+            // Trigger save event before switching to locked mode
+            const baseNs = moduleId.substring(0, moduleId.lastIndexOf('-form'));
+            const inputName = baseNs + '-save_clicked';
+            if (window.Shiny && typeof Shiny.setInputValue === 'function') {
+              Shiny.setInputValue(inputName, Date.now(), {priority: 'event'});
+            }
+
             // Switch to locked mode
             btn.classList.remove('editing');
             btn.innerHTML = '<i class=\"bi bi-pencil-square\"></i><span> Edit</span>';
@@ -220,28 +306,41 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
             if (titleInput) titleInput.setAttribute('readonly', 'readonly');
 
             // Disable all form inputs - use more specific selectors
-            const inputs = container.querySelectorAll('input:not(.form-control-title):not([type=\"button\"]):not([type=\"submit\"])');
+            const inputs = container.querySelectorAll('input:not(.form-control-title):not([type=\"button\"]):not([type=\"submit\"]):not([type=\"hidden\"])');
             const selects = container.querySelectorAll('select');
             const textareas = container.querySelectorAll('textarea');
+            const iconPickers = container.querySelectorAll('.icon-picker-custom');
 
             [...inputs, ...selects, ...textareas].forEach(el => {
               el.setAttribute('readonly', 'readonly');
               el.setAttribute('disabled', 'disabled');
             });
 
-            console.log('[toggleEditMode] Locked', inputs.length + selects.length + textareas.length, 'elements');
+            // Disable icon pickers
+            iconPickers.forEach(el => {
+              el.setAttribute('data-disabled', 'true');
+            });
+
           } else {
             // Switch to editing mode
             btn.classList.add('editing');
             btn.innerHTML = '<i class=\"bi bi-floppy\"></i><span> Save</span>';
             container.classList.add('edit-mode');
 
+            // Signal to Shiny that edit mode was entered (to refresh dynamic selects)
+            const baseNs = moduleId.substring(0, moduleId.lastIndexOf('-form'));
+            const inputName = baseNs + '-edit_mode_entered';
+            if (window.Shiny && typeof Shiny.setInputValue === 'function') {
+              Shiny.setInputValue(inputName, Date.now(), {priority: 'event'});
+            }
+
             // Header title always stays readonly (never editable)
 
             // Enable all form inputs (except static ones and header title)
-            const inputs = container.querySelectorAll('input:not(.form-control-title):not([type=\"button\"]):not([type=\"submit\"])');
+            const inputs = container.querySelectorAll('input:not(.form-control-title):not([type=\"button\"]):not([type=\"submit\"]):not([type=\"hidden\"])');
             const selects = container.querySelectorAll('select');
             const textareas = container.querySelectorAll('textarea');
+            const iconPickers = container.querySelectorAll('.icon-picker-custom');
 
             [...inputs, ...selects, ...textareas].forEach(el => {
               // Skip static fields
@@ -251,12 +350,17 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
               }
             });
 
-            console.log('[toggleEditMode] Unlocked', inputs.length + selects.length + textareas.length, 'elements');
+            // Enable icon pickers
+            iconPickers.forEach(el => {
+              if (!el.closest('.form-static-value') && !el.hasAttribute('data-static')) {
+                el.setAttribute('data-disabled', 'false');
+              }
+            });
           }
         };
 
         // Delete confirmation function
-        window['confirmDelete_%s'] = function(btn) {
+        window['confirmDelete_", module_id_js, "'] = function(btn) {
           if (btn.disabled) return;
 
           const container = document.getElementById(moduleId);
@@ -267,14 +371,16 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
 
           if (confirm('Are you sure you want to delete ' + itemName + '?\\n\\nThis action cannot be undone.')) {
             // Trigger Shiny input event
-            if (window.Shiny) {
-              Shiny.setInputValue(moduleId.replace('-form', '') + '-form-delete_confirmed', Date.now(), {priority: 'event'});
+            const baseNs = moduleId.substring(0, moduleId.lastIndexOf('-form'));
+            const inputName = baseNs + '-delete_confirmed';
+            if (window.Shiny && typeof Shiny.setInputValue === 'function') {
+              Shiny.setInputValue(inputName, Date.now(), {priority: 'event'});
             }
           }
         };
 
         // Function to update delete button state
-        window['setDeleteButtonState_%s'] = function(disabled) {
+        window['setDeleteButtonState_", module_id_js, "'] = function(disabled) {
           const container = document.getElementById(moduleId);
           if (!container) return;
 
@@ -288,15 +394,131 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
           }
         };
 
+        // Initialize icon pickers - function to be called when form loads
+        function initializeIconPickers() {
+          const container = document.getElementById(moduleId);
+          if (!container) {
+            console.warn('[icon-picker] Container not found:', moduleId);
+            return;
+          }
+
+          const pickers = container.querySelectorAll('.icon-picker-custom');
+          console.log('[icon-picker] Found', pickers.length, 'icon pickers');
+
+          if (pickers.length === 0) {
+            console.log('[icon-picker] No pickers found, will retry on form load');
+            return;
+          }
+
+          pickers.forEach(function(picker) {
+            // Skip if already initialized
+            if (picker.hasAttribute('data-initialized')) {
+              console.log('[icon-picker] Picker already initialized:', picker.id);
+              return;
+            }
+            picker.setAttribute('data-initialized', 'true');
+
+            const display = picker.querySelector('.icon-picker-display');
+            const dropdown = picker.querySelector('.icon-picker-dropdown');
+            const options = picker.querySelectorAll('.icon-option');
+
+            if (!display || !dropdown) {
+              console.warn('[icon-picker] Missing display or dropdown for picker:', picker.id);
+              return;
+            }
+
+            // Toggle dropdown on display click
+            const clickHandler = function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+
+              const isDisabled = picker.getAttribute('data-disabled') === 'true';
+
+              if (isDisabled) {
+                return;
+              }
+
+              const currentDisplay = window.getComputedStyle(dropdown).display;
+              const isOpen = currentDisplay !== 'none';
+
+              // Close all other dropdowns
+              document.querySelectorAll('.icon-picker-dropdown').forEach(function(d) {
+                d.style.display = 'none';
+              });
+
+              dropdown.style.display = isOpen ? 'none' : 'block';
+            };
+
+            display.addEventListener('click', clickHandler, true);
+
+            // Option selection
+            options.forEach(function(option) {
+              option.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const value = this.getAttribute('data-value');
+
+                // Update picker value
+                picker.setAttribute('data-value', value);
+
+                // Update display
+                display.innerHTML = this.innerHTML + '<i class=\"dropdown-arrow\" style=\"margin-left:auto;\"></i>';
+
+                // Update selected class
+                options.forEach(function(opt) {
+                  opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+
+                // Close dropdown
+                dropdown.style.display = 'none';
+
+                // Trigger Shiny input event
+                if (window.Shiny && typeof Shiny.setInputValue === 'function') {
+                  Shiny.setInputValue(picker.id, value, {priority: 'event'});
+                }
+              });
+            });
+          });
+
+          // Close dropdowns when clicking outside
+          document.addEventListener('click', function() {
+            container.querySelectorAll('.icon-picker-dropdown').forEach(function(dropdown) {
+              dropdown.style.display = 'none';
+            });
+          });
+        }
+
+        // Track last form wrapper to detect actual content changes (not just mutations within same form)
+        let lastFormWrapper = null;
+
         // Initialize in locked mode when content loads
         const observer = new MutationObserver(function(mutations) {
           const container = document.getElementById(moduleId);
-          if (container && container.querySelector('.form-container')) {
-            // Lock all inputs
-            container.querySelectorAll('.form-container input:not(.form-control-title), .form-container select, .form-container textarea').forEach(el => {
+          const formWrapper = container ? container.querySelector('.form-wrapper') : null;
+
+          // Check if this is genuinely new form content by comparing DOM reference
+          if (formWrapper && formWrapper !== lastFormWrapper) {
+            lastFormWrapper = formWrapper;
+
+            // Lock all inputs (except hidden inputs)
+            container.querySelectorAll('.form-container input:not(.form-control-title):not([type=\"hidden\"]), .form-container select, .form-container textarea').forEach(el => {
               el.setAttribute('readonly', 'readonly');
               el.setAttribute('disabled', 'disabled');
             });
+
+            // Lock icon pickers
+            container.querySelectorAll('.icon-picker-custom').forEach(el => {
+              el.setAttribute('data-disabled', 'true');
+            });
+
+            // Initialize hidden inputs with Shiny (they don't auto-bind)
+            if (window.Shiny && typeof Shiny.setInputValue === 'function') {
+              container.querySelectorAll('input[type=\"hidden\"]').forEach(function(hiddenInput) {
+                if (hiddenInput.value && hiddenInput.id) {
+                  Shiny.setInputValue(hiddenInput.id, hiddenInput.value);
+                }
+              });
+            }
 
             // Check if title is empty (indicates add new mode)
             const titleInput = container.querySelector('.form-control-title');
@@ -308,7 +530,11 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
               deleteBtn.setAttribute('disabled', 'disabled');
             }
 
-            observer.disconnect();
+            // Initialize icon pickers now that form content is loaded
+            initializeIconPickers();
+
+            // Don't disconnect - keep observing for form re-renders (e.g., when switching records)
+            // The lastFormWrapper check prevents re-initialization of same content
           }
         });
 
@@ -316,8 +542,17 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
         if (targetNode) {
           observer.observe(targetNode, { childList: true, subtree: true });
         }
+
+        // Also try to initialize after a short delay (backup in case observer doesn't fire)
+        setTimeout(initializeIconPickers, 500);
+
+        // And try immediately in case form is already loaded
+        setTimeout(initializeIconPickers, 50);
       })();
-    ", ns("form"), gsub("-", "_", ns("form")), gsub("-", "_", ns("form")), gsub("-", "_", ns("form"))))),
+    ")
+
+      tags$script(HTML(js_code))
+    },
 
     div(id = ns("form"), style = sprintf("max-width: %s; margin: %s; padding: 0 1rem;", max_width, margin),
         div(class = "form-container",
@@ -339,13 +574,32 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
 #' @param title_field Character string for field to use as header title
 #' @param show_header Logical, whether to show header (default: TRUE)
 #' @param show_delete_button Logical, whether to show delete button (default: TRUE)
+#' @param on_save Optional callback function(data) that handles saving. Should return TRUE on success.
+#' @param on_delete Optional callback function() that handles deletion. Should return TRUE on success.
 #'
-#' @return Module server function
+#' @return List with:
+#'   - saved_data: Reactive that fires when save completes, contains the saved data
+#'   - deleted: Reactive that fires when delete completes
 mod_html_form_server <- function(id, schema_config, form_data,
                                   title_field = NULL, show_header = TRUE,
-                                  show_delete_button = TRUE) {
+                                  show_delete_button = TRUE,
+                                  on_save = NULL, on_delete = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # Reactive values to track save/delete events
+    rv <- reactiveValues(
+      saved_data = NULL,
+      save_timestamp = NULL,
+      deleted = FALSE,
+      delete_timestamp = NULL,
+      edit_refresh_trigger = 0  # Increments when edit mode is entered
+    )
+
+    # Observe edit mode entered event - used to refresh dynamic selects
+    observeEvent(input$edit_mode_entered, {
+      rv$edit_refresh_trigger <- rv$edit_refresh_trigger + 1
+    }, ignoreInit = TRUE)
 
     # Load HTML renderer
     source("R/react_table/html_form_renderer.R", local = TRUE)
@@ -378,6 +632,7 @@ mod_html_form_server <- function(id, schema_config, form_data,
     # Render form with header
     output$form_content <- renderUI({
       current_data <- data()
+      current_schema <- compiled_schema()  # Create dependency on schema changes
 
       # Determine if delete button should be disabled
       # Disable if in "add new" mode (title field is empty/NA)
@@ -389,8 +644,8 @@ mod_html_form_server <- function(id, schema_config, form_data,
       }
 
       render_html_form(
-        schema = compiled_schema()$schema,
-        uiSchema = compiled_schema()$uiSchema,
+        schema = current_schema$schema,
+        uiSchema = current_schema$uiSchema,
         formData = current_data,
         ns_prefix = ns("field_"),
         show_header = show_header,
@@ -401,10 +656,94 @@ mod_html_form_server <- function(id, schema_config, form_data,
       )
     })
 
+    # Observe Save button click
+    observeEvent(input$save_clicked, {
+      if (is.null(on_save)) return()
+
+      # Collect all form inputs
+      schema <- compiled_schema()
+      field_names <- names(schema$schema$properties)
+
+      # Helper function to collect nested fields
+      collect_fields <- function(prefix, prop_names) {
+        result <- list()
+        for (fname in prop_names) {
+          input_id <- paste0("field_", if (nzchar(prefix)) paste0(prefix, ".", fname) else fname)
+          input_value <- input[[input_id]]
+
+          # Get schema for this field to check type
+          field_path <- if (nzchar(prefix)) paste0(prefix, ".", fname) else fname
+          field_schema <- schema$schema$properties[[fname]]
+
+          # Handle nested objects
+          if (!is.null(field_schema$properties)) {
+            result[[fname]] <- collect_fields(field_path, names(field_schema$properties))
+          } else {
+            # Convert input value based on schema type
+            if (!is.null(field_schema$type)) {
+              if (field_schema$type == "number" || field_schema$type == "integer") {
+                result[[fname]] <- if (!is.null(input_value) && nzchar(input_value)) as.numeric(input_value) else NULL
+              } else {
+                result[[fname]] <- input_value
+              }
+            } else {
+              result[[fname]] <- input_value
+            }
+          }
+        }
+        result
+      }
+
+      collected_data <- collect_fields("", field_names)
+
+      # Add any fields from original data that aren't in the schema (like IDs)
+      original_data <- data()
+      if (!is.null(original_data)) {
+        for (field_name in names(original_data)) {
+          # If field exists in original but not in collected, copy it over
+          if (is.null(collected_data[[field_name]]) && !is.null(original_data[[field_name]])) {
+            # Skip nested objects and only copy simple values
+            if (!is.list(original_data[[field_name]])) {
+              collected_data[[field_name]] <- original_data[[field_name]]
+            }
+          }
+        }
+      }
+
+      # Call the on_save callback
+      tryCatch({
+        success <- on_save(collected_data)
+        if (isTRUE(success)) {
+          rv$saved_data <- collected_data
+          rv$save_timestamp <- Sys.time()
+        }
+      }, error = function(e) {
+        cat("[Save Error]:", conditionMessage(e), "\n")
+      })
+    }, ignoreInit = TRUE)
+
+    # Observe Delete button click
+    observeEvent(input$delete_confirmed, {
+      if (!is.null(on_delete)) {
+        tryCatch({
+          success <- on_delete()
+          if (isTRUE(success)) {
+            rv$deleted <- TRUE
+            rv$delete_timestamp <- Sys.time()
+          }
+        }, error = function(e) {
+          cat("[mod_html_form] Delete error:", conditionMessage(e), "\n")
+        })
+      }
+    }, ignoreInit = TRUE)
+
     # Return list of reactive values and functions for parent to use
     list(
       get_data = data,
-      get_schema = compiled_schema
+      get_schema = compiled_schema,
+      saved_data = reactive({ rv$save_timestamp; rv$saved_data }),
+      deleted = reactive({ rv$delete_timestamp; rv$deleted }),
+      edit_refresh_trigger = reactive({ rv$edit_refresh_trigger })  # For refreshing dynamic selects
     )
   })
 }

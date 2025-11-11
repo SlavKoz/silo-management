@@ -10,7 +10,8 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
 
   tagList(
     # Isolated CSS with unique prefix to avoid conflicts
-    tags$style(HTML(sprintf("
+    {
+      css_template <- "
       /* Container reset - clear any inherited styles */
       .cl-container-%s {
         all: initial;
@@ -111,6 +112,16 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
         min-width: 20px;
         text-align: center;
         flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .cl-container-%s .cl-icon img {
+        display: block;
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
       }
 
       /* Content area */
@@ -138,7 +149,12 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
         margin-top: 0.15em;
         line-height: 1.2;
       }
-    ", id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id))),
+    "
+
+      # Auto-count placeholders and generate args
+      n_css <- length(gregexpr("%s", css_template, fixed = TRUE)[[1]])
+      tags$style(HTML(do.call(sprintf, c(list(css_template), rep(list(id), n_css)))))
+    },
 
     div(class = paste0("cl-container-", id),
         if (show_filter) {
@@ -156,7 +172,8 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
     ),
 
     # JavaScript for click handling and filter
-    tags$script(HTML(sprintf("
+    {
+      js_template <- "
       (function() {
         var containerId = '.cl-container-%s';
 
@@ -174,7 +191,11 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
           Shiny.setInputValue('%s', value);
         });
       })();
-    ", id, ns("item_clicked"), ns("filter"), ns("filter"))))
+    "
+
+      # JavaScript has different values per placeholder, so we list them explicitly
+      tags$script(HTML(sprintf(js_template, id, ns("item_clicked"), ns("filter"), ns("filter"))))
+    }
   )
 }
 
@@ -229,7 +250,7 @@ compact_list_server <- function(id, items, add_new_item = TRUE,
           item_list[[length(item_list) + 1]] <- tags$div(
             class = paste(classes, collapse = " "),
             `data-value` = id_chr,
-            div(class = "cl-icon", df$icon[i]),
+            div(class = "cl-icon", HTML(df$icon[i])),
             div(class = "cl-content",
                 div(class = "cl-item-title", df$title[i]),
                 if (nzchar(df$description[i])) {
@@ -285,12 +306,10 @@ compact_list_server <- function(id, items, add_new_item = TRUE,
             # Select first item in list
             first_id <- as.integer(df$id[1])
             selected_id(first_id)
-            cat("[CompactList] Auto-selected first item:", first_id, "\n")
           } else if (is.numeric(initial_selection)) {
             # Select specific ID if it exists
             if (initial_selection %in% df$id) {
               selected_id(as.integer(initial_selection))
-              cat("[CompactList] Auto-selected item:", initial_selection, "\n")
             }
           }
           # If "none" or any other value, leave as NULL

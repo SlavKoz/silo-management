@@ -146,6 +146,67 @@ compact_list_server("list_id", items = reactive_items, add_new_item = TRUE)
 ```
 
 
-Always read  R/utils/f_helper_core.R at the start of a session - place there all universal functions.
+## Files to Read at Session Start
+
+Always read these files at the start of a session:
+- `R/utils/f_helper_core.R` - Universal helper functions
+- `.claude/deletion_safety.md` - Referential integrity pattern (prevents orphaned records)
+- `.claude/cross_module_state.md` - Cross-module synchronization pattern (global state management)
 
 Keep record on what we are doing in the session_summary.md
+
+---
+
+## Universal Helper Functions (from f_helper_core.R)
+
+### f_scoped_css() - For ID-based CSS scoping
+**When to use**: Creating module CSS that targets by ID (e.g., `#module_id .class`)
+
+```r
+# Automatically scopes CSS rules to a module ID
+f_scoped_css(ns("form"), c(
+  ".my-class { color: red; }",
+  ".another-class { font-size: 12px; }"
+))
+# Generates: #module-ns-form .my-class { color: red; } ...
+```
+
+**When NOT to use**:
+- Class-based scoping (e.g., `.cl-container-{id}`)
+- Mixed placeholders (use auto-count pattern instead)
+
+### f_or() - Null coalescing (MANDATORY)
+**Always use** `f_or(value, default)` instead of `%||%`
+
+```r
+name <- f_or(input$name, "Unknown")
+```
+
+---
+
+## CSS in mod_html_form.R
+
+**BEST PRACTICE**: Use auto-counting for sprintf placeholders (prevents errors):
+
+```r
+# Define template first
+css_template <- "
+  #%s .class1 { ... }
+  #%s .class2 { ... }
+"
+
+# Auto-count and apply
+n_css <- length(gregexpr("%s", css_template, fixed = TRUE)[[1]])
+tags$style(HTML(do.call(sprintf, c(list(css_template), rep(list(ns("form")), n_css)))))
+```
+
+**For JavaScript with mixed args:**
+```r
+js_template <- "const id = '%s'; window['func_%s'] = ..."
+n_js <- length(gregexpr("%s", js_template, fixed = TRUE)[[1]])
+js_args <- list(js_template, ns("form"))
+for (i in 2:n_js) js_args[[i+1]] <- gsub("-", "_", ns("form"))
+tags$script(HTML(do.call(sprintf, js_args)))
+```
+
+**Why:** No manual counting = no sprintf argument mismatch errors!

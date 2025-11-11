@@ -454,40 +454,30 @@ f_browser_icons_server <- function(id, pool = NULL) {
 
     # Query top 3 colors from database
     fetch_top_colors <- function() {
-      cat("\n>>> FETCHING TOP COLORS\n")
-
       defaults <- c("#2185d0", "#000000", "#db2828")
 
       if (is.null(conn)) {
-        cat("No DB connection, using default colors\n")
         return(defaults)
       }
 
       colors <- tryCatch({
         # SQL query for top 3 colors
         query <- "SELECT TOP 3 primary_color, COUNT(*) as cnt FROM Icons WHERE primary_color IS NOT NULL GROUP BY primary_color ORDER BY COUNT(*) DESC"
-        cat("Executing query:", query, "\n")
         result <- DBI::dbGetQuery(conn, query)
-        cat("Query returned", nrow(result), "rows\n")
 
         if (is.null(result) || nrow(result) == 0) {
-          cat("No colors in database, using defaults\n")
           return(defaults)
         }
 
         # Extract colors and pad with defaults if needed
         cols <- result$primary_color
-        cat("Colors from DB:", paste(cols, collapse=", "), "\n")
 
         if (length(cols) < 3) {
-          cat("Padding with defaults\n")
           cols <- c(cols, defaults[(length(cols)+1):3])
         }
 
-        cat("Final top colors:", paste(cols[1:3], collapse=", "), "\n")
         cols[1:3]
       }, error = function(e) {
-        cat("Error fetching top colors:", conditionMessage(e), "\n")
         defaults
       })
 
@@ -631,13 +621,9 @@ f_browser_icons_server <- function(id, pool = NULL) {
     observeEvent(top_colors(), {
       colors <- top_colors()
 
-      cat("\n>>> UPDATING SWATCH COLORS\n")
-      cat("Colors:", paste(colors, collapse=", "), "\n")
-
       # Ensure we always have 3 colors - use placeholders if missing
       if (length(colors) == 0 || all(is.na(colors)) || any(is.null(colors))) {
         colors <- c("#2185d0", "#000000", "#db2828")  # Blue, Black, Red
-        cat("Using placeholder colors\n")
       }
 
       # Replace any NA or NULL with placeholders
@@ -646,8 +632,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
         c <- colors[i]
         if (is.null(c) || is.na(c) || !nzchar(c)) defaults[i] else c
       })
-
-      cat("Sending colors to JavaScript:", paste(colors, collapse=", "), "\n")
 
       # Send to JavaScript
       session$sendCustomMessage("icons-update-swatches", list(
@@ -668,8 +652,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     observeEvent(input$swatch_1, {
       colors <- top_colors()
       color <- colors[1]
-      cat("\n>>> Swatch 1 clicked, color:", color, "\n")
-      # Update stored color
       rv$current_color <- color
       session$sendCustomMessage("icons-set-color", list(color = color))
       if (!is.null(rv$current_svg) && nzchar(rv$current_svg)) {
@@ -680,8 +662,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     observeEvent(input$swatch_2, {
       colors <- top_colors()
       color <- colors[2]
-      cat("\n>>> Swatch 2 clicked, color:", color, "\n")
-      # Update stored color
       rv$current_color <- color
       session$sendCustomMessage("icons-set-color", list(color = color))
       if (!is.null(rv$current_svg) && nzchar(rv$current_svg)) {
@@ -692,8 +672,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     observeEvent(input$swatch_3, {
       colors <- top_colors()
       color <- colors[3]
-      cat("\n>>> Swatch 3 clicked, color:", color, "\n")
-      # Update stored color
       rv$current_color <- color
       session$sendCustomMessage("icons-set-color", list(color = color))
       if (!is.null(rv$current_svg) && nzchar(rv$current_svg)) {
@@ -709,21 +687,16 @@ f_browser_icons_server <- function(id, pool = NULL) {
       if (is.null(conn)) {
         conn_error <- "db_pool() returned NULL"
       }
-      cat("Database pool connection obtained successfully\n")
     }, error = function(e) {
       conn_error <<- conditionMessage(e)
-      cat("ERROR getting database pool:", conditionMessage(e), "\n")
     })
-    
+
     # Init: disable buttons and load top colors
     session$onFlushed(function(){
-      cat("\n>>> INITIALIZING ICON BROWSER\n")
       shinyjs::disable("btn_save")
 
       # Load top colors from database
-      cat("Connection available:", !is.null(conn), "\n")
       if (!is.null(conn)) {
-        cat("Database connection successful\n")
 
         # Check table schema
         schema_check <- tryCatch({
@@ -731,8 +704,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
         }, error = function(e) {
           list(exists = FALSE, message = paste("Schema check failed:", conditionMessage(e)))
         })
-
-        cat("Icons table check:", schema_check$message, "\n")
 
         if (!isTRUE(schema_check$exists)) {
           showNotification(
@@ -759,21 +730,12 @@ f_browser_icons_server <- function(id, pool = NULL) {
           )
         }
 
-        cat("Fetching top colors from DB\n")
         colors <- fetch_top_colors()
         top_colors(colors)
-        cat("Top colors set to:", paste(colors, collapse=", "), "\n")
 
         # Load library on startup
-        cat("Loading library on startup\n")
         refresh_library()
       } else {
-        cat("WARNING: No database connection available!\n")
-        if (!is.null(conn_error)) {
-          cat("Connection error:", conn_error, "\n")
-        }
-        cat("Using default placeholder colors\n")
-        cat("Save functionality will NOT work without database connection\n")
         top_colors(c("#2185d0", "#000000", "#db2828"))
 
         # Show warning notification to user
@@ -788,7 +750,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     # SEARCH
     observeEvent(input$search_query, {
       q <- trimws(input$search_query)
-      cat("\n>>> SEARCH:", q, "\n")
       
       if (!nzchar(q)) {
         search_results(character(0))
@@ -810,8 +771,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     observeEvent(input$svg_upload, {
       file <- input$svg_upload
       req(file$datapath)
-
-      cat("\n>>> FILE UPLOADED:", file$name, "\n")
 
       raw <- paste(readLines(file$datapath, warn = FALSE), collapse = "\n")
       clean <- tryCatch(sanitize_svg(raw), error = function(e) "")
@@ -856,6 +815,8 @@ f_browser_icons_server <- function(id, pool = NULL) {
       ids <- search_results()
       if (!length(ids)) return(NULL)
 
+      base_url <- tryCatch(get("ICONIFY_BASE", envir = .GlobalEnv), error = function(e) "https://api.iconify.design")
+
       div(class = "ui doubling stackable grid results-grid",
           lapply(ids, function(id) {
             parts <- strsplit(id, ":", fixed = TRUE)[[1]]
@@ -864,7 +825,7 @@ f_browser_icons_server <- function(id, pool = NULL) {
             div(class = "two wide computer four wide tablet eight wide mobile column",
                 div(class = "result-card",
                     if (length(parts) == 2) {
-                      tags$img(src = sprintf("%s/%s/%s.svg?height=48", ICONIFY_BASE, parts[1], parts[2]))
+                      tags$img(src = sprintf("%s/%s/%s.svg?height=48", base_url, parts[1], parts[2]))
                     },
                     div(class = "label", htmltools::htmlEscape(id)),
                     actionButton(ns(paste0("load_", safe_id)), "Load",
@@ -883,7 +844,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     # LOAD ICON TO TRAY - Single observer for all load button clicks
     observeEvent(input$load_icon_clicked, {
       id <- input$load_icon_clicked
-      cat("\n>>> LOADING ICON:", id, "\n")
 
       svg <- tryCatch(fetch_svg(id), error = function(e) "")
       if (!nzchar(svg)) {
@@ -928,7 +888,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     
     # COLOR CHANGE
     observeEvent(input$color_hex, {
-      cat("\n>>> COLOR CHANGED:", input$color_hex, "\n")
       # Update stored color
       rv$current_color <- input$color_hex
       if (!is.null(rv$current_svg) && nzchar(rv$current_svg)) {
@@ -938,7 +897,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
     
     # SAVE TO LIBRARY
     observeEvent(input$btn_save, {
-      cat("\n>>> SAVE BUTTON CLICKED\n")
 
       # Check connection first
       if (is.null(conn)) {
@@ -997,6 +955,11 @@ f_browser_icons_server <- function(id, pool = NULL) {
         refresh_library()
         # Switch to library panel to make it visible
         session$sendCustomMessage("icons-set-step", list(rootId = ns("root"), step = "library"))
+
+        # Signal global icon change to refresh other modules (e.g., container browser)
+        new_version <- f_or(session$userData$icons_version, 0) + 1
+        session$userData$icons_version <- new_version
+        cat("[Icon Browser] Incremented icons_version to:", new_version, "\n")
       }
     }, ignoreInit = TRUE)
 
@@ -1027,28 +990,20 @@ f_browser_icons_server <- function(id, pool = NULL) {
       req(conn)
       icon_id <- input$delete_clicked
 
-      cat("\n>>> DELETE BUTTON CLICKED for icon ID:", icon_id, "\n")
-
-      # Check usage
-      usage <- tryCatch({
-        check_icon_usage(conn, icon_id)
+      # Check deletion safety using metadata-driven approach
+      safety_check <- tryCatch({
+        check_deletion_safety("Icons", icon_id)
       }, error = function(e) {
-        cat("Error checking usage for icon", icon_id, ":", conditionMessage(e), "\n")
-        list()
+        cat("Error checking deletion safety for icon", icon_id, ":", conditionMessage(e), "\n")
+        list(can_delete = FALSE, message_html = paste("Error checking references:", conditionMessage(e)))
       })
 
-      if (length(usage) > 0) {
-        # Icon is in use - show warning
-        usage_text <- sapply(names(usage), function(table) {
-          sprintf("%s (%d)", table, usage[[table]])
-        })
+      if (!safety_check$can_delete) {
+        # Icon is in use - show detailed warning with specific records
         showNotification(
-          HTML(paste0(
-            "<strong>Cannot delete icon #", icon_id, ":</strong><br/>",
-            "Used in: ", paste(usage_text, collapse=", ")
-          )),
+          HTML(safety_check$message_html),
           type = "warning",
-          duration = 10
+          duration = NULL  # Keep visible until dismissed
         )
         return()
       }
@@ -1066,6 +1021,11 @@ f_browser_icons_server <- function(id, pool = NULL) {
       if (success) {
         showNotification(sprintf("Deleted icon #%d", icon_id), type = "message")
         refresh_library()
+
+        # Signal global icon change to refresh other modules (e.g., container browser)
+        new_version <- f_or(session$userData$icons_version, 0) + 1
+        session$userData$icons_version <- new_version
+        cat("[Icon Browser] Incremented icons_version to:", new_version, "\n")
       }
     }, ignoreInit = TRUE)
   })
