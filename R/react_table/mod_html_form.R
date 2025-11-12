@@ -262,6 +262,18 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
       #%s .icon-label {
         font-size: 11px;
       }
+
+      /* Required field styling - red border when empty (controlled by JS via 'field-invalid' class) */
+      #%s .field-invalid {
+        border-color: #dc3545 !important;
+        border-width: 2px !important;
+      }
+
+      /* Icon picker - apply to display element */
+      #%s .icon-picker-custom.field-invalid .icon-picker-display {
+        border-color: #dc3545 !important;
+        border-width: 2px !important;
+      }
     "
 
       # Auto-count placeholders and generate args
@@ -356,7 +368,66 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
                 el.setAttribute('data-disabled', 'false');
               }
             });
+
+            // Set up required field validation listeners
+            setupRequiredFieldListeners();
+
+            // Set up conditional required fields
+            setupConditionalRequired();
+
+            // Check initial state of required fields
+            updateSaveButtonState();
           }
+        };
+
+        // Handle save failure - re-enter edit mode and clear specific field
+        window['handleSaveFailure_", module_id_js, "'] = function(fieldToClear) {
+          const container = document.getElementById(moduleId);
+          if (!container) return;
+
+          // Check if we're in locked mode (save was attempted)
+          const editBtn = container.querySelector('.btn-edit-toggle');
+          if (!editBtn) return;
+
+          // If in locked mode, switch back to edit mode
+          if (!editBtn.classList.contains('editing')) {
+            editBtn.click();  // This will handle all the enable/disable logic
+          }
+
+          // Clear the specified field if provided
+          if (fieldToClear) {
+            const fieldId = 'field_' + fieldToClear;
+            const baseNs = moduleId.substring(0, moduleId.lastIndexOf('-form'));
+            const fullFieldId = baseNs + '-' + fieldId;
+
+            // Find the field
+            const field = document.getElementById(fullFieldId);
+            if (field) {
+              if (field.classList.contains('icon-picker-custom')) {
+                // Icon picker - clear data-value and update display
+                field.setAttribute('data-value', '');
+                const display = field.querySelector('.icon-picker-display');
+                if (display) {
+                  display.innerHTML = '<span class=\"icon-thumb-placeholder\" style=\"display:inline-block;width:24px;height:24px;margin-right:8px;background:#f0f0f0;border:1px solid #dee2e6;border-radius:3px;vertical-align:middle;\"></span><span class=\"icon-label\">(none)</span><i class=\"dropdown-arrow\" style=\"margin-left:auto;\"></i>';
+                }
+              } else if (field.tagName === 'SELECT') {
+                field.value = '';
+                if (window.Shiny) Shiny.setInputValue(fullFieldId, '');
+              } else if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+                field.value = '';
+                if (window.Shiny) Shiny.setInputValue(fullFieldId, '');
+              }
+
+              // Focus on the cleared field
+              if (field.focus) field.focus();
+            }
+          }
+
+          // Re-validate to update button state and red borders
+          setTimeout(function() {
+            validateRequiredFields();
+            updateSaveButtonState();
+          }, 100);
         };
 
         // Delete confirmation function
@@ -393,6 +464,186 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
             }
           }
         };
+
+        // Function to check if all required fields are filled and update visual state
+        function validateRequiredFields() {
+          const container = document.getElementById(moduleId);
+          if (!container) return true; // If no container, allow save
+
+          // Find all required fields
+          const requiredInputs = container.querySelectorAll('[data-required=\"true\"]');
+          if (requiredInputs.length === 0) return true; // No required fields, allow save
+
+          let allFilled = true;
+          requiredInputs.forEach(function(field) {
+            // Skip static fields
+            if (field.hasAttribute('data-static') || field.closest('.form-static-value')) {
+              return;
+            }
+
+            let isEmpty = false;
+
+            // Check different field types
+            if (field.classList.contains('icon-picker-custom')) {
+              // Icon picker - check data-value attribute
+              const value = field.getAttribute('data-value') || '';
+              isEmpty = value.trim() === '';
+            } else if (field.tagName === 'SELECT') {
+              isEmpty = field.value === '';
+            } else if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+              isEmpty = (field.value || '').trim() === '';
+            }
+
+            // Update visual state - add/remove 'field-invalid' class
+            if (isEmpty) {
+              field.classList.add('field-invalid');
+              allFilled = false;
+            } else {
+              field.classList.remove('field-invalid');
+            }
+          });
+
+          return allFilled;
+        }
+
+        // Function to update save button state based on required fields
+        function updateSaveButtonState() {
+          const container = document.getElementById(moduleId);
+          if (!container) return;
+
+          const editBtn = container.querySelector('.btn-edit-toggle');
+          if (!editBtn || !editBtn.classList.contains('editing')) return; // Only check in edit mode
+
+          const allFilled = validateRequiredFields();
+
+          if (allFilled) {
+            editBtn.removeAttribute('disabled');
+            editBtn.style.opacity = '1';
+            editBtn.style.cursor = 'pointer';
+          } else {
+            editBtn.setAttribute('disabled', 'disabled');
+            editBtn.style.opacity = '0.5';
+            editBtn.style.cursor = 'not-allowed';
+          }
+        }
+
+        // Handle conditional required fields (requiredIf)
+        function setupConditionalRequired() {
+          const container = document.getElementById(moduleId);
+          if (!container) return;
+
+          // Find all fields with data-required-if attribute
+          const conditionalFields = container.querySelectorAll('[data-required-if]');
+
+          conditionalFields.forEach(function(field) {
+            const requiredIfJson = field.getAttribute('data-required-if');
+            if (!requiredIfJson) return;
+
+            try {
+              const requiredIf = JSON.parse(requiredIfJson);
+              const dependentFieldName = requiredIf.field;
+              const requiredValues = Array.isArray(requiredIf.values) ? requiredIf.values : [requiredIf.values];
+
+              // Find the dependent field
+              const baseNs = moduleId.substring(0, moduleId.lastIndexOf('-form'));
+              const dependentFieldId = baseNs + '-field_' + (dependentFieldName.includes('.') ? dependentFieldName : dependentFieldName);
+              const dependentField = document.getElementById(dependentFieldId);
+
+              if (!dependentField) {
+                console.warn('[ConditionalRequired] Dependent field not found:', dependentFieldId);
+                return;
+              }
+
+              // Function to check and update required status
+              function checkCondition() {
+                let currentValue = null;
+
+                if (dependentField.classList && dependentField.classList.contains('icon-picker-custom')) {
+                  currentValue = dependentField.getAttribute('data-value');
+                } else if (dependentField.tagName === 'SELECT' || dependentField.tagName === 'INPUT' || dependentField.tagName === 'TEXTAREA') {
+                  currentValue = dependentField.value;
+                }
+
+                // Check if current value matches any of the required values
+                const isRequired = requiredValues.includes(currentValue);
+
+                // Update data-required attribute
+                if (isRequired) {
+                  field.setAttribute('data-required', 'true');
+
+                  // Set up input listener if not already present
+                  if (!field.hasAttribute('data-validation-listener')) {
+                    field.setAttribute('data-validation-listener', 'true');
+
+                    if (field.classList.contains('icon-picker-custom')) {
+                      const observer = new MutationObserver(function() {
+                        validateRequiredFields();
+                        updateSaveButtonState();
+                      });
+                      observer.observe(field, { attributes: true, attributeFilter: ['data-value'] });
+                    } else {
+                      field.addEventListener('input', function() {
+                        validateRequiredFields();
+                        updateSaveButtonState();
+                      });
+                      field.addEventListener('change', function() {
+                        validateRequiredFields();
+                        updateSaveButtonState();
+                      });
+                    }
+                  }
+                } else {
+                  field.removeAttribute('data-required');
+                  // Remove invalid class if not required
+                  field.classList.remove('field-invalid');
+                }
+
+                // Re-validate
+                validateRequiredFields();
+                updateSaveButtonState();
+              }
+
+              // Set up listener on dependent field
+              if (dependentField.classList && dependentField.classList.contains('icon-picker-custom')) {
+                const observer = new MutationObserver(checkCondition);
+                observer.observe(dependentField, { attributes: true, attributeFilter: ['data-value'] });
+              } else {
+                dependentField.addEventListener('change', checkCondition);
+                dependentField.addEventListener('input', checkCondition);
+              }
+
+              // Check initial state
+              checkCondition();
+
+            } catch (e) {
+              console.error('[ConditionalRequired] Error parsing requiredIf:', e);
+            }
+          });
+        }
+
+        // Set up event listeners for required field validation
+        function setupRequiredFieldListeners() {
+          const container = document.getElementById(moduleId);
+          if (!container) return;
+
+          const requiredFields = container.querySelectorAll('[data-required=\"true\"]');
+
+          requiredFields.forEach(function(field) {
+            // Skip if already has listener
+            if (field.hasAttribute('data-validation-listener')) return;
+            field.setAttribute('data-validation-listener', 'true');
+
+            if (field.classList.contains('icon-picker-custom')) {
+              // Icon picker - listen for data-value changes via MutationObserver
+              const observer = new MutationObserver(updateSaveButtonState);
+              observer.observe(field, { attributes: true, attributeFilter: ['data-value'] });
+            } else {
+              // Regular inputs, selects, textareas
+              field.addEventListener('input', updateSaveButtonState);
+              field.addEventListener('change', updateSaveButtonState);
+            }
+          });
+        }
 
         // Initialize icon pickers - function to be called when form loads
         function initializeIconPickers() {
@@ -643,7 +894,7 @@ mod_html_form_server <- function(id, schema_config, form_data,
         FALSE
       }
 
-      render_html_form(
+      form_ui <- render_html_form(
         schema = current_schema$schema,
         uiSchema = current_schema$uiSchema,
         formData = current_data,
@@ -654,6 +905,25 @@ mod_html_form_server <- function(id, schema_config, form_data,
         show_footer = show_delete_button,  # Show footer only if delete button enabled
         delete_disabled = is_add_new  # Disable if in add new mode
       )
+
+      # Auto-enter edit mode for new records
+      if (is_add_new) {
+        module_id <- ns("form")
+        module_id_js <- gsub("-", "_", module_id)
+        tagList(
+          form_ui,
+          tags$script(HTML(sprintf("
+            setTimeout(function() {
+              var editBtn = document.querySelector('#%s .btn-edit-toggle');
+              if (editBtn && !editBtn.classList.contains('editing')) {
+                editBtn.click();
+              }
+            }, 100);
+          ", module_id)))
+        )
+      } else {
+        form_ui
+      }
     })
 
     # Observe Save button click
@@ -716,9 +986,14 @@ mod_html_form_server <- function(id, schema_config, form_data,
         if (isTRUE(success)) {
           rv$saved_data <- collected_data
           rv$save_timestamp <- Sys.time()
+          showNotification("Saved successfully", type = "message", duration = 3)
         }
+        # If FALSE, assume the callback handled showing its own error notification
       }, error = function(e) {
-        cat("[Save Error]:", conditionMessage(e), "\n")
+        # Unexpected error during save (callback threw an error instead of returning FALSE)
+        error_msg <- conditionMessage(e)
+        cat("[Save Error]:", error_msg, "\n")
+        showNotification(paste("Error saving:", error_msg), type = "error", duration = NULL)
       })
     }, ignoreInit = TRUE)
 
@@ -737,13 +1012,29 @@ mod_html_form_server <- function(id, schema_config, form_data,
       }
     }, ignoreInit = TRUE)
 
+    # Function to handle save failure - re-enter edit mode and clear field
+    handle_save_failure <- function(field_name = NULL) {
+      module_id <- ns("form")
+      module_id_js <- gsub("-", "_", module_id)
+      js_func <- sprintf("handleSaveFailure_%s", module_id_js)
+
+      js_code <- if (!is.null(field_name)) {
+        sprintf("if (window['%s']) window['%s']('%s');", js_func, js_func, field_name)
+      } else {
+        sprintf("if (window['%s']) window['%s']();", js_func, js_func)
+      }
+
+      shinyjs::runjs(js_code)
+    }
+
     # Return list of reactive values and functions for parent to use
     list(
       get_data = data,
       get_schema = compiled_schema,
       saved_data = reactive({ rv$save_timestamp; rv$saved_data }),
       deleted = reactive({ rv$delete_timestamp; rv$deleted }),
-      edit_refresh_trigger = reactive({ rv$edit_refresh_trigger })  # For refreshing dynamic selects
+      edit_refresh_trigger = reactive({ rv$edit_refresh_trigger }),  # For refreshing dynamic selects
+      handle_save_failure = handle_save_failure  # For recovering from save errors
     )
   })
 }

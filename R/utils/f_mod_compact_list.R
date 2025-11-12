@@ -22,16 +22,21 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
         color: #000;
       }
 
-      /* Filter input */
+      /* Filter input with action button (Fomantic UI style) */
       .cl-container-%s .cl-filter {
         margin-bottom: 0.5em;
+        display: flex;
+      }
+
+      .cl-container-%s .cl-filter .ui.action.input {
+        width: 100%%;
       }
 
       .cl-container-%s .cl-filter input {
-        width: 100%%;
+        flex: 1;
         padding: 0.4em 0.6em;
         border: 1px solid rgba(34, 36, 38, 0.15);
-        border-radius: 0.28571429rem;
+        border-radius: 0.28571429rem 0 0 0.28571429rem;
         font-size: 11px;
         box-sizing: border-box;
         outline: none;
@@ -40,6 +45,27 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
       .cl-container-%s .cl-filter input:focus {
         border-color: #85b7d9;
         box-shadow: 0 0 0 0.2em rgba(33, 133, 208, 0.1);
+      }
+
+      .cl-container-%s .cl-filter .ui.button {
+        padding: 0.4em 0.8em;
+        background: #21ba45;
+        color: white;
+        border: none;
+        border-radius: 0 0.28571429rem 0.28571429rem 0;
+        font-size: 11px;
+        font-weight: bold;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.1s ease;
+      }
+
+      .cl-container-%s .cl-filter .ui.button:hover {
+        background: #16ab39;
+      }
+
+      .cl-container-%s .cl-filter .ui.button:active {
+        background: #198f35;
       }
 
       /* List container */
@@ -119,8 +145,8 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
 
       .cl-container-%s .cl-icon img {
         display: block;
-        width: 20px;
-        height: 20px;
+        width: 40px;
+        height: 40px;
         object-fit: contain;
       }
 
@@ -159,10 +185,19 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
     div(class = paste0("cl-container-", id),
         if (show_filter) {
           div(class = "cl-filter",
-              tags$input(
-                type = "text",
-                id = ns("filter"),
-                placeholder = filter_placeholder
+              div(class = "ui action input",
+                  tags$input(
+                    type = "text",
+                    id = ns("filter"),
+                    placeholder = filter_placeholder
+                  ),
+                  tags$button(
+                    class = "ui button",
+                    id = ns("add_new_btn"),
+                    type = "button",
+                    tags$i(class = "plus icon", style = "margin: 0;"),
+                    "Add New"
+                  )
               )
           )
         },
@@ -190,11 +225,16 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
           var value = $(this).val();
           Shiny.setInputValue('%s', value);
         });
+
+        // Add New button handling
+        $(document).on('click', '#%s', function() {
+          Shiny.setInputValue('%s', '__NEW__', {priority: 'event'});
+        });
       })();
     "
 
       # JavaScript has different values per placeholder, so we list them explicitly
-      tags$script(HTML(sprintf(js_template, id, ns("item_clicked"), ns("filter"), ns("filter"))))
+      tags$script(HTML(sprintf(js_template, id, ns("item_clicked"), ns("filter"), ns("filter"), ns("add_new_btn"), ns("item_clicked"))))
     }
   )
 }
@@ -215,6 +255,7 @@ compact_list_server <- function(id, items, add_new_item = TRUE,
 
     selected_id <- reactiveVal(NULL)
     initial_load_done <- reactiveVal(FALSE)
+    pending_selection <- reactiveVal(NULL)  # For delayed selection
 
     # Filter items based on search
     filtered_items <- reactive({
@@ -319,8 +360,47 @@ compact_list_server <- function(id, items, add_new_item = TRUE,
       }
     })
 
+    # Handle pending selections - wait for item to appear in list
+    observe({
+      pending <- pending_selection()
+      if (!is.null(pending)) {
+        df <- items()
+        if (!is.null(df) && nrow(df) > 0) {
+          # Check if the pending item is now in the list
+          if (pending %in% df$id) {
+            cat("[CompactList] Pending selection found in list:", pending, "\n")
+            selected_id(as.integer(pending))
+            pending_selection(NULL)  # Clear pending
+          } else {
+            cat("[CompactList] Pending selection not yet in list:", pending, "\n")
+          }
+        }
+      }
+    })
+
+    # Programmatic selection method - returns immediately, waits for item if needed
+    select_item <- function(item_id) {
+      if (is.null(item_id) || is.na(item_id)) {
+        selected_id(NULL)
+        return()
+      }
+
+      # Check if item is already in list
+      df <- isolate(items())
+      if (!is.null(df) && nrow(df) > 0 && item_id %in% df$id) {
+        # Item exists, select immediately
+        cat("[CompactList] Selecting item immediately:", item_id, "\n")
+        selected_id(as.integer(item_id))
+      } else {
+        # Item not in list yet, set as pending
+        cat("[CompactList] Setting pending selection:", item_id, "\n")
+        pending_selection(as.integer(item_id))
+      }
+    }
+
     return(list(
-      selected_id = selected_id
+      selected_id = selected_id,
+      select_item = select_item  # Expose selection method
     ))
   })
 }

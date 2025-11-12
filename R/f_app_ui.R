@@ -61,8 +61,10 @@ f_app_ui <- function() {
     div(class = "sb-rail",
         div(class = "ui vertical inverted menu fluid",
             div(class = "item header", "Silo"),
-            
+
             # Note: data-route attributes drive router
+            a(class = "item", `data-route` = "#/shapes",
+              tags$i(class = "shapes icon"),    span(class = "item-label", "Shapes")),
             a(class = "item", `data-route` = "#/containers",
               tags$i(class = "boxes icon"),     span(class = "item-label", "Containers")),
             a(class = "item", `data-route` = "#/icons",
@@ -117,7 +119,7 @@ f_app_ui <- function() {
         document.addEventListener('DOMContentLoaded', syncCollapse);
 
         // simple hash router
-        function normRoute(h){ return h && h.startsWith('#/') ? h : '#/containers'; }
+        function normRoute(h){ return h && h.startsWith('#/') ? h : '#/shapes'; }
         function setActiveRoute(h){
           var items = document.querySelectorAll('.sb-rail .item[data-route]');
           items.forEach(function(it){ it.classList.toggle('nav-active', it.getAttribute('data-route') === h); });
@@ -131,7 +133,7 @@ f_app_ui <- function() {
         document.addEventListener('click', function(e){
           var it = e.target.closest('.sb-rail .item[data-route]');
           if (!it) return;
-          var h = it.getAttribute('data-route') || '#/containers';
+          var h = it.getAttribute('data-route') || '#/shapes';
           if (location.hash !== h) location.hash = h; else syncRoute(); // also handle same-route click
         });
 

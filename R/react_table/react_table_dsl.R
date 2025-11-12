@@ -2,7 +2,8 @@ field <- function(name, type,
                   title = NULL, enum = NULL, source = NULL,
                   min = NULL, max = NULL, default = NULL,
                   group = NULL, column = NULL, fullWidth = FALSE,
-                  format = NULL, widget = NULL, icon_metadata = NULL) {
+                  format = NULL, widget = NULL, icon_metadata = NULL,
+                  required = FALSE, requiredIf = NULL) {
   # ---- normalize "friendly" types to JSON Schema types ----
   base_type <- type
   fmt <- format
@@ -44,7 +45,9 @@ field <- function(name, type,
     group        = group,
     column       = column,
     fullWidth    = isTRUE(fullWidth),
-    icon_metadata = icon_metadata
+    icon_metadata = icon_metadata,
+    required     = isTRUE(required),
+    requiredIf   = requiredIf
   )
 }
 
@@ -124,11 +127,13 @@ compile_rjsf <- function(title, props, groups = list(), columns = 1, hide_submit
       # Initialize field ui if needed
       if (is.null(root[[name]])) root[[name]] <- list()
 
-      # ui:options (column/fullWidth/iconMetadata)
-      if (!is.null(f$column) || isTRUE(f$fullWidth) || !is.null(f$icon_metadata)) {
+      # ui:options (column/fullWidth/iconMetadata/required/requiredIf)
+      if (!is.null(f$column) || isTRUE(f$fullWidth) || !is.null(f$icon_metadata) || isTRUE(f$required) || !is.null(f$requiredIf)) {
         opts <- list()
         if (!is.null(f$column))        opts$column       <- f$column
         if (isTRUE(f$fullWidth))       opts$fullWidth    <- TRUE
+        if (isTRUE(f$required))        opts$required     <- TRUE
+        if (!is.null(f$requiredIf))    opts$requiredIf   <- f$requiredIf
         if (!is.null(f$icon_metadata)) {
           opts$iconMetadata <- f$icon_metadata
         }

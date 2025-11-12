@@ -106,32 +106,122 @@ list_shape_templates <- function(shape_type = NULL,
                                  order_dir = "ASC",
                                  limit = 200,
                                  offset = 0) {
-  
+
   ob <- safe_order_by(order_col, order_dir, .ALLOWED_SHAPES_COLS)
-  
+
   where <- c(); params <- list()
   if (!is.null(shape_type)) { where <- c(where, "ShapeType = ?");   params <- c(params, list(shape_type)) }
   if (!is.null(code_like))  { where <- c(where, "TemplateCode LIKE ?"); params <- c(params, list(code_like)) }
-  
+
   where_sql <- if (length(where)) paste("WHERE", paste(where, collapse = " AND ")) else ""
-  
+
   sql <- sprintf("
-    SELECT ShapeTemplateID, TemplateCode, ShapeType, Radius, Width, Height, RotationDeg
+    SELECT ShapeTemplateID, TemplateCode, ShapeType, Radius, Width, Height, RotationDeg,
+           DefaultFill, DefaultBorder, DefaultBorderPx, Notes
     FROM SiloOps.dbo.ShapeTemplates
     %s
     %s
     OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
   ", where_sql, ob)
-  
+
   db_query_params(sql, c(params, list(as.integer(offset), as.integer(limit))))
 }
 
-get_shape_by_id <- function(shape_template_id) {
+get_shape_template_by_id <- function(shape_template_id) {
   db_query_params("
-    SELECT ShapeTemplateID, TemplateCode, ShapeType, Radius, Width, Height, RotationDeg
+    SELECT ShapeTemplateID, TemplateCode, ShapeType, Radius, Width, Height, RotationDeg,
+           DefaultFill, DefaultBorder, DefaultBorderPx, Notes
     FROM SiloOps.dbo.ShapeTemplates
     WHERE ShapeTemplateID = ?
   ", list(as.integer(shape_template_id)))
+}
+
+# Save (upsert) shape template
+# If id is NULL or 0, creates new; otherwise updates existing
+upsert_shape_template <- function(data) {
+  # Extract ID (NULL or 0 means new record)
+  id <- f_or(data$ShapeTemplateID, 0)
+  is_new <- is.null(id) || id == 0 || id == ""
+
+  # Determine which geometry fields to use based on ShapeType
+  shape_type <- f_or(data$ShapeType, "CIRCLE")
+
+  if (is_new) {
+    # INSERT new record
+    sql <- "
+      INSERT INTO SiloOps.dbo.ShapeTemplates (
+        TemplateCode, ShapeType, Radius, Width, Height, RotationDeg,
+        DefaultFill, DefaultBorder, DefaultBorderPx, Notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      SELECT SCOPE_IDENTITY() AS NewID;
+    "
+    params <- list(
+      as.character(f_or(data$TemplateCode, "")),
+      as.character(shape_type),
+      if (shape_type %in% c("CIRCLE", "TRIANGLE")) {
+        val <- data$Geometry$Radius
+        if (is.null(val) || is.na(val) || val == "") NA_real_ else as.numeric(val)
+      } else NA_real_,
+      if (shape_type == "RECTANGLE") {
+        val <- data$Geometry$Width
+        if (is.null(val) || is.na(val) || val == "") NA_real_ else as.numeric(val)
+      } else NA_real_,
+      if (shape_type == "RECTANGLE") {
+        val <- data$Geometry$Height
+        if (is.null(val) || is.na(val) || val == "") NA_real_ else as.numeric(val)
+      } else NA_real_,
+      as.numeric(f_or(data$Geometry$RotationDeg, 0)),
+      as.character(f_or(data$Graphics$DefaultFill, "#FFFFFF")),
+      as.character(f_or(data$Graphics$DefaultBorder, "#000000")),
+      as.numeric(f_or(data$Graphics$DefaultBorderPx, 1)),
+      as.character(f_or(data$Notes, ""))
+    )
+
+    result <- db_query_params(sql, params)
+    return(if (nrow(result) > 0) as.integer(result$NewID[1]) else NULL)
+
+  } else {
+    # UPDATE existing record
+    sql <- "
+      UPDATE SiloOps.dbo.ShapeTemplates
+      SET TemplateCode = ?,
+          ShapeType = ?,
+          Radius = ?,
+          Width = ?,
+          Height = ?,
+          RotationDeg = ?,
+          DefaultFill = ?,
+          DefaultBorder = ?,
+          DefaultBorderPx = ?,
+          Notes = ?
+      WHERE ShapeTemplateID = ?
+    "
+    params <- list(
+      as.character(f_or(data$TemplateCode, "")),
+      as.character(shape_type),
+      if (shape_type %in% c("CIRCLE", "TRIANGLE")) {
+        val <- data$Geometry$Radius
+        if (is.null(val) || is.na(val) || val == "") NA_real_ else as.numeric(val)
+      } else NA_real_,
+      if (shape_type == "RECTANGLE") {
+        val <- data$Geometry$Width
+        if (is.null(val) || is.na(val) || val == "") NA_real_ else as.numeric(val)
+      } else NA_real_,
+      if (shape_type == "RECTANGLE") {
+        val <- data$Geometry$Height
+        if (is.null(val) || is.na(val) || val == "") NA_real_ else as.numeric(val)
+      } else NA_real_,
+      as.numeric(f_or(data$Geometry$RotationDeg, 0)),
+      as.character(f_or(data$Graphics$DefaultFill, "#FFFFFF")),
+      as.character(f_or(data$Graphics$DefaultBorder, "#000000")),
+      as.numeric(f_or(data$Graphics$DefaultBorderPx, 1)),
+      as.character(f_or(data$Notes, "")),
+      as.integer(id)
+    )
+
+    db_query_params(sql, params)
+    return(as.integer(id))
+  }
 }
 
 

@@ -51,8 +51,8 @@ browser_containers_server <- function(id, pool) {
       df$IconDisplay <- vapply(seq_len(nrow(df)), function(i) {
         # Check if we have IconImage base64 data
         if (!is.null(df$IconImage) && !is.na(df$IconImage[i]) && nzchar(df$IconImage[i])) {
-          # Render as img tag with base64 data
-          sprintf('<img src="data:image/png;base64,%s" style="width:20px;height:20px;vertical-align:middle;" />',
+          # Render as img tag with base64 data (CSS handles sizing via object-fit)
+          sprintf('<img src="data:image/png;base64,%s" />',
                   df$IconImage[i])
         } else {
           # Fallback to emoji based on BottomType
@@ -135,11 +135,11 @@ browser_containers_server <- function(id, pool) {
       list(
         fields = list(
           # Column 1
-          field("TypeName",       "text",     title="Name", column = 1),
-          field("TypeCode",       "text",     title="Code", column = 1),
+          field("TypeName",       "text",     title="Name", column = 1, required = TRUE),
+          field("TypeCode",       "text",     title="Code", column = 1, required = TRUE),
           field("Description",    "textarea", title="Description", column = 1),
           field("BottomType",     "select",   title="Bottom Type", enum=c("HOPPER", "FLAT"), default="HOPPER", column = 1),
-          field("IconID",         "select",   title="Icon", enum=icon_info$choices, widget="icon-select", icon_metadata=icon_info$metadata, column = 1),
+          field("IconID",         "select",   title="Icon", enum=icon_info$choices, widget="icon-select", icon_metadata=icon_info$metadata, column = 1, required = TRUE),
 
           # Column 2 - Graphics
           field("DefaultFill",     "color",   title="Fill",      group="Graphics"),
@@ -234,6 +234,9 @@ browser_containers_server <- function(id, pool) {
     })
 
     # ---- Initialize HTML form module ----
+    # Declare form_module first so it can be captured in callbacks
+    form_module <- NULL
+
     form_module <- mod_html_form_server(
       id = "form",
       schema_config = schema_config,
@@ -243,19 +246,59 @@ browser_containers_server <- function(id, pool) {
       show_delete_button = TRUE,  # Show delete button (disabled on add new)
       on_save = function(data) {
         tryCatch({
+          # Check if we're in "add new" mode before saving
+          is_new_record <- is.na(selected_id())
+
+          # Save to database
           saved_id <- upsert_container_type(data)
 
-          # Update selected ID if this was a new record
-          if (is.null(data$ContainerTypeID) || data$ContainerTypeID == 0 || data$ContainerTypeID == "") {
-            selected_id(saved_id)
+          # If this was a new record, select it using the list module's method
+          # (handles waiting for the item to appear after refresh)
+          if (is_new_record && !is.null(saved_id) && !is.na(saved_id)) {
+            list_result$select_item(as.integer(saved_id))
           }
 
-          # Trigger list refresh
+          # Trigger list refresh to show the new item
           trigger_refresh(trigger_refresh() + 1)
 
           return(TRUE)
         }, error = function(e) {
-          cat("[Save Error]:", conditionMessage(e), "\n")
+          error_msg <- conditionMessage(e)
+          cat("[Container Save Error]:", error_msg, "\n")
+
+          # Identify which field caused the error and what to clear
+          field_to_clear <- NULL
+          user_msg <- NULL
+
+          if (grepl("UNIQUE KEY constraint", error_msg, ignore.case = TRUE)) {
+            # Duplicate key - typically the Code field
+            field_to_clear <- "TypeCode"
+            if (grepl("duplicate key value is \\(([^)]+)\\)", error_msg, ignore.case = TRUE)) {
+              dup_value <- gsub(".*duplicate key value is \\(([^)]+)\\).*", "\\1", error_msg, ignore.case = TRUE)
+              user_msg <- paste0("Cannot save: Code '", dup_value, "' already exists. Please use a different code.")
+            } else {
+              user_msg <- "Cannot save: This code already exists. Please use a different code."
+            }
+          } else if (grepl("FOREIGN KEY constraint", error_msg, ignore.case = TRUE)) {
+            # Foreign key - could be Icon or other reference
+            if (grepl("Icon", error_msg, ignore.case = TRUE)) {
+              field_to_clear <- "IconID"
+            }
+            user_msg <- "Cannot save: Referenced item does not exist. Please check your selections."
+          } else if (grepl("NULL", error_msg, ignore.case = TRUE) && grepl("cannot insert", error_msg, ignore.case = TRUE)) {
+            # NULL constraint - try to identify field from error message
+            user_msg <- "Cannot save: Required field is missing."
+          } else {
+            # Generic database error
+            user_msg <- paste0("Database error: ", substr(error_msg, 1, 200))
+          }
+
+          # Show error notification
+          showNotification(user_msg, type = "error", duration = NULL)
+
+          # Re-enter edit mode and clear the offending field
+          form_module$handle_save_failure(field_to_clear)
+
           return(FALSE)
         })
       },

@@ -1,5 +1,441 @@
 # Session Summary
 
+## 2025-11-12 (Session 4) - Required Field Validation System
+
+### ✅ COMPLETED: Global Required Field Validation
+**Goal**: Add required field validation to React Table (HTML form module) with visual feedback and save button control
+
+**Implementation**:
+
+#### 1. DSL Enhancement (`react_table_dsl.R`)
+- Added `required` parameter to `field()` function
+- Passes required status through to `ui:options` in schema
+
+#### 2. Form Renderer (`html_form_renderer.R`)
+- Added `data-required="true"` attribute to all input types:
+  - Text inputs, textareas, selects
+  - Number inputs, color pickers
+  - Custom icon picker widget
+- Attribute only added when `required = TRUE` in field definition
+
+#### 3. Visual Styling (`mod_html_form.R`)
+- **Red border** (2px, #dc3545) for empty required fields
+- Normal border when field has value
+- CSS targets `[data-required='true']` with empty values
+- Works in all input types including icon picker `data-value` attribute
+
+#### 4. JavaScript Validation (`mod_html_form.R`)
+- `validateRequiredFields()` - checks if all required fields are filled
+- `updateSaveButtonState()` - enables/disables save button based on validation
+- `setupRequiredFieldListeners()` - watches for input changes on required fields
+- Auto-validates when entering edit mode
+- Listens to input/change events on text/select/textarea
+- Uses MutationObserver for icon picker (watches `data-value` changes)
+- Save button disabled (grayed, 50% opacity) when required fields empty
+
+#### 5. Container Browser Configuration
+- Marked `TypeCode` (Code) and `IconID` (Icon) as required fields
+- Removed required from `TypeName` (Name) per user request
+
+#### 6. Auto-Select After Save
+- Enhanced save callback in `f_browser_containers.R`
+- When saving new record:
+  1. Detects "add new" mode (`selected_id()` is NA)
+  2. Saves to database, gets new ID
+  3. Sets `selected_id` to new ID
+  4. Form switches from add-new to viewing saved record
+  5. Red borders disappear (no longer in add-new mode)
+  6. List refreshes and highlights the newly created item
+
+**Files Modified**:
+- `R/react_table/react_table_dsl.R:1-6, 33-50, 125-148` - Added required parameter
+- `R/react_table/html_form_renderer.R:150-401` - Added data-required attributes
+- `R/react_table/mod_html_form.R:266-283, 378-495` - CSS + JS validation
+- `R/browsers/f_browser_containers.R:138-142, 244-265` - Required fields + auto-select
+
+**Usage Pattern**:
+```r
+# Mark field as required
+field("TypeCode", "text", title="Code", required = TRUE)
+
+# System automatically:
+# - Shows red border when empty in add-new mode
+# - Disables save button until filled
+# - Validates on every keystroke
+# - Supports all input types
+```
+
+**User Experience**:
+1. Click "<<add new>>" → empty form appears
+2. Required fields (Code, Icon) show **red borders**
+3. Save button is **disabled** (grayed out)
+4. Fill in Code → red border remains, button still disabled
+5. Select Icon → both fields valid → red borders disappear → save button **enabled**
+6. Click Save → item saved → **list auto-selects new item** → red borders gone
+
+**Result**: Complete required field validation system working across all React Table instances ✅
+
+---
+
+### ✅ COMPLETED: Fixed Validation Visual Feedback & Auto-Select
+**Problems Found During Testing**:
+1. Text input red borders persisted after typing (CSS `[value='']` doesn't update dynamically)
+2. Auto-select after save wasn't working (timing issue with list refresh)
+
+**Solutions**:
+
+#### 1. JS-Based Class Toggle for Red Borders
+- Changed from CSS attribute selectors to JavaScript class management
+- `validateRequiredFields()` now adds/removes `field-invalid` class dynamically
+- Updates on every keystroke via input/change event listeners
+- Works consistently for all field types (text, select, icon picker)
+
+**Files Modified**:
+- `R/react_table/mod_html_form.R:266-276, 415-454` - Replaced CSS selectors with JS class toggle
+
+#### 2. Reusable Selection Method in Compact List
+- Added `select_item(id)` method to compact list module
+- Handles both immediate selection (item already in list) and pending selection (waits for item)
+- Internal `pending_selection` reactiveVal with observer
+- Observer watches `items()` and applies pending selection when item appears
+- Exposed via return value: `list_result$select_item(id)`
+
+**Pattern - Programmatic Selection**:
+```r
+# In compact list module
+select_item <- function(item_id) {
+  df <- isolate(items())
+  if (item_id %in% df$id) {
+    selected_id(item_id)  # Immediate
+  } else {
+    pending_selection(item_id)  # Wait for it
+  }
+}
+
+# In parent module (browser)
+list_result$select_item(saved_id)  # Works anytime, waits if needed
+```
+
+**Files Modified**:
+- `R/utils/f_mod_compact_list.R:218, 323-364` - Added selection method
+- `R/browsers/f_browser_containers.R:35-37, 98-118, 244-266` - Use new method
+
+**Usage Scenarios**:
+1. **Initial load**: `initial_selection = "first"` (built-in)
+2. **After save**: `list_result$select_item(saved_id)` (waits for refresh)
+3. **Future cases**: Any module can call `select_item()` anytime
+
+**Result**: Red borders update in real-time, auto-select works reliably ✅
+
+---
+
+### ✅ COMPLETED: User-Friendly Error Notifications
+**Problem**: Save errors (e.g., duplicate key constraint) were logged to console but not shown to user
+
+**Example Error (not shown to user)**:
+```
+[Save Error]: nanodbc/nanodbc.cpp:1867: 01000
+[Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Violation of UNIQUE KEY constraint...
+The duplicate key value is (HHHCODE).
+```
+
+**Solution**: Multi-layer error handling with user-friendly messages
+
+#### 1. Form Module Notifications (`mod_html_form.R`)
+- Shows "Saved successfully" on success
+- If `on_save` returns FALSE, assumes callback handled error (no duplicate notification)
+- If unexpected error, shows generic notification
+
+#### 2. Browser-Specific Error Parsing (`f_browser_containers.R`)
+- Catches database errors and parses for specific cases:
+  - **Duplicate key**: "Cannot save: Code 'HHHCODE' already exists. Please use a different code."
+  - **Foreign key**: "Cannot save: Referenced item does not exist. Please check your selections."
+  - **NULL constraint**: "Cannot save: Required field is missing."
+  - **Generic**: Shows first 200 chars of error
+- Shows notification with `duration = NULL` (stays until dismissed)
+- Returns FALSE to signal failure
+
+**Notification Pattern**:
+```r
+on_save = function(data) {
+  tryCatch({
+    # ... save logic ...
+    return(TRUE)  # Success - form module shows "Saved successfully"
+  }, error = function(e) {
+    # Parse error and show user-friendly message
+    showNotification(user_msg, type = "error", duration = NULL)
+    return(FALSE)  # Failure - form module doesn't show duplicate message
+  })
+}
+```
+
+**Files Modified**:
+- `R/react_table/mod_html_form.R:836-851` - Success notification, no duplicate on FALSE
+- `R/browsers/f_browser_containers.R:244-287` - Error parsing and user notifications
+
+**Result**: Users now see clear, actionable error messages instead of raw database errors ✅
+
+---
+
+### ✅ COMPLETED: Save Failure Recovery - Stay in Edit Mode & Clear Invalid Field
+**Problem**: When save fails (e.g., duplicate code), form switches to locked mode and user has to manually re-enter edit mode and find/fix the problem
+
+**Solution**: Automatic recovery on save failure
+
+#### 1. JavaScript Recovery Function (`mod_html_form.R`)
+- Added `handleSaveFailure_[moduleId](fieldToClear)` function
+- **Re-enters edit mode** if form is locked
+- **Clears the specific field** that caused the error
+- **Refocuses** on the cleared field
+- **Revalidates** required fields (shows red borders if needed)
+- Works with all field types: text, select, textarea, icon picker
+
+#### 2. Server-Side Trigger (`mod_html_form.R`)
+- Added `handle_save_failure(field_name)` function to form module return value
+- Parent modules can call it: `form_module$handle_save_failure("TypeCode")`
+- Uses shinyjs to trigger the JS function
+
+#### 3. Smart Error Detection (`f_browser_containers.R`)
+- Parses error messages to identify which field caused the problem:
+  - **UNIQUE KEY constraint** → clear `TypeCode` field
+  - **FOREIGN KEY on Icon** → clear `IconID` field
+  - Other errors → re-enter edit mode without clearing
+- Calls `form_module$handle_save_failure(field_to_clear)` automatically
+
+**User Flow After Duplicate Code Error**:
+1. Fill in Code = "HHHCODE", Icon = some icon
+2. Click Save → database rejects (duplicate)
+3. Error notification appears: "Cannot save: Code 'HHHCODE' already exists..."
+4. **Form automatically re-enters edit mode**
+5. **Code field is cleared and focused**
+6. **Red border appears on Code field** (validation triggers)
+7. Icon field keeps its value (not cleared)
+8. User can immediately type new code
+
+**Files Modified**:
+- `R/react_table/mod_html_form.R:380-428, 918-941` - JS function + server trigger
+- `R/browsers/f_browser_containers.R:237-238, 262-300` - Error detection + recovery call
+
+**Result**: Seamless error recovery - no manual mode switching, clear visual feedback on what needs fixing ✅
+
+---
+
+### ✅ COMPLETED: Always-Accessible "Add New" Button in Compact List
+**Problem**: With long lists, the "<<add new>>" item scrolls out of view at the bottom, requiring scrolling to create new items
+
+**Solution**: Added "Add New" button next to the filter using Fomantic UI action input pattern
+
+#### Implementation
+- **UI Structure**: Fomantic UI `action input` with connected button
+  ```html
+  <div class="ui action input">
+    <input type="text" placeholder="Filter...">
+    <button class="ui button">
+      <i class="plus icon"></i> Add New
+    </button>
+  </div>
+  ```
+- **Button Style**: Green Fomantic button (#21ba45) with plus icon
+- **Behavior**: Clicking button triggers same logic as clicking "<<add new>>" in list
+- **Position**: Always visible at top, next to filter input
+
+#### Visual Design
+- Filter and button connected (no gap between them)
+- Filter has rounded left corners, button has rounded right corners
+- Green color distinguishes add action from filter action
+- Hover states: darker green (#16ab39), active even darker (#198f35)
+
+**Files Modified**:
+- `R/utils/f_mod_compact_list.R:25-69, 185-238` - UI structure, CSS, JavaScript
+
+**Result**: Users can now add new items without scrolling, regardless of list length ✅
+
+---
+
+### ✅ COMPLETED: Shapes Browser - Full Port from Containers Pattern
+
+**Goal**: Create complete shapes browser based on containers pattern, add TRIANGLE support, make it the default tab
+
+**Implementation Steps**:
+
+#### 1. Updated Containers Required Fields
+Changed from (Code, Icon) to **(Name, Icon, Code)** - all three now required
+
+#### 2. Database Layer (`R/db/queries.R`)
+- **Updated** `list_shape_templates()` - Added DefaultFill, DefaultBorder, DefaultBorderPx, Notes fields
+- **Renamed** `get_shape_by_id()` → `get_shape_template_by_id()` - Added graphics fields
+- **Created** `upsert_shape_template()` - Full CRUD with conditional geometry:
+  - CIRCLE/TRIANGLE: Radius required, Width/Height NULL
+  - RECTANGLE: Width/Height required, Radius NULL
+  - Handles nested `Geometry` and `Graphics` groups
+
+#### 3. Shapes Browser Module (`R/browsers/f_browser_shapes.R`)
+- **Complete port** of containers pattern
+- **Icon display**: ⭕ CIRCLE, ▭ RECTANGLE, 🔺 TRIANGLE
+- **Required fields**: TemplateCode and ShapeType (geometry fields conditional)
+- **Form schema**:
+  - Column 1: Code, Type, Notes
+  - Column 2 Group "Geometry": Radius, Width, Height, RotationDeg
+  - Column 2 Group "Graphics": Fill, Border, BorderPx (collapsible)
+- **Error handling**: User-friendly messages for:
+  - Duplicate code constraint
+  - Geometry constraint violations
+  - Positive values constraint
+- **Features**: Same as containers (save recovery, required field validation, add new button)
+
+#### 4. UI/Router Updates
+- **`R/f_app_ui.R`**: Added Shapes menu item at top, updated default route to #/shapes
+- **`R/f_app_server.R`**: Added shapes route handler, mounted shapes server
+
+#### 5. Triangle Shape Support
+**Geometry**: Uses Radius (circumscribed circle), same as CIRCLE
+- **Side length** = Radius × √3
+- **Height** = Radius × 1.5
+- **Orientation**: One vertex up (use RotationDeg to rotate)
+
+**SQL Changes Required** (documented in `.claude/triangle_implementation.md`):
+```sql
+-- Update ShapeType constraint to include TRIANGLE
+ALTER TABLE [dbo].[ShapeTemplates] DROP CONSTRAINT [CK_ShapeTemplates_ShapeType];
+ALTER TABLE [dbo].[ShapeTemplates] ADD CONSTRAINT [CK_ShapeTemplates_ShapeType]
+CHECK (([ShapeType]='CIRCLE' OR [ShapeType]='RECTANGLE' OR [ShapeType]='TRIANGLE'));
+
+-- Update Geometry constraint for TRIANGLE (uses Radius like CIRCLE)
+ALTER TABLE [dbo].[ShapeTemplates] DROP CONSTRAINT [CK_ShapeTemplates_Geom];
+ALTER TABLE [dbo].[ShapeTemplates] ADD CONSTRAINT [CK_ShapeTemplates_Geom]
+CHECK ((
+  [ShapeType]='CIRCLE' AND [Radius] IS NOT NULL AND [Width] IS NULL AND [Height] IS NULL
+  OR [ShapeType]='RECTANGLE' AND [Radius] IS NULL AND [Width] IS NOT NULL AND [Height] IS NOT NULL
+  OR [ShapeType]='TRIANGLE' AND [Radius] IS NOT NULL AND [Width] IS NULL AND [Height] IS NULL
+));
+
+-- Update Positive values constraint for TRIANGLE
+ALTER TABLE [dbo].[ShapeTemplates] DROP CONSTRAINT [CK_ShapeTemplates_Positive];
+ALTER TABLE [dbo].[ShapeTemplates] ADD CONSTRAINT [CK_ShapeTemplates_Positive]
+CHECK ((
+  [ShapeType]='CIRCLE' AND [Radius]>(0)
+  OR [ShapeType]='RECTANGLE' AND [Width]>(0) AND [Height]>(0)
+  OR [ShapeType]='TRIANGLE' AND [Radius]>(0)
+));
+```
+
+**Files Created**:
+- `R/browsers/f_browser_shapes.R` - Complete shapes browser (294 lines)
+- `.claude/triangle_implementation.md` - Full triangle documentation with SQL and drawing logic
+
+**Files Modified**:
+- `R/browsers/f_browser_containers.R:138` - Added TypeName as required field
+- `R/db/queries.R:103-207` - Updated shape functions, added upsert
+- `R/f_app_ui.R:66-67, 122, 136` - Added shapes menu item, updated default route
+- `R/f_app_server.R:18-28, 92, 98, 102, 109, 116, 123` - Added shapes route handler
+
+**Pattern Reusability Demonstrated**:
+- Exact same structure as containers browser
+- Compact list + HTML form module
+- Required field validation
+- Save error recovery
+- Add new button
+- User-friendly error messages
+- All features work identically
+
+**Result**: Complete shapes browser operational, opens by default, TRIANGLE fully supported ✅
+
+---
+
+### ✅ COMPLETED: Conditional Required Fields (`requiredIf`)
+**Goal**: Make fields conditionally required based on other field values (e.g., CIRCLE requires Radius, RECTANGLE requires Width/Height)
+
+**Problem**: Shapes have different required geometry fields:
+- CIRCLE: Radius only
+- RECTANGLE: Width, Height, RotationDeg
+- TRIANGLE: Radius, RotationDeg
+Fixed `required = TRUE` doesn't work - need dynamic requirements.
+
+**Solution**: Added `requiredIf` parameter to DSL
+
+#### DSL Syntax
+```r
+field("Radius", "number", title="Radius",
+      requiredIf = list(field = "ShapeType", values = c("CIRCLE", "TRIANGLE")))
+```
+
+**Parameters**:
+- `field`: Name of dependent field to watch
+- `values`: Value(s) that trigger requirement
+
+#### Implementation Layers
+
+**1. DSL (`react_table_dsl.R`)**
+- Added `requiredIf` parameter to `field()` function
+- Passes through to `ui:options$requiredIf`
+
+**2. Form Renderer (`html_form_renderer.R`)**
+- Extracts `requiredIf` from ui:options
+- Converts to JSON: `jsonlite::toJSON(requiredIf, auto_unbox = TRUE)`
+- Adds `data-required-if` attribute to all input types
+- Works with: text, number, select, textarea, icon-picker
+
+**3. JavaScript (`mod_html_form.R`)**
+- **`setupConditionalRequired()`** function:
+  - Finds fields with `data-required-if` attribute
+  - Parses JSON condition
+  - Locates dependent field by ID
+  - Sets up change listeners (or MutationObserver for icon picker)
+  - Checks condition on every change
+  - Updates `data-required` attribute dynamically
+  - Calls `validateRequiredFields()` → `updateSaveButtonState()`
+- **Called on edit mode entry** with other setup functions
+
+**4. Updated Shapes Browser**
+Applied conditional requirements:
+```r
+field("Radius",  requiredIf = list(field = "ShapeType", values = c("CIRCLE", "TRIANGLE"))),
+field("Width",   requiredIf = list(field = "ShapeType", values = "RECTANGLE")),
+field("Height",  requiredIf = list(field = "ShapeType", values = "RECTANGLE")),
+field("RotationDeg", requiredIf = list(field = "ShapeType", values = c("RECTANGLE", "TRIANGLE")))
+```
+
+#### User Experience
+**Select CIRCLE:**
+- Radius shows red border if empty
+- Width/Height/RotationDeg: no border, not required
+- Save button disabled until Radius filled
+
+**Select RECTANGLE:**
+- Width, Height, RotationDeg show red borders if empty
+- Radius: no border, not required
+- Save button disabled until all three filled
+
+**Select TRIANGLE:**
+- Radius, RotationDeg show red borders if empty
+- Width/Height: no border, not required
+- Save button disabled until both filled
+
+**Dynamic updates:**
+- Switch from CIRCLE → RECTANGLE: Radius border disappears, Width/Height/Rotation borders appear
+- Real-time validation as you type
+- Works with save failure recovery
+
+**Files Created**:
+- `.claude/conditional_required_fields.md` - Full documentation with examples
+
+**Files Modified**:
+- `R/react_table/react_table_dsl.R:6, 50, 131, 136` - Added requiredIf parameter
+- `R/react_table/html_form_renderer.R:156, 186, 206, 216-221, 242, 294, 344, 378, 412` - Added data-required-if attribute
+- `R/react_table/mod_html_form.R:376, 527-597` - Added setupConditionalRequired() JS function
+- `R/browsers/f_browser_shapes.R:103-110` - Applied conditional requirements
+
+**Pattern Benefits**:
+- **Declarative**: Define in R DSL, not JavaScript
+- **Reusable**: Works across all forms automatically
+- **Dynamic**: Real-time updates as user changes fields
+- **Type-agnostic**: Works with any input type
+- **Extensible**: Can add `visibleIf`, `disabledIf`, etc. later
+
+**Result**: Conditional required fields working perfectly, shapes browser validates geometry based on type selection ✅
+
+---
+
 ## 2025-11-11 (Session 3) - Deletion Safety + Icon Display + Cross-Module Sync
 
 ### ✅ COMPLETED: Cross-Module State Synchronization

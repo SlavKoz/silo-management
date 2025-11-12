@@ -15,6 +15,18 @@ f_app_server <- function(input, output, session) {
 
   # Map route -> title and UI function
   route_map <- list(
+    "shapes" = list(
+      title = "Shape Templates",
+      ui    = function() {
+        if (exists("f_browser_shapes_ui")) f_browser_shapes_ui("shapes")
+        else if (exists("browser_shapes_ui")) browser_shapes_ui("shapes")
+        else div("Shapes UI placeholder")
+      },
+      server = function() {
+        if (exists("f_browser_shapes_server")) f_browser_shapes_server("shapes", pool)
+        else if (exists("browser_shapes_server")) browser_shapes_server("shapes", pool)
+      }
+    ),
     "icons" = list(
       title = "Icons",
       ui    = function() {
@@ -77,37 +89,38 @@ f_app_server <- function(input, output, session) {
   
   # Parse the '#/section/sub' hash into c('section','sub')
   parse_route <- function(h) {
-    h <- sub("^#/", "", f_or(h, "containers"))
+    h <- sub("^#/", "", f_or(h, "shapes"))
     parts <- strsplit(h, "/", fixed = TRUE)[[1]]
     parts[nzchar(parts)]
   }
 
   # Current route
-  current <- reactiveVal(c("containers"))
+  current <- reactiveVal(c("shapes"))
 
   observeEvent(input$f_route, {
     parts <- parse_route(input$f_route)
-    if (!length(parts)) parts <- c("containers")
+    if (!length(parts)) parts <- c("shapes")
     current(parts)
   }, ignoreInit = FALSE)
 
   # Title
   output$f_page_title <- renderText({
     parts <- current(); key <- parts[1]
-    info <- route_map[[key]] %||% route_map[["containers"]]
+    info <- route_map[[key]] %||% route_map[["shapes"]]
     info$title
   })
 
   # Route outlet UI
   output$f_route_outlet <- renderUI({
     parts <- current(); key <- parts[1]
-    info <- route_map[[key]] %||% route_map[["containers"]]
+    info <- route_map[[key]] %||% route_map[["shapes"]]
     info$ui()
   })
-  
+
   # Mount server for active module (once per route key)
   # This approach mounts all available servers once; simple and safe.
   isolate({
+    if (!is.null(route_map$shapes$server))     route_map$shapes$server()
     if (!is.null(route_map$icons$server))      route_map$icons$server()
     if (!is.null(route_map$canvases$server))   route_map$canvases$server()
     if (!is.null(route_map$containers$server)) route_map$containers$server()

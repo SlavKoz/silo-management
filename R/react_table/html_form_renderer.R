@@ -152,6 +152,8 @@ render_field <- function(name, schema, ui, value, ns_prefix) {
   title <- f_or(schema$title, name)
   widget <- f_or(ui[["ui:widget"]], NULL)
   is_plaintext <- identical(ui[["ui:field"]], "plaintext")
+  is_required <- isTRUE(ui[["ui:options"]]$required)
+  required_if <- ui[["ui:options"]]$requiredIf
 
   # Handle object type (groups)
   if (type == "object") {
@@ -181,7 +183,7 @@ render_field <- function(name, schema, ui, value, ns_prefix) {
                  style = "padding-right: 0.5rem; word-wrap: break-word;",
                  title),
       div(class = "col-sm-8",
-        render_input(name, schema, ui, value, is_plaintext, ns_prefix)
+        render_input(name, schema, ui, value, is_plaintext, ns_prefix, is_required, required_if)
       )
     )
   }
@@ -196,11 +198,12 @@ render_object_fields <- function(parent_name, schema, ui, value, ns_prefix) {
     field_value <- if (!is.null(value)) value[[fname]] else NULL
     field_full_name <- paste0(parent_name, ".", fname)
 
+    # Pass through required status from ui options
     render_field(field_full_name, field_schema, field_ui, field_value, ns_prefix)
   })
 }
 
-render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
+render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_required = FALSE, required_if = NULL) {
   input_id <- paste0(ns_prefix, name)
   type <- f_or(schema$type, "string")
   widget <- ui[["ui:widget"]]
@@ -208,6 +211,14 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
 
   # Convert value to string
   val_str <- if (!is.null(value)) as.character(value) else ""
+
+  # Build conditional required data attribute
+  required_if_attr <- if (!is.null(required_if) && is.list(required_if)) {
+    # Convert to JSON string for JS to parse
+    jsonlite::toJSON(required_if, auto_unbox = TRUE)
+  } else {
+    NULL
+  }
 
   # Plaintext (static field) - no frame, just text, never editable
   if (is_plaintext) {
@@ -227,6 +238,8 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
       rows = 3,
       readonly = "readonly",
       disabled = "disabled",
+      `data-required` = if (is_required) "true" else NULL,
+      `data-required-if` = required_if_attr,
       val_str
     ))
   }
@@ -277,6 +290,8 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
       id = input_id,
       class = select_class,
       disabled = "disabled",
+      `data-required` = if (is_required) "true" else NULL,
+      `data-required-if` = required_if_attr,
       options_list
     )
 
@@ -326,7 +341,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
       }
 
       # Return custom dropdown
-      return(div(class = "icon-picker-custom", id = input_id, `data-value` = value, `data-disabled` = "true",
+      return(div(class = "icon-picker-custom", id = input_id, `data-value` = value, `data-disabled` = "true", `data-required` = if (is_required) "true" else NULL, `data-required-if` = required_if_attr,
         # Display (what user sees when closed)
         div(class = "icon-picker-display",
           if (nzchar(selected_thumbnail)) {
@@ -358,7 +373,9 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
       max = schema$maximum,
       step = if (type == "integer") 1 else "any",
       readonly = "readonly",
-      disabled = "disabled"
+      disabled = "disabled",
+      `data-required` = if (is_required) "true" else NULL,
+      `data-required-if` = required_if_attr
     ))
   }
 
@@ -377,7 +394,8 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
       tags$input(
         type = "hidden",
         id = input_id,
-        value = val_str
+        value = val_str,
+        `data-required` = if (is_required) "true" else NULL
       )
     ))
   }
@@ -389,6 +407,8 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix) {
     class = "form-control",
     value = val_str,
     readonly = "readonly",
-    disabled = "disabled"
+    disabled = "disabled",
+    `data-required` = if (is_required) "true" else NULL,
+    `data-required-if` = required_if_attr
   )
 }
