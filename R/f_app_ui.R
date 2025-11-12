@@ -1,92 +1,145 @@
-# R/f_app_ui.R — Semantic/Fomantic UI with hash router (/#/icons, /#/containers, ...)
+# R/f_app_ui.R — Semantic UI with collapsible sidebar groups
 
 f_app_ui <- function() {
   shiny.semantic::semanticPage(
     shinyjs::useShinyjs(),
     
     tags$head(
-      # Core styles (Fomantic + your overrides)
       tags$link(rel = "stylesheet", href = "css/admin.css?v=20251021"),
       tags$link(rel = "stylesheet", href = "css/silo-canvas.css?v=20251021"),
       tags$link(rel = "stylesheet", href = "css/admin-grid.css"),
       tags$script(src = "js/icon-browser.js"),
       tags$script(src = "js/admin-grid.js"),
-      tags$script(HTML("
-  if (window.Shiny && Shiny.addCustomMessageHandler) {
-    Shiny.addCustomMessageHandler('icons-set-step', function(msg){
-      var root = document.getElementById(msg.rootId);
-      if (!root || !root._setStep) return;
-      root._setStep(msg.step || 'search');
-    });
-    Shiny.addCustomMessageHandler('canvas-set-step', function(msg){
-      var root = document.getElementById(msg.rootId);
-      if (!root || !root._setStep) return;
-      root._setStep(msg.step || 'upload');
-    });
-  }
-")),
       tags$style(HTML("
-        :root { --sbw: 240px; --sbw-collapsed: 56px; }
-        body { --sbw-current: var(--sbw); }
-        body.sb-collapsed { --sbw-current: var(--sbw-collapsed); }
+  :root { --sbw: 240px; --sbw-collapsed: 56px; }
+  body { --sbw-current: var(--sbw); }
+  body.sb-collapsed { --sbw-current: var(--sbw-collapsed); }
 
-        .sb-rail {
-          position: fixed; top: 0; bottom: 0; left: 0;
-          width: var(--sbw-current); background: #1b1c1d; color: #fff;
-          overflow: hidden; transition: width .2s ease; z-index: 1000; padding-top: .5rem;
-        }
-        .sb-content {
-          margin-left: calc(var(--sbw-current) + 1rem);
-          transition: margin-left .2s ease; padding: 1rem 1rem 2rem;
-        }
-        .sb-rail .ui.vertical.menu { background: transparent; border: none; box-shadow: none; margin: 0 .5rem; }
-        .sb-rail .item { color: #fff !important; border-radius: .4rem; display:flex; align-items:center; cursor:pointer; }
-        .sb-rail .item .icon { min-width: 24px; text-align:center; margin-right: .75rem; opacity:.9; }
-        .sb-rail .item .item-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        body.sb-collapsed .sb-rail .item { justify-content:center; }
-        body.sb-collapsed .sb-rail .item .item-label { display:none; }
-        .sb-rail .menu-bottom { position:absolute; left:.5rem; right:.5rem; bottom:.5rem; }
-        .sb-rail .menu-bottom .item { background: rgba(255,255,255,0.06); border-radius:.4rem; }
+  /* Sidebar (fixed) */
+  .sb-rail {
+    position: fixed; top:0; bottom:0; left:0; width: var(--sbw-current);
+    background:#1b1c1d; color:#fff; overflow:hidden; transition: width .2s ease; z-index:1000; padding-top:.5rem;
+  }
+  .sb-content { margin-left: calc(var(--sbw-current) + 1rem); transition: margin-left .2s ease; padding:1rem 1rem 2rem; }
 
-        .pane-header {
-          background:#0d6efd; color:#fff; padding:.75rem 1rem; border-radius:.5rem;
-          display:flex; align-items:center; justify-content:space-between; margin:.5rem 0 1rem;
-        }
-        .pane-title { margin:0; font-weight:600; font-size:1.15rem; }
-        .nav-active { background: rgba(255,255,255,0.08) !important; }
-      "))
+  /* App title/header */
+  .sb-title {
+    margin: 0 .5rem .25rem .5rem;
+    padding: .65rem .75rem;
+    color:#fff; font-weight:600; background: rgba(255,255,255,0.06);
+    border-radius:.4rem;
+  }
+
+  /* Scrollable menu area (leave space for Collapse) */
+  .sb-menu-scroll {
+    position: relative;
+    height: calc(100% - 3.75rem);
+    overflow: auto;
+    padding: 0 .5rem;
+    padding-bottom: 3.25rem;
+  }
+
+  /* Collapse button pinned at the bottom */
+  .sb-rail .menu-bottom { position: absolute; left: .5rem; right: .5rem; bottom: .5rem; }
+  .sb-rail .menu-bottom .item { background: rgba(255,255,255,0.06); border-radius:.4rem; }
+
+  /* Menu look & feel */
+  .sb-rail .ui.vertical.menu { background: transparent; border:none; box-shadow:none; margin:0; }
+  .sb-rail .item { color:#fff !important; border-radius:.4rem; display:flex; align-items:center; cursor:pointer; padding:.65rem .75rem; position: relative; }
+  .sb-rail .item .item-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sb-rail .item.nav-active { background: rgba(255,255,255,0.10); }
+  .sb-rail .item .icon { min-width: 24px; text-align:center; margin-right: .65rem; opacity:.9; }
+
+  /* Subitem indent (a bit bigger) */
+  .sb-rail .subitem { padding-left: 2.25rem !important; }
+
+  /* Group headers: visually distinct (no arrows/caret) */
+  .sb-rail .group-header {
+    display:flex; align-items:center; flex-wrap:nowrap; gap:.5rem;
+    font-weight:600;
+    background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+    border: 1px solid rgba(255,255,255,0.12);
+    border-left: 3px solid #3b82f6;
+    border-radius: .45rem;
+    padding: .55rem .65rem;
+    margin: .35rem 0 .15rem 0;
+  }
+  .sb-rail .group-header .group-caret { display: none !important; } /* remove caret entirely */
+  .group-children { padding-top:.25rem; }
+  .collapsed .group-children { display:none; }
+
+  /* -------- Collapsed behaviour -------- */
+  /* Items: icons only when collapsed */
+  body.sb-collapsed .sb-rail .item { justify-content:center; }
+  body.sb-collapsed .sb-rail .item .icon { margin-right:0; }
+  body.sb-collapsed .sb-rail .item .item-label { display:none; }
+
+  /* Group headers in collapsed: icon-only, still visually distinct */
+  body.sb-collapsed .sb-rail .group-header {
+    gap:0; padding:.5rem; justify-content:center;
+  }
+  body.sb-collapsed .sb-rail .group-header .icon { margin-right:0; }
+  body.sb-collapsed .sb-rail .subitem { padding-left:.85rem !important; } /* slightly larger than before */
+  body.sb-collapsed .sb-rail .group-children .item { justify-content:center; }
+
+  /* Page header */
+  .pane-header { background:#0d6efd; color:#fff; padding:.75rem 1rem; border-radius:.5rem; display:flex; align-items:center; justify-content:space-between; margin:.5rem 0 1rem; }
+  .pane-title { margin:0; font-weight:600; font-size:1.15rem; }
+
+  /* ======================
+     Tooltips (collapsed)
+     ====================== */
+  .sb-rail .item[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: fixed;             /* stick to viewport edge */
+  left: calc(var(--sbw-current) + 6px);
+  top: calc(var(--mouse-y, 0px));  /* updated by JS */
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: .35rem .6rem;
+  border-radius: .4rem;
+  font-size: .8rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltipFade .15s forwards;
+  z-index: 9999;
+}
+@keyframes tooltipFade { 
+  from { opacity:0; transform: translateY(-50%) scale(0.98); } 
+  to   { opacity:1; transform: translateY(-50%) scale(1); } 
+}
+/* Show tooltips only when collapsed (hide when expanded) */
+body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
+  display: none;
+}
+"))
+
     ),
     
-    # -------- Sidebar rail --------
+    # ------ Sidebar rail ------
+    # ------ Sidebar rail ------
     div(class = "sb-rail",
-        div(class = "ui vertical inverted menu fluid",
-            div(class = "item header", "Silo"),
-
-            # Note: data-route attributes drive router
-            a(class = "item", `data-route` = "#/shapes",
-              tags$i(class = "shapes icon"),    span(class = "item-label", "Shapes")),
-            a(class = "item", `data-route` = "#/containers",
-              tags$i(class = "boxes icon"),     span(class = "item-label", "Containers")),
-            a(class = "item", `data-route` = "#/icons",
-              tags$i(class = "icons icon"),     span(class = "item-label", "Icons")),
-            a(class = "item", `data-route` = "#/canvases",
-              tags$i(class = "image outline icon"),      span(class = "item-label", "Canvases")),
-            a(class = "item", `data-route` = "#/silos",
-              tags$i(class = "warehouse icon"), span(class = "item-label", "Silos")),
-            a(class = "item", `data-route` = "#/placements",
-              tags$i(class = "map marker alternate icon"), span(class = "item-label", "Placements")),
-            
-            # Bottom collapse toggle
-            div(class = "menu-bottom",
-                a(id = "sb-collapse-toggle", class = "item", href = "javascript:void(0);",
-                  tags$i(id = "sb-collapse-icon", class = "angle double left icon"),
-                  span(class = "item-label", id = "sb-collapse-label", "Collapse")
-                )
+        # app title/header (fixed)
+        div(class = "sb-title", "Silo"),
+        
+        # scrollable menu area (server-built groups/items)
+        div(class = "sb-menu-scroll",
+            uiOutput("f_sidebar_menu")
+        ),
+        
+        # Bottom collapse toggle (absolute pinned)
+        div(class = "menu-bottom",
+            a(id = "sb-collapse-toggle", class = "item", href = "javascript:void(0);",
+              tags$i(id = "sb-collapse-icon", class = "angle double left icon"),
+              span(class = "item-label", id = "sb-collapse-label", "Collapse")
             )
         )
-    ),
+    )
+    ,
     
-    # -------- Main content --------
+    # ------ Main content ------
     div(class = "sb-content",
         div(class = "pane-header",
             h4(class = "pane-title", textOutput("f_page_title", inline = TRUE)),
@@ -94,12 +147,10 @@ f_app_ui <- function() {
                 tags$div(class="ui tiny basic inverted label", "Router mode")
             )
         ),
-        
-        # Route outlet (server renders active module UI here)
         uiOutput("f_route_outlet")
     ),
     
-    # -------- Router + collapse behavior --------
+    # ------ Router + collapse + collapsible groups ------
     tags$script(HTML("
       (function(){
         // collapse control
@@ -119,26 +170,58 @@ f_app_ui <- function() {
         document.addEventListener('DOMContentLoaded', syncCollapse);
 
         // simple hash router
-        function normRoute(h){ return h && h.startsWith('#/') ? h : '#/shapes'; }
+        function normRoute(h){ return (h && h.startsWith('#/')) ? h : '#/sites'; }   // default to Sites
         function setActiveRoute(h){
+          // highlight the item whose data-route equals h
           var items = document.querySelectorAll('.sb-rail .item[data-route]');
           items.forEach(function(it){ it.classList.toggle('nav-active', it.getAttribute('data-route') === h); });
+          // auto-expand the group containing the active item
+          var active = document.querySelector('.sb-rail .item[data-route=\"' + h + '\"]');
+          if (active) {
+            var group = active.closest('.group-block');
+            if (group) group.classList.remove('collapsed');
+          }
         }
         function syncRoute(){
           var h = normRoute(location.hash);
           setActiveRoute(h);
           if (window.Shiny) Shiny.setInputValue('f_route', h, {priority:'event'});
         }
-        // click on menu items updates hash (and triggers sync)
+        // click on menu items updates hash
         document.addEventListener('click', function(e){
           var it = e.target.closest('.sb-rail .item[data-route]');
           if (!it) return;
-          var h = it.getAttribute('data-route') || '#/shapes';
-          if (location.hash !== h) location.hash = h; else syncRoute(); // also handle same-route click
+          var h = it.getAttribute('data-route') || '#/sites';
+          if (location.hash !== h) location.hash = h; else syncRoute();
         });
 
+        // collapsible groups toggle
+        document.addEventListener('click', function(e){
+          var gh = e.target.closest('.group-header');
+          if (!gh) return;
+          var block = gh.closest('.group-block');
+          if (!block) return;
+          block.classList.toggle('collapsed');
+        });
+        
+        document.addEventListener('mousemove', function(e){
+          document.documentElement.style.setProperty('--mouse-y', e.clientY + 'px');
+        }, {passive:true});
+
         window.addEventListener('hashchange', syncRoute);
-        document.addEventListener('DOMContentLoaded', syncRoute);
+document.addEventListener('DOMContentLoaded', function(){
+  // start with ALL groups collapsed
+  document.querySelectorAll('.group-block').forEach(function(b){ b.classList.add('collapsed'); });
+  // then sync route; setActiveRoute() will auto-expand the active group
+  var h = (location.hash && location.hash.startsWith('#/')) ? location.hash : '#/sites';
+  // highlight + expand containing group
+  var items = document.querySelectorAll('.sb-rail .item[data-route]');
+  items.forEach(function(it){ it.classList.toggle('nav-active', it.getAttribute('data-route') === h); });
+  var active = document.querySelector('.sb-rail .item[data-route=\"' + h + '\"]');
+  if (active) { var group = active.closest('.group-block'); if (group) group.classList.remove('collapsed'); }
+  if (window.Shiny) Shiny.setInputValue('f_route', h, {priority:'event'});
+});
+
       })();
     "))
   )
