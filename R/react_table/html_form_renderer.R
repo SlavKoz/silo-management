@@ -222,11 +222,18 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
 
   # Plaintext (static field) - no frame, just text, never editable
   if (is_plaintext) {
+    # Check if content contains HTML tags - if so, render as HTML
+    content <- if (grepl("<[^>]+>", val_str)) {
+      HTML(val_str)
+    } else {
+      val_str
+    }
+
     return(div(
       class = "form-static-value",
       style = "padding: 0.375rem 0; color: #6c757d; font-size: 10px !important; line-height: 1.25rem; background: transparent;",
       `data-static` = "true",
-      val_str
+      content
     ))
   }
 
@@ -397,6 +404,31 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
         value = val_str,
         `data-required` = if (is_required) "true" else NULL
       )
+    ))
+  }
+
+  # Boolean - checkbox or switch
+  if (type == "boolean" || (!is.null(widget) && widget %in% c("checkbox", "switch", "toggle"))) {
+    # Determine if value is TRUE
+    is_checked <- isTRUE(value) || (is.character(value) && tolower(value) %in% c("true", "1", "yes"))
+
+    # Use switch widget if specified, otherwise checkbox
+    is_switch <- !is.null(widget) && widget %in% c("switch", "toggle")
+
+    checkbox_class <- if (is_switch) "form-check-input form-switch-input" else "form-check-input"
+
+    return(div(class = if (is_switch) "form-check form-switch" else "form-check",
+      tags$input(
+        type = "checkbox",
+        id = input_id,
+        class = checkbox_class,
+        checked = if (is_checked) NA else NULL,
+        disabled = "disabled",
+        value = "true",
+        `data-required` = if (is_required) "true" else NULL,
+        `data-required-if` = required_if_attr
+      ),
+      tags$label(class = "form-check-label", `for` = input_id, "")
     ))
   }
 

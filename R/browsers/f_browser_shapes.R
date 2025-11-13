@@ -26,7 +26,7 @@ browser_shapes_ui <- function(id) {
 }
 
 # ========================== SERVER ============================================
-browser_shapes_server <- function(id, pool) {
+browser_shapes_server <- function(id, pool, route = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -287,10 +287,75 @@ browser_shapes_server <- function(id, pool) {
       }
     )
 
+    # --- Deep-linking support ---
+    # If route reactive is provided, observe URL changes
+    if (!is.null(route) && shiny::is.reactive(route)) {
+      observeEvent(route(), {
+        parts <- route()
+
+        # Only handle if we're on the shapes page
+        if (length(parts) >= 1 && parts[1] == "shapes") {
+          # If there's an item ID, select it
+          if (length(parts) >= 2) {
+            template_code <- parts[2]
+
+            # Look up ShapeTemplateID for this TemplateCode
+            df <- raw_shapes()
+            if (!nrow(df)) return()
+
+            row <- df[df$TemplateCode == template_code, ]
+            if (nrow(row) == 0) {
+              showNotification(paste0("Shape '", template_code, "' not found"), type = "warning", duration = 2)
+              return()
+            }
+
+            # Select the item by its numeric ID
+            shape_template_id <- as.integer(row$ShapeTemplateID[1])
+            current_selected <- selected_id()
+
+            # Only update if different from current selection
+            if (is.null(current_selected) || current_selected != shape_template_id) {
+              list_result$select_item(shape_template_id)
+            }
+          }
+        }
+      }, ignoreInit = TRUE)
+
+      # Update URL when selection changes - BUT ONLY if we're on the shapes page
+      observe({
+        parts <- route()
+
+        # Only update URL if we're currently on the shapes page
+        if (length(parts) < 1 || parts[1] != "shapes") return()
+
+        sid <- selected_id()
+        if (is.null(sid) || is.na(sid)) return()
+
+        # Get TemplateCode for currently selected ShapeTemplateID
+        df <- raw_shapes()
+        if (!nrow(df)) return()
+
+        row <- df[df$ShapeTemplateID == sid, ]
+        if (nrow(row) == 0) return()
+
+        template_code <- as.character(row$TemplateCode[1])
+
+        # Check if we need to update the route
+        expected_parts <- c("shapes", template_code)
+
+        if (!identical(parts, expected_parts)) {
+          # Send message to update hash
+          session$sendCustomMessage("set-hash", list(h = paste0("#/shapes/", template_code)))
+        }
+      })
+    }
+
     return(list(selected_shape_template_id = selected_id))
   })
 }
 
 # Aliases with f_ prefix for consistency
 f_browser_shapes_ui <- browser_shapes_ui
-f_browser_shapes_server <- browser_shapes_server
+f_browser_shapes_server <- function(id, pool, route = NULL) {
+  browser_shapes_server(id, pool, route)
+}

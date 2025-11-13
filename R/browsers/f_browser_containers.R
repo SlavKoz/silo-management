@@ -26,7 +26,7 @@ browser_containers_ui <- function(id) {
 }
 
 # ========================== SERVER ============================================
-browser_containers_server <- function(id, pool) {
+browser_containers_server <- function(id, pool, route = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -314,10 +314,75 @@ browser_containers_server <- function(id, pool) {
       icons_data(fetch_icons())
     }, ignoreInit = TRUE)
 
+    # --- Deep-linking support ---
+    # If route reactive is provided, observe URL changes
+    if (!is.null(route) && shiny::is.reactive(route)) {
+      observeEvent(route(), {
+        parts <- route()
+
+        # Only handle if we're on the containers page
+        if (length(parts) >= 1 && parts[1] == "containers") {
+          # If there's an item ID, select it
+          if (length(parts) >= 2) {
+            type_code <- parts[2]
+
+            # Look up ContainerTypeID for this TypeCode
+            df <- raw_types()
+            if (!nrow(df)) return()
+
+            row <- df[df$TypeCode == type_code, ]
+            if (nrow(row) == 0) {
+              showNotification(paste0("Container '", type_code, "' not found"), type = "warning", duration = 2)
+              return()
+            }
+
+            # Select the item by its numeric ID
+            container_type_id <- as.integer(row$ContainerTypeID[1])
+            current_selected <- selected_id()
+
+            # Only update if different from current selection
+            if (is.null(current_selected) || current_selected != container_type_id) {
+              list_result$select_item(container_type_id)
+            }
+          }
+        }
+      }, ignoreInit = TRUE)
+
+      # Update URL when selection changes - BUT ONLY if we're on the containers page
+      observe({
+        parts <- route()
+
+        # Only update URL if we're currently on the containers page
+        if (length(parts) < 1 || parts[1] != "containers") return()
+
+        sid <- selected_id()
+        if (is.null(sid) || is.na(sid)) return()
+
+        # Get TypeCode for currently selected ContainerTypeID
+        df <- raw_types()
+        if (!nrow(df)) return()
+
+        row <- df[df$ContainerTypeID == sid, ]
+        if (nrow(row) == 0) return()
+
+        type_code <- as.character(row$TypeCode[1])
+
+        # Check if we need to update the route
+        expected_parts <- c("containers", type_code)
+
+        if (!identical(parts, expected_parts)) {
+          # Send message to update hash
+          session$sendCustomMessage("set-hash", list(h = paste0("#/containers/", type_code)))
+        }
+      })
+    }
+
     return(list(selected_container_type_id = selected_id))
   })
 }
 
 # Aliases with f_ prefix for consistency
 f_browser_containers_ui <- browser_containers_ui
-f_browser_containers_server <- browser_containers_server
+f_browser_containers_server <- function(id, pool, route = NULL) {
+  browser_containers_server(id, pool, route)
+}

@@ -2,15 +2,115 @@
 
 f_app_server <- function(input, output, session) {
   
-  # Optional DB pool
+  # Get global memoized DB pool (don't close it - it's shared across sessions)
   pool <- NULL
   try({ if (exists("db_pool")) pool <- db_pool() }, silent = TRUE)
-  if (!is.null(pool) && inherits(pool, "Pool")) {
-    onStop(function() try(pool::poolClose(pool), silent = TRUE))
-  }
-  
+
   session$userData$icons_version <- 0
-  
+  session$userData$areas_version <- 0
+
+  # --- Global Search Logic ---
+  observeEvent(input$global_search_btn, {
+    category <- input$global_search_category
+    query <- input$global_search_input
+
+    if (is.null(category)) category <- "forms"
+    if (is.null(query) || !nzchar(trimws(query))) {
+      showNotification("Please enter a search term", type = "warning", duration = 1)
+      return()
+    }
+
+    query <- trimws(query)
+
+    # First check if query matches a suggestion exactly (datalist selection)
+    route_map <- search_route_map()
+    if (!is.null(route_map[[query]])) {
+      route <- route_map[[query]]
+      session$sendCustomMessage("set-hash", list(h = route))
+      return()
+    }
+
+    # Extract ID from label if format is "ID - Name"
+    # This handles datalist selections like "BULKTANK - Bulk tank"
+    search_term <- query
+    if (grepl(" - ", query)) {
+      parts <- strsplit(query, " - ", fixed = TRUE)[[1]]
+      if (length(parts) >= 2) {
+        search_term <- parts[1]  # Use just the ID part
+      }
+    }
+
+    # Get search results
+    results <- f_get_search_items(
+      category = category,
+      query = search_term,
+      pool = pool,
+      limit = 50
+    )
+
+    if (length(results) == 0) {
+      showNotification("No results found", type = "warning", duration = 1)
+      return()
+    }
+
+    # If single result, navigate directly without notification
+    if (length(results) == 1) {
+      route <- results[[1]]$route
+      session$sendCustomMessage("set-hash", list(h = route))
+      return()
+    }
+
+    # Multiple results - navigate to first, show count
+    route <- results[[1]]$route
+    session$sendCustomMessage("set-hash", list(h = route))
+    showNotification(
+      paste0("Found ", length(results), " results. Showing: ", results[[1]]$label),
+      type = "message",
+      duration = 2
+    )
+  })
+
+  # Autofill suggestions for search
+  search_suggestions <- reactive({
+    category <- input$global_search_category
+    query <- input$global_search_input
+
+    if (is.null(category)) category <- "forms"
+    if (is.null(query) || nchar(query) < 2) return(list())
+
+    # Get suggestions
+    results <- f_get_search_items(
+      category = category,
+      query = query,
+      pool = pool,
+      limit = 20
+    )
+
+    results
+  })
+
+  output$search_datalist <- renderUI({
+    suggestions <- search_suggestions()
+
+    if (length(suggestions) == 0) return(NULL)
+
+    options <- lapply(suggestions, function(item) {
+      tags$option(value = item$label, `data-route` = item$route)
+    })
+
+    tags$datalist(id = "search_suggestions", options)
+  })
+
+  # Store route mappings for datalist selections
+  search_route_map <- reactive({
+    suggestions <- search_suggestions()
+    if (length(suggestions) == 0) return(list())
+
+    routes <- sapply(suggestions, function(item) item$route)
+    names(routes) <- sapply(suggestions, function(item) item$label)
+    as.list(routes)
+  })
+
   # --- Router helpers ---
   parse_route <- function(h) {
     h <- sub("^#/", "", f_or(h, "sites"))
@@ -29,17 +129,17 @@ f_app_server <- function(input, output, session) {
         else div(class = "p-3", h3("Sites"), p("Placeholder: Sites overview will go here."))
       },
       server = function() {
-        if (exists("f_browser_sites_server")) f_browser_sites_server("sites", pool)
+        if (exists("f_browser_sites_server")) f_browser_sites_server("sites", pool, route = current)
       }
     ),
-    "sites.areas" = list(
+    "areas" = list(
       title = "Areas",
       ui    = function() {
-        if (exists("f_form_site_areas_ui")) f_form_site_areas_ui("sites_areas")
-        else div(class = "p-3", h3("Areas"), p("Placeholder: Areas form will go here."))
+        if (exists("f_browser_areas_ui")) f_browser_areas_ui("areas")
+        else div(class = "p-3", h3("Areas"), p("Placeholder: Areas browser will go here."))
       },
       server = function() {
-        if (exists("f_form_site_areas_server")) f_form_site_areas_server("sites_areas", pool)
+        if (exists("f_browser_areas_server")) f_browser_areas_server("areas", pool, route = current)
       }
     ),
     
@@ -86,7 +186,7 @@ f_app_server <- function(input, output, session) {
         else div("Shapes UI placeholder")
       },
       server = function() {
-        if (exists("f_browser_shapes_server")) f_browser_shapes_server("shapes", pool)
+        if (exists("f_browser_shapes_server")) f_browser_shapes_server("shapes", pool, route = current)
         else if (exists("browser_shapes_server")) browser_shapes_server("shapes", pool)
       }
     ),
@@ -110,7 +210,7 @@ f_app_server <- function(input, output, session) {
         else div("Containers UI placeholder")
       },
       server = function() {
-        if (exists("f_browser_containers_server")) f_browser_containers_server("containers", pool)
+        if (exists("f_browser_containers_server")) f_browser_containers_server("containers", pool, route = current)
         else if (exists("browser_containers_server")) browser_containers_server("containers", pool)
       }
     ),
@@ -136,7 +236,7 @@ f_app_server <- function(input, output, session) {
   # Icon map for sidebar items (Semantic UI icon class names)
   icon_map <- c(
     "sites"                  = "building",
-    "sites.areas"            = "circle outline",
+    "areas"                  = "map outline",
     "siloes"                 = "warehouse",
     "actions.offline_reasons"= "ban",
     "actions.operations"     = "play",
@@ -162,7 +262,7 @@ f_app_server <- function(input, output, session) {
     list(                      # Sites group
       key   = "sites@group",
       title = "Sites",
-      items = c("sites", "sites.areas")
+      items = c("sites", "areas")
     ),
     list(                      # Siloes single
       key   = "siloes@single",
@@ -233,30 +333,57 @@ f_app_server <- function(input, output, session) {
     
     tags$div(class="ui vertical inverted menu fluid", sections)
   }
-  
-  output$f_sidebar_menu <- renderUI({
-    key <- route_key(current())
-    build_menu(key)
-  })
-  
+
   # --- Hash -> route state ---
   current <- reactiveVal(c("sites"))  # default to Sites
-  
+
+  # Helper to find the best matching route key
+  find_route_key <- function(parts) {
+    if (length(parts) == 0) return("sites")
+
+    # Try exact match first
+    full_key <- route_key(parts)
+    if (!is.null(route_map[[full_key]])) return(full_key)
+
+    # Try progressively shorter paths (for deep-linking support)
+    # e.g., c("containers", "BULKTANK") -> try "containers"
+    # e.g., c("sites", "areas") -> try "sites.areas", then "sites"
+    for (i in length(parts):1) {
+      test_parts <- parts[1:i]
+      test_key <- route_key(test_parts)
+      if (!is.null(route_map[[test_key]])) return(test_key)
+    }
+
+    # No match found, default to sites
+    return("sites")
+  }
+
+  output$f_sidebar_menu <- renderUI({
+    key <- find_route_key(current())
+    build_menu(key)
+  })
+
   observeEvent(input$f_route, {
     parts <- parse_route(input$f_route)
-    key <- route_key(parts)
-    if (is.null(route_map[[key]])) parts <- c("sites")
-    current(parts)
+    key <- find_route_key(parts)
+
+    # If we found a valid route, keep the full parts for deep-linking
+    # Otherwise fall back to sites
+    if (key != "sites" || identical(parts, character(0)) || parts[1] == "sites") {
+      current(parts)
+    } else {
+      current(c("sites"))
+    }
   }, ignoreInit = FALSE)
-  
+
   # --- Title & Outlet ---
   output$f_page_title <- renderText({
-    key <- route_key(current())
+    key <- find_route_key(current())
     info <- route_map[[key]] %||% route_map[["sites"]]
     info$title
   })
   output$f_route_outlet <- renderUI({
-    key <- route_key(current())
+    key <- find_route_key(current())
     info <- route_map[[key]] %||% route_map[["sites"]]
     info$ui()
   })

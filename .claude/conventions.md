@@ -152,6 +152,7 @@ Always read these files at the start of a session:
 - `R/utils/f_helper_core.R` - Universal helper functions
 - `.claude/deletion_safety.md` - Referential integrity pattern (prevents orphaned records)
 - `.claude/cross_module_state.md` - Cross-module synchronization pattern (global state management)
+- `table_structures.csv` - Complete database schema (all tables, columns, data types)
 
 Keep record on what we are doing in the session_summary.md
 

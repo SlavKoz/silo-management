@@ -86,6 +86,10 @@ f_app_ui <- function() {
   .pane-header { background:#0d6efd; color:#fff; padding:.75rem 1rem; border-radius:.5rem; display:flex; align-items:center; justify-content:space-between; margin:.5rem 0 1rem; }
   .pane-title { margin:0; font-weight:600; font-size:1.15rem; }
 
+  /* Search palette dropdown menu items */
+  #global_search_category + .menu { font-size: 11px !important; }
+  #global_search_category + .menu .item { font-size: 11px !important; padding: 0.5rem 0.8rem !important; }
+
   /* ======================
      Tooltips (collapsed)
      ====================== */
@@ -144,7 +148,29 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         div(class = "pane-header",
             h4(class = "pane-title", textOutput("f_page_title", inline = TRUE)),
             div(class = "header-actions",
-                tags$div(class="ui tiny basic inverted label", "Router mode")
+                div(class = "ui mini action input", style = "width: 280px;",
+                    tags$input(type = "text",
+                              placeholder = "Search...",
+                              id = "global_search_input",
+                              list = "search_suggestions",
+                              autocomplete = "off",
+                              style = "font-size: 11px; padding: 0.4rem 0.6rem;"),
+                    uiOutput("search_datalist"),
+                    tags$select(class = "ui compact selection dropdown",
+                                id = "global_search_category",
+                                style = "font-size: 11px; min-height: 1.8rem;",
+                        tags$option(value = "forms", selected = "selected", "Forms"),
+                        tags$option(value = "containers", "Containers"),
+                        tags$option(value = "shapes", "Shapes"),
+                        tags$option(value = "siloes", "Siloes"),
+                        tags$option(value = "sites", "Sites"),
+                        tags$option(value = "areas", "Areas")
+                    ),
+                    div(class = "ui mini icon button", id = "global_search_btn",
+                        style = "font-size: 11px; padding: 0.4rem 0.6rem;",
+                        tags$i(class = "search icon", style = "font-size: 11px;")
+                    )
+                )
             )
         ),
         uiOutput("f_route_outlet")
@@ -153,6 +179,62 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
     # ------ Router + collapse + collapsible groups ------
     tags$script(HTML("
       (function(){
+        // Initialize Fomantic UI dropdown for search category
+        $(document).ready(function(){
+          $('#global_search_category').dropdown({
+            onChange: function(value, text, $selectedItem) {
+              // Clear search input when category changes
+              $('#global_search_input').val('').css('color', '');
+            }
+          });
+
+          // Handle Enter key in search input
+          $('#global_search_input').on('keypress', function(e){
+            if (e.which === 13) { // Enter key
+              e.preventDefault();
+              $('#global_search_btn').click();
+            }
+          });
+
+          // Check for matching suggestions and turn red if none found
+          $('#global_search_input').on('input', function(){
+            var inputVal = $(this).val().toLowerCase();
+            if (!inputVal) {
+              $(this).css('color', '');
+              return;
+            }
+
+            // Get datalist options
+            var datalist = $('#search_suggestions');
+            if (!datalist.length) {
+              $(this).css('color', '');
+              return;
+            }
+
+            // Check if any option matches
+            var hasMatch = false;
+            datalist.find('option').each(function(){
+              var optionVal = $(this).val().toLowerCase();
+              if (optionVal.indexOf(inputVal) !== -1) {
+                hasMatch = true;
+                return false; // break
+              }
+            });
+
+            // Set color based on match
+            if (hasMatch) {
+              $(this).css('color', '');
+            } else {
+              $(this).css('color', '#db2828'); // Semantic UI red
+            }
+          });
+        });
+
+        // Custom message handler for setting hash from server
+        Shiny.addCustomMessageHandler('set-hash', function(msg){
+          if (msg && msg.h && location.hash !== msg.h) location.hash = msg.h;
+        });
+
         // collapse control
         function syncCollapse(){
           var collapsed = document.body.classList.contains('sb-collapsed');

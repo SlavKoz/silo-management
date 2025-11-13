@@ -57,6 +57,8 @@ test_html_form_server <- function(id) {
       field("ItemName", "text", title = "Item Name", column = 1),
       field("ItemCode", "text", title = "Item Code", column = 1),
       field("IconID", "select", title = "Icon", enum = icon_choices, widget = "icon-select", icon_metadata = icon_metadata, column = 1),
+      field("IsActive", "switch", title = "Active (Switch)", column = 1, default = TRUE),
+      field("IsEnabled", "checkbox", title = "Enabled (Checkbox)", column = 1, default = TRUE),
 
       # COLUMN 2 - Quantities
       field("Quantity", "number", title = "Quantity", min = 0, max = 1000, column = 2),
@@ -87,6 +89,8 @@ test_html_form_server <- function(id) {
     ItemName = "Sample Item",
     ItemCode = "ITEM001",
     IconID = "2",
+    IsActive = TRUE,
+    IsEnabled = TRUE,
     Quantity = 10,
     Category = "Type A",
     Specs = list(

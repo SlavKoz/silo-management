@@ -800,3 +800,323 @@ check_deletion_safety <- function(table_name, record_id) {
   ))
 }
 
+# ==============================================================================
+# SITES
+# ==============================================================================
+
+list_sites <- function(code_like = NULL, order_col = "SiteCode", limit = 1000) {
+  pool <- db_pool()
+
+  sql <- sprintf(
+    "SELECT TOP %d SiteID, SiteCode, SiteName, Latitude, Longitude,
+            GoogleMapsURL, AddressLine1, AddressLine2, City, County, Postcode, IsActive
+     FROM SiloOps.dbo.Sites",
+    limit
+  )
+
+  # Add WHERE clause if filtering
+  if (!is.null(code_like) && nzchar(code_like)) {
+    safe_like <- gsub("'", "''", code_like)
+    sql <- paste0(sql, sprintf(" WHERE SiteCode LIKE '%%%s%%' OR SiteName LIKE '%%%s%%'", safe_like, safe_like))
+  }
+
+  # Add ORDER BY
+  allowed_cols <- c("SiteID", "SiteCode", "SiteName", "CreatedAt", "UpdatedAt")
+  if (order_col %in% allowed_cols) {
+    sql <- paste0(sql, sprintf(" ORDER BY %s", order_col))
+  } else {
+    sql <- paste0(sql, " ORDER BY SiteCode")
+  }
+
+  DBI::dbGetQuery(pool, sql)
+}
+
+get_site_by_id <- function(site_id) {
+  pool <- db_pool()
+
+  sql <- "SELECT SiteID, SiteCode, SiteName, Latitude, Longitude,
+                 GoogleMapsURL, AddressLine1, AddressLine2, City, County, Postcode, IsActive
+          FROM SiloOps.dbo.Sites
+          WHERE SiteID = ?"
+
+  DBI::dbGetQuery(pool, sql, params = list(as.integer(site_id)))
+}
+
+upsert_site <- function(data) {
+  pool <- db_pool()
+
+  # Extract and validate required fields
+  site_code <- f_or(data$SiteCode, "")
+  site_name <- f_or(data$SiteName, "")
+
+  if (!nzchar(site_code)) stop("SiteCode is required")
+  if (!nzchar(site_name)) stop("SiteName is required")
+
+  # Handle IsActive - checkbox returns TRUE/FALSE or NULL
+  is_active <- TRUE  # Default
+  if (!is.null(data$IsActive)) {
+    if (is.logical(data$IsActive)) {
+      is_active <- data$IsActive
+    } else if (is.character(data$IsActive)) {
+      is_active <- tolower(data$IsActive) %in% c("true", "1", "yes")
+    } else {
+      is_active <- as.logical(data$IsActive)
+    }
+  }
+
+  # Check if update or insert
+  site_id <- if (!is.null(data$SiteID) && !is.na(data$SiteID)) as.integer(data$SiteID) else NULL
+
+  if (!is.null(site_id) && site_id > 0) {
+    # UPDATE
+    sql <- "UPDATE SiloOps.dbo.Sites
+            SET SiteCode = ?, SiteName = ?, Latitude = ?, Longitude = ?,
+                GoogleMapsURL = ?,
+                AddressLine1 = ?, AddressLine2 = ?, City = ?, County = ?, Postcode = ?,
+                IsActive = ?, UpdatedAt = SYSUTCDATETIME()
+            WHERE SiteID = ?"
+
+    DBI::dbExecute(pool, sql, params = list(
+      site_code,
+      site_name,
+      if (!is.null(data$Latitude) && !is.na(data$Latitude)) as.numeric(data$Latitude) else NA_real_,
+      if (!is.null(data$Longitude) && !is.na(data$Longitude)) as.numeric(data$Longitude) else NA_real_,
+      if (!is.null(data$GoogleMapsURL) && nzchar(data$GoogleMapsURL)) data$GoogleMapsURL else NA_character_,
+      if (!is.null(data$AddressLine1) && nzchar(data$AddressLine1)) data$AddressLine1 else NA_character_,
+      if (!is.null(data$AddressLine2) && nzchar(data$AddressLine2)) data$AddressLine2 else NA_character_,
+      if (!is.null(data$City) && nzchar(data$City)) data$City else NA_character_,
+      if (!is.null(data$County) && nzchar(data$County)) data$County else NA_character_,
+      if (!is.null(data$Postcode) && nzchar(data$Postcode)) data$Postcode else NA_character_,
+      is_active,
+      site_id
+    ))
+
+    return(site_id)
+
+  } else {
+    # INSERT
+    sql <- "INSERT INTO SiloOps.dbo.Sites (SiteCode, SiteName, Latitude, Longitude, GoogleMapsURL, AddressLine1, AddressLine2, City, County, Postcode, IsActive, CreatedAt, UpdatedAt)
+            OUTPUT INSERTED.SiteID
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME())"
+
+    result <- DBI::dbGetQuery(pool, sql, params = list(
+      site_code,
+      site_name,
+      if (!is.null(data$Latitude) && !is.na(data$Latitude)) as.numeric(data$Latitude) else NA_real_,
+      if (!is.null(data$Longitude) && !is.na(data$Longitude)) as.numeric(data$Longitude) else NA_real_,
+      if (!is.null(data$GoogleMapsURL) && nzchar(data$GoogleMapsURL)) data$GoogleMapsURL else NA_character_,
+      if (!is.null(data$AddressLine1) && nzchar(data$AddressLine1)) data$AddressLine1 else NA_character_,
+      if (!is.null(data$AddressLine2) && nzchar(data$AddressLine2)) data$AddressLine2 else NA_character_,
+      if (!is.null(data$City) && nzchar(data$City)) data$City else NA_character_,
+      if (!is.null(data$County) && nzchar(data$County)) data$County else NA_character_,
+      if (!is.null(data$Postcode) && nzchar(data$Postcode)) data$Postcode else NA_character_,
+      is_active
+    ))
+
+    return(result$SiteID[1])
+  }
+}
+
+# ==============================================================================
+# SITE AREAS
+# ==============================================================================
+
+list_areas <- function(site_id = NULL, code_like = NULL, order_col = "AreaCode", limit = 1000) {
+  pool <- db_pool()
+
+  sql <- sprintf(
+    "SELECT TOP %d a.AreaID, a.SiteID, a.AreaCode, a.AreaName, a.Notes,
+            s.SiteCode, s.SiteName
+     FROM SiloOps.dbo.SiteAreas a
+     LEFT JOIN SiloOps.dbo.Sites s ON a.SiteID = s.SiteID",
+    limit
+  )
+
+  # Add WHERE clause if filtering
+  where_clauses <- c()
+  if (!is.null(site_id) && !is.na(site_id)) {
+    where_clauses <- c(where_clauses, sprintf("a.SiteID = %d", as.integer(site_id)))
+  }
+  if (!is.null(code_like) && nzchar(code_like)) {
+    safe_like <- gsub("'", "''", code_like)
+    where_clauses <- c(where_clauses, sprintf("(a.AreaCode LIKE '%%%s%%' OR a.AreaName LIKE '%%%s%%')", safe_like, safe_like))
+  }
+
+  if (length(where_clauses) > 0) {
+    sql <- paste0(sql, " WHERE ", paste(where_clauses, collapse = " AND "))
+  }
+
+  # Add ORDER BY
+  allowed_cols <- c("AreaID", "AreaCode", "AreaName", "SiteCode")
+  if (order_col %in% allowed_cols) {
+    sql <- paste0(sql, sprintf(" ORDER BY %s", order_col))
+  } else {
+    sql <- paste0(sql, " ORDER BY a.AreaCode")
+  }
+
+  DBI::dbGetQuery(pool, sql)
+}
+
+get_area_by_id <- function(area_id) {
+  pool <- db_pool()
+
+  sql <- "SELECT a.AreaID, a.SiteID, a.AreaCode, a.AreaName, a.Notes,
+                 s.SiteCode, s.SiteName
+          FROM SiloOps.dbo.SiteAreas a
+          LEFT JOIN SiloOps.dbo.Sites s ON a.SiteID = s.SiteID
+          WHERE a.AreaID = ?"
+
+  DBI::dbGetQuery(pool, sql, params = list(as.integer(area_id)))
+}
+
+upsert_area <- function(data) {
+  pool <- db_pool()
+
+  # Extract and validate required fields
+  area_code <- f_or(data$AreaCode, "")
+  area_name <- f_or(data$AreaName, "")
+
+  # Handle SiteID from select dropdown (could be string, empty string, or NA)
+  site_id <- NULL
+  if (!is.null(data$SiteID)) {
+    if (is.character(data$SiteID) && nzchar(data$SiteID)) {
+      site_id <- as.integer(data$SiteID)
+    } else if (is.numeric(data$SiteID) && !is.na(data$SiteID)) {
+      site_id <- as.integer(data$SiteID)
+    }
+  }
+
+  if (!nzchar(area_code)) stop("AreaCode is required")
+  if (!nzchar(area_name)) stop("AreaName is required")
+  if (is.null(site_id) || is.na(site_id)) stop("SiteID is required")
+
+  # Check if update or insert
+  area_id <- if (!is.null(data$AreaID) && !is.na(data$AreaID)) as.integer(data$AreaID) else NULL
+
+  if (!is.null(area_id) && area_id > 0) {
+    # UPDATE
+    sql <- "UPDATE SiloOps.dbo.SiteAreas
+            SET SiteID = ?, AreaCode = ?, AreaName = ?, Notes = ?
+            WHERE AreaID = ?"
+
+    DBI::dbExecute(pool, sql, params = list(
+      site_id,
+      area_code,
+      area_name,
+      if (!is.null(data$Notes) && nzchar(data$Notes)) data$Notes else NA_character_,
+      area_id
+    ))
+
+    return(area_id)
+
+  } else {
+    # INSERT
+    sql <- "INSERT INTO SiloOps.dbo.SiteAreas (SiteID, AreaCode, AreaName, Notes)
+            OUTPUT INSERTED.AreaID
+            VALUES (?, ?, ?, ?)"
+
+    result <- DBI::dbGetQuery(pool, sql, params = list(
+      site_id,
+      area_code,
+      area_name,
+      if (!is.null(data$Notes) && nzchar(data$Notes)) data$Notes else NA_character_
+    ))
+
+    return(result$AreaID[1])
+  }
+}
+
+# ==============================================================================
+# OFFLINE REASON TYPES
+# ==============================================================================
+
+list_offline_reasons <- function(code_like = NULL, order_col = "ReasonTypeCode", limit = 1000) {
+  pool <- db_pool()
+
+  sql <- sprintf(
+    "SELECT TOP %d ReasonTypeID, ReasonTypeCode, ReasonTypeName, Icon
+     FROM SiloOps.dbo.OfflineReasonTypes",
+    limit
+  )
+
+  # Add WHERE clause if filtering
+  if (!is.null(code_like) && nzchar(code_like)) {
+    safe_like <- gsub("'", "''", code_like)
+    sql <- paste0(sql, sprintf(" WHERE ReasonTypeCode LIKE '%%%s%%' OR ReasonTypeName LIKE '%%%s%%'", safe_like, safe_like))
+  }
+
+  # Add ORDER BY
+  allowed_cols <- c("ReasonTypeID", "ReasonTypeCode", "ReasonTypeName")
+  if (order_col %in% allowed_cols) {
+    sql <- paste0(sql, sprintf(" ORDER BY %s", order_col))
+  } else {
+    sql <- paste0(sql, " ORDER BY ReasonTypeCode")
+  }
+
+  DBI::dbGetQuery(pool, sql)
+}
+
+get_offline_reason_by_id <- function(reason_id) {
+  pool <- db_pool()
+
+  sql <- "SELECT ReasonTypeID, ReasonTypeCode, ReasonTypeName, Icon
+          FROM SiloOps.dbo.OfflineReasonTypes
+          WHERE ReasonTypeID = ?"
+
+  DBI::dbGetQuery(pool, sql, params = list(as.integer(reason_id)))
+}
+
+upsert_offline_reason <- function(data) {
+  pool <- db_pool()
+
+  # Extract and validate required fields
+  reason_code <- f_or(data$ReasonTypeCode, "")
+  reason_name <- f_or(data$ReasonTypeName, "")
+
+  if (!nzchar(reason_code)) stop("ReasonTypeCode is required")
+  if (!nzchar(reason_name)) stop("ReasonTypeName is required")
+
+  # Handle Icon (could be empty string or NA from dropdown)
+  icon_id <- NULL
+  if (!is.null(data$Icon)) {
+    if (is.character(data$Icon) && nzchar(data$Icon)) {
+      icon_id <- as.integer(data$Icon)
+    } else if (is.numeric(data$Icon) && !is.na(data$Icon)) {
+      icon_id <- as.integer(data$Icon)
+    }
+  }
+
+  # Check if update or insert
+  reason_id <- if (!is.null(data$ReasonTypeID) && !is.na(data$ReasonTypeID)) as.integer(data$ReasonTypeID) else NULL
+
+  if (!is.null(reason_id) && reason_id > 0) {
+    # UPDATE
+    sql <- "UPDATE SiloOps.dbo.OfflineReasonTypes
+            SET ReasonTypeCode = ?, ReasonTypeName = ?, Icon = ?
+            WHERE ReasonTypeID = ?"
+
+    DBI::dbExecute(pool, sql, params = list(
+      reason_code,
+      reason_name,
+      if (!is.null(icon_id) && !is.na(icon_id)) icon_id else NA_integer_,
+      reason_id
+    ))
+
+    return(reason_id)
+
+  } else {
+    # INSERT
+    sql <- "INSERT INTO SiloOps.dbo.OfflineReasonTypes (ReasonTypeCode, ReasonTypeName, Icon)
+            OUTPUT INSERTED.ReasonTypeID
+            VALUES (?, ?, ?)"
+
+    result <- DBI::dbGetQuery(pool, sql, params = list(
+      reason_code,
+      reason_name,
+      if (!is.null(icon_id) && !is.na(icon_id)) icon_id else NA_integer_
+    ))
+
+    return(result$ReasonTypeID[1])
+  }
+}
+
