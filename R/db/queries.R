@@ -3,7 +3,7 @@
 
 # ---- Allowed columns (for ORDER BY whitelisting) ----
 .ALLOWED_SILOS_COLS <- c("SiloID","SiloCode","SiloName","Area","ContainerTypeID",
-                         "VolumeM3","AllowMixedVariants","IsActive","CreatedAt","UpdatedAt")
+                         "VolumeM3","IsActive","CreatedAt","UpdatedAt")
 .ALLOWED_PLACEMENTS_COLS <- c("PlacementID","SiloID","LayoutID","ShapeTemplateID","CenterX",
                               "CenterY","ZIndex","IsVisible","IsInteractive","CreatedAt")
 .ALLOWED_SHAPES_COLS <- c("ShapeTemplateID","TemplateCode","ShapeType","Radius",
@@ -39,7 +39,7 @@ list_silos <- function(area = NULL,
   
   sql <- sprintf("
     SELECT SiloID, SiloCode, SiloName, Area, ContainerTypeID,
-           VolumeM3, AllowMixedVariants, IsActive, CreatedAt, UpdatedAt
+           VolumeM3, IsActive, CreatedAt, UpdatedAt
     FROM SiloOps.dbo.Silos
     %s
     %s
@@ -96,6 +96,90 @@ get_placement_by_id <- function(placement_id) {
     FROM SiloOps.dbo.SiloPlacements
     WHERE PlacementID = ?
   ", list(as.integer(placement_id)))
+}
+
+# Save (upsert) placement
+upsert_placement <- function(data) {
+  pool <- db_pool()
+
+  # Extract fields
+  silo_id <- as.integer(f_or(data$SiloID, NA))
+  layout_id <- as.integer(f_or(data$LayoutID, NA))
+  shape_template_id <- as.integer(f_or(data$ShapeTemplateID, NA))
+  center_x <- as.numeric(f_or(data$CenterX, 0))
+  center_y <- as.numeric(f_or(data$CenterY, 0))
+  z_index <- if (!is.null(data$ZIndex) && !is.na(data$ZIndex)) as.integer(data$ZIndex) else NA_integer_
+
+  # Handle booleans
+  is_visible <- TRUE
+  if (!is.null(data$IsVisible)) {
+    if (is.logical(data$IsVisible)) {
+      is_visible <- data$IsVisible
+    } else if (is.character(data$IsVisible)) {
+      is_visible <- tolower(data$IsVisible) %in% c("true", "1", "yes")
+    } else {
+      is_visible <- as.logical(data$IsVisible)
+    }
+  }
+
+  is_interactive <- TRUE
+  if (!is.null(data$IsInteractive)) {
+    if (is.logical(data$IsInteractive)) {
+      is_interactive <- data$IsInteractive
+    } else if (is.character(data$IsInteractive)) {
+      is_interactive <- tolower(data$IsInteractive) %in% c("true", "1", "yes")
+    } else {
+      is_interactive <- as.logical(data$IsInteractive)
+    }
+  }
+
+  # Validate required fields
+  if (is.na(silo_id)) stop("SiloID is required")
+  if (is.na(layout_id)) stop("LayoutID is required")
+  if (is.na(shape_template_id)) stop("ShapeTemplateID is required")
+
+  # Check if update or insert
+  placement_id <- if (!is.null(data$PlacementID) && !is.na(data$PlacementID)) as.integer(data$PlacementID) else NULL
+
+  if (!is.null(placement_id) && placement_id > 0) {
+    # UPDATE
+    sql <- "UPDATE SiloOps.dbo.SiloPlacements
+            SET SiloID = ?, LayoutID = ?, ShapeTemplateID = ?,
+                CenterX = ?, CenterY = ?, ZIndex = ?,
+                IsVisible = ?, IsInteractive = ?
+            WHERE PlacementID = ?"
+
+    DBI::dbExecute(pool, sql, params = list(
+      silo_id, layout_id, shape_template_id,
+      center_x, center_y, z_index,
+      is_visible, is_interactive,
+      placement_id
+    ))
+
+    return(placement_id)
+  } else {
+    # INSERT
+    sql <- "INSERT INTO SiloOps.dbo.SiloPlacements
+            (SiloID, LayoutID, ShapeTemplateID, CenterX, CenterY, ZIndex,
+             IsVisible, IsInteractive, CreatedAt)
+            OUTPUT INSERTED.PlacementID
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME())"
+
+    result <- DBI::dbGetQuery(pool, sql, params = list(
+      silo_id, layout_id, shape_template_id,
+      center_x, center_y, z_index,
+      is_visible, is_interactive
+    ))
+
+    return(result$PlacementID[1])
+  }
+}
+
+# Delete placement
+delete_placement <- function(placement_id) {
+  pool <- db_pool()
+  sql <- "DELETE FROM SiloOps.dbo.SiloPlacements WHERE PlacementID = ?"
+  DBI::dbExecute(pool, sql, params = list(as.integer(placement_id)))
 }
 
 # ---- Shape templates (for browsers / pickers) ---------------------------
@@ -224,7 +308,129 @@ upsert_shape_template <- function(data) {
   }
 }
 
+# ---- Canvases -------------------------------------------------------------
 
+list_canvases <- function(limit = 100) {
+  pool <- db_pool()
+  sql <- sprintf("
+    SELECT TOP %d id, canvas_name, width_px, height_px, bg_png_b64, created_utc, updated_utc
+    FROM SiloOps.dbo.Canvases
+    ORDER BY canvas_name
+  ", as.integer(limit))
+
+  DBI::dbGetQuery(pool, sql)
+}
+
+get_canvas_by_id <- function(canvas_id) {
+  db_query_params("
+    SELECT id, canvas_name, width_px, height_px, bg_png_b64, created_utc, updated_utc
+    FROM SiloOps.dbo.Canvases
+    WHERE id = ?
+  ", list(as.integer(canvas_id)))
+}
+
+# ---- Canvas Layouts -------------------------------------------------------
+
+list_canvas_layouts <- function(limit = 100, offset = 0) {
+  sql <- "
+    SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
+           CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           CreatedAt, UpdatedAt
+    FROM SiloOps.dbo.CanvasLayouts
+    ORDER BY LayoutName
+    OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+  "
+  db_query_params(sql, list(as.integer(offset), as.integer(limit)))
+}
+
+get_layout_by_id <- function(layout_id) {
+  db_query_params("
+    SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
+           CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           CreatedAt, UpdatedAt
+    FROM SiloOps.dbo.CanvasLayouts
+    WHERE LayoutID = ?
+  ", list(as.integer(layout_id)))
+}
+
+# Update layout background settings
+update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NULL,
+                                    pan_x = NULL, pan_y = NULL, zoom = NULL,
+                                    scale_x = NULL, scale_y = NULL) {
+  pool <- db_pool()
+
+  updates <- c()
+  params <- list()
+
+  if (!is.null(canvas_id)) {
+    updates <- c(updates, "CanvasID = ?")
+    params <- c(params, list(if(canvas_id == "") NULL else as.integer(canvas_id)))
+  }
+  if (!is.null(rotation)) {
+    updates <- c(updates, "BackgroundRotation = ?")
+    params <- c(params, list(as.numeric(rotation)))
+  }
+  if (!is.null(pan_x)) {
+    updates <- c(updates, "BackgroundPanX = ?")
+    params <- c(params, list(as.numeric(pan_x)))
+  }
+  if (!is.null(pan_y)) {
+    updates <- c(updates, "BackgroundPanY = ?")
+    params <- c(params, list(as.numeric(pan_y)))
+  }
+  if (!is.null(zoom)) {
+    updates <- c(updates, "BackgroundZoom = ?")
+    params <- c(params, list(as.numeric(zoom)))
+  }
+  if (!is.null(scale_x)) {
+    updates <- c(updates, "BackgroundScaleX = ?")
+    params <- c(params, list(as.numeric(scale_x)))
+  }
+  if (!is.null(scale_y)) {
+    updates <- c(updates, "BackgroundScaleY = ?")
+    params <- c(params, list(as.numeric(scale_y)))
+  }
+
+  if (length(updates) == 0) return(FALSE)
+
+  updates <- c(updates, "UpdatedAt = GETDATE()")
+  params <- c(params, list(as.integer(layout_id)))
+
+  sql <- sprintf("
+    UPDATE SiloOps.dbo.CanvasLayouts
+    SET %s
+    WHERE LayoutID = ?
+  ", paste(updates, collapse = ", "))
+
+  DBI::dbExecute(pool, sql, params = params)
+  return(TRUE)
+}
+
+#' Create New Canvas Layout
+#' @param layout_name Name for the new layout
+#' @return The LayoutID of the newly created layout
+#' @note Width/Height default to 1000, but are primarily determined by background canvas
+create_canvas_layout <- function(layout_name) {
+  pool <- db_pool()
+
+  # Use OUTPUT clause to get the inserted ID in a single statement
+  sql <- "
+    INSERT INTO SiloOps.dbo.CanvasLayouts
+      (LayoutName, WidthUnits, HeightUnits, IsDefault, CreatedAt, UpdatedAt)
+    OUTPUT INSERTED.LayoutID
+    VALUES (?, 1000, 1000, 0, GETDATE(), GETDATE());
+  "
+
+  result <- db_query_params(sql, list(as.character(layout_name)))
+
+  if (!is.null(result) && nrow(result) > 0 && !is.na(result$LayoutID[1])) {
+    return(as.integer(result$LayoutID[1]))
+  } else {
+    stop("Failed to create layout - no ID returned")
+  }
+}
 
 # ---- Container Types -------------------------------------------------------
 
@@ -1117,6 +1323,105 @@ upsert_offline_reason <- function(data) {
     ))
 
     return(result$ReasonTypeID[1])
+  }
+}
+
+# ==============================================================================
+# OPERATIONS
+# ==============================================================================
+
+list_operations <- function(code_like = NULL, order_col = "OpCode", limit = 1000) {
+  pool <- db_pool()
+
+  sql <- sprintf(
+    "SELECT TOP %d OperationID, OpCode, OpName, RequiresParams, ParamsSchemaJSON
+     FROM SiloOps.dbo.Operations",
+    limit
+  )
+
+  # Add WHERE clause if filtering
+  if (!is.null(code_like) && nzchar(code_like)) {
+    safe_like <- gsub("'", "''", code_like)
+    sql <- paste0(sql, sprintf(" WHERE OpCode LIKE '%%%s%%' OR OpName LIKE '%%%s%%'", safe_like, safe_like))
+  }
+
+  # Add ORDER BY
+  allowed_cols <- c("OperationID", "OpCode", "OpName")
+  if (order_col %in% allowed_cols) {
+    sql <- paste0(sql, sprintf(" ORDER BY %s", order_col))
+  } else {
+    sql <- paste0(sql, " ORDER BY OpCode")
+  }
+
+  DBI::dbGetQuery(pool, sql)
+}
+
+get_operation_by_id <- function(operation_id) {
+  pool <- db_pool()
+
+  sql <- "SELECT OperationID, OpCode, OpName, RequiresParams, ParamsSchemaJSON
+          FROM SiloOps.dbo.Operations
+          WHERE OperationID = ?"
+
+  DBI::dbGetQuery(pool, sql, params = list(as.integer(operation_id)))
+}
+
+upsert_operation <- function(data) {
+  pool <- db_pool()
+
+  # Extract and validate required fields
+  op_code <- f_or(data$OpCode, "")
+  op_name <- f_or(data$OpName, "")
+
+  if (!nzchar(op_code)) stop("OpCode is required")
+  if (!nzchar(op_name)) stop("OpName is required")
+
+  # Handle RequiresParams - checkbox/switch returns TRUE/FALSE
+  requires_params <- FALSE  # Default
+  if (!is.null(data$RequiresParams)) {
+    if (is.logical(data$RequiresParams)) {
+      requires_params <- data$RequiresParams
+    } else if (is.character(data$RequiresParams)) {
+      requires_params <- tolower(data$RequiresParams) %in% c("true", "1", "yes")
+    } else {
+      requires_params <- as.logical(data$RequiresParams)
+    }
+  }
+
+  # Check if update or insert
+  operation_id <- if (!is.null(data$OperationID) && !is.na(data$OperationID)) as.integer(data$OperationID) else NULL
+
+  if (!is.null(operation_id) && operation_id > 0) {
+    # UPDATE
+    sql <- "UPDATE SiloOps.dbo.Operations
+            SET OpCode = ?, OpName = ?, RequiresParams = ?, ParamsSchemaJSON = ?,
+                UpdatedAt = SYSUTCDATETIME()
+            WHERE OperationID = ?"
+
+    DBI::dbExecute(pool, sql, params = list(
+      op_code,
+      op_name,
+      requires_params,
+      if (!is.null(data$ParamsSchemaJSON) && nzchar(data$ParamsSchemaJSON)) data$ParamsSchemaJSON else NA_character_,
+      operation_id
+    ))
+
+    return(operation_id)
+
+  } else {
+    # INSERT
+    sql <- "INSERT INTO SiloOps.dbo.Operations (OpCode, OpName, RequiresParams, ParamsSchemaJSON, CreatedAt, UpdatedAt)
+            OUTPUT INSERTED.OperationID
+            VALUES (?, ?, ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME())"
+
+    result <- DBI::dbGetQuery(pool, sql, params = list(
+      op_code,
+      op_name,
+      requires_params,
+      if (!is.null(data$ParamsSchemaJSON) && nzchar(data$ParamsSchemaJSON)) data$ParamsSchemaJSON else NA_character_
+    ))
+
+    return(result$OperationID[1])
   }
 }
 

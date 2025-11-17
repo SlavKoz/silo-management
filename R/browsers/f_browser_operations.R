@@ -1,8 +1,8 @@
-# R/browsers/f_browser_offline_reasons.R
-# Offline Reasons Browser
+# R/browsers/f_browser_operations.R
+# Operations Browser
 
 # =========================== UI ===============================================
-browser_offline_reasons_ui <- function(id) {
+browser_operations_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
@@ -26,7 +26,7 @@ browser_offline_reasons_ui <- function(id) {
 }
 
 # ========================== SERVER ============================================
-browser_offline_reasons_server <- function(id, pool, route = NULL) {
+browser_operations_server <- function(id, pool, route = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -34,48 +34,33 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
     trigger_refresh <- reactiveVal(0)
 
     # ---- Data (full list) ----
-    raw_reasons <- reactive({
+    raw_operations <- reactive({
       # Depend on trigger to force refresh
       trigger_refresh()
       df <- try(
-        list_offline_reasons(
+        list_operations(
           code_like = NULL,
-          order_col = "ReasonTypeCode",
+          order_col = "OpCode",
           limit = 2000
         ), silent = TRUE
       )
       if (inherits(df, "try-error") || is.null(df)) df <- data.frame()
       if (!nrow(df)) return(df)
 
-      # Fetch icon data for display
-      icons_df <- try(list_icons_for_picker(limit = 1000), silent = TRUE)
-      if (inherits(icons_df, "try-error") || is.null(icons_df)) {
-        icons_df <- data.frame(id = integer(0), icon_name = character(0), png_32_b64 = character(0))
-      }
-
-      # Create icon display column
+      # Create styled 3-letter code icon (use first 3 letters of OpCode)
       df$IconDisplay <- vapply(seq_len(nrow(df)), function(i) {
-        icon_id <- df$Icon[i]
-        if (is.na(icon_id) || is.null(icon_id)) {
-          return('<div style="display:inline-block; width:32px; height:32px; background:#e5e7eb; border-radius:4px;"></div>')
-        }
-
-        # Find matching icon
-        icon_row <- icons_df[icons_df$id == icon_id, ]
-        if (nrow(icon_row) == 0 || is.na(icon_row$png_32_b64[1]) || !nzchar(icon_row$png_32_b64[1])) {
-          return('<div style="display:inline-block; width:32px; height:32px; background:#e5e7eb; border-radius:4px;"></div>')
-        }
-
-        sprintf('<img src="data:image/png;base64,%s" style="width:32px; height:32px; border-radius:4px;" />',
-                icon_row$png_32_b64[1])
+        code_3 <- toupper(substr(df$OpCode[i], 1, 3))
+        sprintf(
+          '<div style="display:inline-block; width:32px; height:32px; background:#7c3aed; color:#fff; font-weight:bold; font-size:11px; text-align:center; line-height:32px; border-radius:4px;">%s</div>',
+          code_3
+        )
       }, character(1))
-
       df
     })
 
     # Transform data for compact list (id, icon, title, description)
     list_items <- reactive({
-      df <- raw_reasons()
+      df <- raw_operations()
       if (!nrow(df)) {
         return(data.frame(
           id = character(0),
@@ -87,10 +72,10 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
       }
 
       data.frame(
-        id = df$ReasonTypeID,
+        id = df$OperationID,
         icon = df$IconDisplay,
-        title = toupper(df$ReasonTypeName),
-        description = df$ReasonTypeCode,
+        title = toupper(df$OpName),
+        description = df$OpCode,
         stringsAsFactors = FALSE
       )
     })
@@ -102,52 +87,20 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
       add_new_item = TRUE,
       add_new_label = "<<add new>>",
       add_new_icon = "",
-      initial_selection = "first"
+      initial_selection = "first"  # Auto-select first item on load
     )
 
     selected_id <- list_result$selected_id
-
-    # ---- Get icon choices for dropdown ----
-    icon_choices <- reactive({
-      icons_df <- try(list_icons_for_picker(limit = 1000), silent = TRUE)
-      if (inherits(icons_df, "try-error") || is.null(icons_df) || !nrow(icons_df)) {
-        return(c("(none)" = ""))
-      }
-
-      choices <- setNames(
-        as.character(icons_df$id),
-        icons_df$icon_name
-      )
-      c("(none)" = "", choices)
-    })
-
-    # ---- Icon metadata for thumbnails ----
-    icon_metadata <- reactive({
-      icons_df <- try(list_icons_for_picker(limit = 1000), silent = TRUE)
-      if (inherits(icons_df, "try-error") || is.null(icons_df) || !nrow(icons_df)) {
-        return(list())
-      }
-
-      lapply(seq_len(nrow(icons_df)), function(i) {
-        has_b64 <- !is.na(icons_df$png_32_b64[i]) && nzchar(as.character(icons_df$png_32_b64[i]))
-
-        list(
-          id = as.character(icons_df$id[i]),
-          name = icons_df$icon_name[i],
-          thumbnail = if (has_b64) paste0("data:image/png;base64,", icons_df$png_32_b64[i]) else NULL
-        )
-      })
-    })
 
     # ---- Schema configuration ----
     schema_config <- reactive({
       list(
         fields = list(
           # Column 1 - Basic Info
-          field("ReasonTypeCode", "text",   title="Code", column = 1, required = TRUE),
-          field("ReasonTypeName", "text",   title="Name", column = 1, required = TRUE),
-          field("Icon",           "select", title="Icon", enum = icon_choices(),
-                widget = "icon-select", icon_metadata = icon_metadata(), column = 1)
+          field("OpCode",           "text",     title="Code", column = 1, required = TRUE),
+          field("OpName",           "text",     title="Name", column = 1, required = TRUE),
+          field("RequiresParams",   "switch",   title="Requires Parameters", column = 1),
+          field("ParamsSchemaJSON", "textarea", title="Parameters Schema (JSON)", column = 1)
         ),
         columns = 1
       )
@@ -158,43 +111,41 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
       # Depend on trigger_refresh to re-fetch after save
       trigger_refresh()
 
-      # Depend on icons_version to refresh when icons change
-      if (!is.null(session$userData$icons_version)) {
-        session$userData$icons_version
-      }
-
       sid <- selected_id()
 
       # No selection - return empty data
       if (is.null(sid)) {
         return(list(
-          ReasonTypeCode = "",
-          ReasonTypeName = "",
-          Icon = ""
+          OpCode = "",
+          OpName = "",
+          RequiresParams = FALSE,
+          ParamsSchemaJSON = ""
         ))
       }
 
       # New record
       if (is.na(sid)) {
         return(list(
-          ReasonTypeCode = "",
-          ReasonTypeName = "",
-          Icon = ""
+          OpCode = "",
+          OpName = "",
+          RequiresParams = FALSE,
+          ParamsSchemaJSON = ""
         ))
       }
 
       # Existing record - fetch from database
-      df1 <- try(get_offline_reason_by_id(sid), silent = TRUE)
+      df1 <- try(get_operation_by_id(sid), silent = TRUE)
       if (inherits(df1, "try-error") || is.null(df1) || !nrow(df1)) {
         return(list())
       }
 
       # Return flat structure
       list(
-        ReasonTypeID = as.integer(f_or(df1$ReasonTypeID, 0)),
-        ReasonTypeCode = f_or(df1$ReasonTypeCode, ""),
-        ReasonTypeName = f_or(df1$ReasonTypeName, ""),
-        Icon = as.character(f_or(df1$Icon, ""))
+        OperationID = as.integer(f_or(df1$OperationID, 0)),
+        OpCode = f_or(df1$OpCode, ""),
+        OpName = f_or(df1$OpName, ""),
+        RequiresParams = as.logical(f_or(df1$RequiresParams, FALSE)),
+        ParamsSchemaJSON = f_or(df1$ParamsSchemaJSON, "")
       )
     })
 
@@ -205,7 +156,7 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
       id = "form",
       schema_config = schema_config,
       form_data = form_data,
-      title_field = "ReasonTypeName",
+      title_field = "OpName",
       show_header = TRUE,
       show_delete_button = TRUE,
       on_save = function(data) {
@@ -214,7 +165,7 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
           is_new_record <- is.na(selected_id())
 
           # Save to database (data is already flat)
-          saved_id <- upsert_offline_reason(data)
+          saved_id <- upsert_operation(data)
 
           # If this was a new record, select it using the list module's method
           if (is_new_record && !is.null(saved_id) && !is.na(saved_id)) {
@@ -227,7 +178,7 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
           return(TRUE)
         }, error = function(e) {
           error_msg <- conditionMessage(e)
-          cat("[Offline Reason Save Error]:", error_msg, "\n")
+          cat("[Operation Save Error]:", error_msg, "\n")
 
           # Parse error message for user-friendly display
           field_to_clear <- NULL
@@ -235,7 +186,7 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
 
           if (grepl("UNIQUE KEY constraint", error_msg, ignore.case = TRUE)) {
             # Duplicate key
-            field_to_clear <- "ReasonTypeCode"
+            field_to_clear <- "OpCode"
             if (grepl("duplicate key value is \\(([^)]+)\\)", error_msg, ignore.case = TRUE)) {
               dup_value <- gsub(".*duplicate key value is \\(([^)]+)\\).*", "\\1", error_msg, ignore.case = TRUE)
               user_msg <- paste0("Cannot save: Code '", dup_value, "' already exists. Please use a different code.")
@@ -265,12 +216,77 @@ browser_offline_reasons_server <- function(id, pool, route = NULL) {
       }
     )
 
-    return(list(selected_reason_id = selected_id))
+    # --- Deep-linking support ---
+    # If route reactive is provided, observe URL changes
+    if (!is.null(route) && shiny::is.reactive(route)) {
+      observeEvent(route(), {
+        parts <- route()
+
+        # Only handle if we're on the operations page (nested under actions)
+        if (length(parts) >= 2 && parts[1] == "actions" && parts[2] == "operations") {
+          # If there's an item ID, select it
+          if (length(parts) >= 3) {
+            op_code <- parts[3]
+
+            # Look up OperationID for this OpCode
+            df <- raw_operations()
+            if (!nrow(df)) return()
+
+            # Try exact match (case-insensitive)
+            row <- df[!is.na(df$OpCode) & tolower(trimws(df$OpCode)) == tolower(trimws(op_code)), ]
+
+            if (nrow(row) == 0) {
+              showNotification(paste0("Operation '", op_code, "' not found"), type = "warning", duration = 2)
+              return()
+            }
+
+            # Select the item by its numeric ID
+            operation_id <- as.integer(row$OperationID[1])
+            current_selected <- selected_id()
+
+            # Only update if different from current selection
+            if (is.null(current_selected) || current_selected != operation_id) {
+              list_result$select_item(operation_id)
+            }
+          }
+        }
+      }, ignoreInit = TRUE)
+
+      # Update URL when selection changes - BUT ONLY if we're on the operations page
+      observe({
+        parts <- route()
+
+        # Only update URL if we're currently on the operations page
+        if (length(parts) < 2 || parts[1] != "actions" || parts[2] != "operations") return()
+
+        sid <- selected_id()
+        if (is.null(sid) || is.na(sid)) return()
+
+        # Get OpCode for currently selected OperationID
+        df <- raw_operations()
+        if (!nrow(df)) return()
+
+        row <- df[df$OperationID == sid, ]
+        if (nrow(row) == 0) return()
+
+        op_code <- row$OpCode[1]
+
+        # Check if we need to update the route
+        expected_parts <- c("actions", "operations", op_code)
+
+        if (!identical(parts, expected_parts)) {
+          # Send message to update hash
+          session$sendCustomMessage("set-hash", list(h = paste0("#/actions/operations/", op_code)))
+        }
+      })
+    }
+
+    return(list(selected_operation_id = selected_id))
   })
 }
 
 # Aliases with f_ prefix for consistency
-f_browser_offline_reasons_ui <- browser_offline_reasons_ui
-f_browser_offline_reasons_server <- function(id, pool, route = NULL) {
-  browser_offline_reasons_server(id, pool, route)
+f_browser_operations_ui <- browser_operations_ui
+f_browser_operations_server <- function(id, pool, route = NULL) {
+  browser_operations_server(id, pool, route)
 }

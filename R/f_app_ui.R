@@ -125,9 +125,9 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
     # ------ Sidebar rail ------
     # ------ Sidebar rail ------
     div(class = "sb-rail",
-        # app title/header (fixed)
+        # app title/header (fixed) - no home button
         div(class = "sb-title", "Silo"),
-        
+
         # scrollable menu area (server-built groups/items)
         div(class = "sb-menu-scroll",
             uiOutput("f_sidebar_menu")
@@ -164,7 +164,8 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
                         tags$option(value = "shapes", "Shapes"),
                         tags$option(value = "siloes", "Siloes"),
                         tags$option(value = "sites", "Sites"),
-                        tags$option(value = "areas", "Areas")
+                        tags$option(value = "areas", "Areas"),
+                        tags$option(value = "operations", "Operations")
                     ),
                     div(class = "ui mini icon button", id = "global_search_btn",
                         style = "font-size: 11px; padding: 0.4rem 0.6rem;",
@@ -252,7 +253,7 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         document.addEventListener('DOMContentLoaded', syncCollapse);
 
         // simple hash router
-        function normRoute(h){ return (h && h.startsWith('#/')) ? h : '#/sites'; }   // default to Sites
+        function normRoute(h){ return (h && h.startsWith('#/')) ? h : '#/home'; }   // default to Home
         function setActiveRoute(h){
           // highlight the item whose data-route equals h
           var items = document.querySelectorAll('.sb-rail .item[data-route]');
@@ -273,7 +274,7 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         document.addEventListener('click', function(e){
           var it = e.target.closest('.sb-rail .item[data-route]');
           if (!it) return;
-          var h = it.getAttribute('data-route') || '#/sites';
+          var h = it.getAttribute('data-route') || '#/home';
           if (location.hash !== h) location.hash = h; else syncRoute();
         });
 
@@ -295,7 +296,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // start with ALL groups collapsed
   document.querySelectorAll('.group-block').forEach(function(b){ b.classList.add('collapsed'); });
   // then sync route; setActiveRoute() will auto-expand the active group
-  var h = (location.hash && location.hash.startsWith('#/')) ? location.hash : '#/sites';
+  var h = (location.hash && location.hash.startsWith('#/')) ? location.hash : '#/home';
   // highlight + expand containing group
   var items = document.querySelectorAll('.sb-rail .item[data-route]');
   items.forEach(function(it){ it.classList.toggle('nav-active', it.getAttribute('data-route') === h); });

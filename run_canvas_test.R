@@ -1,9 +1,5 @@
 #!/usr/bin/env Rscript
-# Test runner for HTML-based components
-
-# Parse command line args
-args <- commandArgs(trailingOnly = TRUE)
-test_type <- if (length(args) > 0) args[1] else "form"
+# Test runner for SiloPlacements Canvas
 
 # Check packages
 required <- c("shiny")
@@ -23,17 +19,9 @@ source("R/react_table/react_table_dsl.R", local = TRUE)
 source("R/react_table/react_table_auto.R", local = TRUE)
 source("R/react_table/html_form_renderer.R", local = TRUE)
 source("R/react_table/mod_html_form.R", local = TRUE)
+source("R/test_siloplacements_canvas.R", local = TRUE)
 
-# Run selected test
-if (test_type == "canvas" || test_type == "siloplacements") {
-  source("R/test_siloplacements_canvas.R", local = TRUE)
-  run_siloplacements_canvas_test()
-} else {
-  source("R/test_html_form.R", local = TRUE)
-  run_html_form_test()
-}
+cat("\n=== Launching SiloPlacements Canvas Test ===\n")
+cat("Canvas + React Table for placement management\n\n")
 
-cat("\nUsage: Rscript run_html_test.R [form|canvas]\n")
-cat("  form   - Test HTML form module (default)\n")
-cat("  canvas - Test SiloPlacements canvas + table\n")
-
+run_siloplacements_canvas_test()

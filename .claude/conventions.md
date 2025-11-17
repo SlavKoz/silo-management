@@ -153,8 +153,289 @@ Always read these files at the start of a session:
 - `.claude/deletion_safety.md` - Referential integrity pattern (prevents orphaned records)
 - `.claude/cross_module_state.md` - Cross-module synchronization pattern (global state management)
 - `table_structures.csv` - Complete database schema (all tables, columns, data types)
+- `.claude/conventions.md` - This file (project conventions)
 
 Keep record on what we are doing in the session_summary.md
+
+---
+
+## Browser Module Pattern (f_browser_*.R)
+
+### Standard Browser Structure
+All modern browsers follow this pattern (React Table + React List):
+
+```r
+# UI - Two-column layout
+browser_name_ui <- function(id) {
+  ns <- NS(id)
+  tagList(
+    div(class = "ui grid stackable",
+        # LEFT — compact list (33%)
+        div(class = "five wide column",
+            compact_list_ui(ns("list"),
+                           show_filter = TRUE,
+                           filter_placeholder = "Filter by code/name…")
+        ),
+        # RIGHT — detail/editor (66%)
+        div(class = "eleven wide column",
+            mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
+        )
+    )
+  )
+}
+
+# Server - Standard pattern
+browser_name_server <- function(id, pool, route = NULL) {
+  moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+
+    # 1. Trigger refresh reactive
+    trigger_refresh <- reactiveVal(0)
+
+    # 2. Raw data with icon display
+    raw_data <- reactive({
+      trigger_refresh()
+      df <- try(list_items(...), silent = TRUE)
+      # Add IconDisplay column if needed
+      df
+    })
+
+    # 3. Transform for compact list
+    list_items <- reactive({
+      data.frame(
+        id = df$ID,
+        icon = df$IconDisplay,
+        title = toupper(df$Name),
+        description = df$Code,
+        stringsAsFactors = FALSE
+      )
+    })
+
+    # 4. Compact list module
+    list_result <- compact_list_server(
+      "list",
+      items = list_items,
+      add_new_item = TRUE,
+      initial_selection = "first"
+    )
+    selected_id <- list_result$selected_id
+
+    # 5. Schema configuration
+    schema_config <- reactive({
+      list(fields = list(...), columns = 1)
+    })
+
+    # 6. Form data reactive
+    form_data <- reactive({
+      trigger_refresh()
+      sid <- selected_id()
+      if (is.null(sid)) return(list(...))  # Empty
+      if (is.na(sid)) return(list(...))    # New
+      # Existing - fetch from DB
+      df1 <- try(get_item_by_id(sid), silent = TRUE)
+      list(...)  # Return flat structure
+    })
+
+    # 7. HTML form module
+    form_module <- mod_html_form_server(
+      id = "form",
+      schema_config = schema_config,
+      form_data = form_data,
+      title_field = "FieldName",
+      show_header = TRUE,
+      show_delete_button = TRUE,
+      on_save = function(data) {
+        tryCatch({
+          is_new_record <- is.na(selected_id())
+          saved_id <- upsert_item(data)
+
+          if (is_new_record && !is.null(saved_id)) {
+            list_result$select_item(as.integer(saved_id))
+          }
+
+          trigger_refresh(trigger_refresh() + 1)
+          return(TRUE)
+        }, error = function(e) {
+          # Parse and show error
+          showNotification(user_msg, type = "error", duration = NULL)
+          form_module$handle_save_failure(field_to_clear)
+          return(FALSE)
+        })
+      },
+      on_delete = function() {
+        # TODO: Implement with referential integrity check
+        return(FALSE)
+      }
+    )
+
+    # 8. Deep-linking support (if route provided)
+    if (!is.null(route) && shiny::is.reactive(route)) {
+      # Observe route changes
+      # Update URL on selection change
+    }
+
+    return(list(selected_item_id = selected_id))
+  })
+}
+
+# Aliases with f_ prefix
+f_browser_name_ui <- browser_name_ui
+f_browser_name_server <- function(id, pool, route = NULL) {
+  browser_name_server(id, pool, route)
+}
+```
+
+### Icon Display Patterns
+
+**For tables WITH Icon column (Icons table FK):**
+```r
+# Fetch icon data
+icons_df <- try(list_icons_for_picker(limit = 1000), silent = TRUE)
+
+# Create IconDisplay column
+df$IconDisplay <- vapply(seq_len(nrow(df)), function(i) {
+  icon_id <- df$Icon[i]
+  if (is.na(icon_id)) {
+    return('<div style="display:inline-block; width:32px; height:32px; background:#e5e7eb; border-radius:4px;"></div>')
+  }
+  icon_row <- icons_df[icons_df$id == icon_id, ]
+  if (nrow(icon_row) == 0 || is.na(icon_row$png_32_b64[1])) {
+    return('<div style="display:inline-block; width:32px; height:32px; background:#e5e7eb; border-radius:4px;"></div>')
+  }
+  sprintf('<img src="data:image/png;base64,%s" style="width:32px; height:32px; border-radius:4px;" />',
+          icon_row$png_32_b64[1])
+}, character(1))
+```
+
+**For tables WITHOUT Icon column (code-based badge):**
+```r
+# Create 3-letter code badge
+df$IconDisplay <- vapply(seq_len(nrow(df)), function(i) {
+  code_3 <- toupper(substr(df$Code[i], 1, 3))
+  sprintf(
+    '<div style="display:inline-block; width:32px; height:32px; background:#059669; color:#fff; font-weight:bold; font-size:11px; text-align:center; line-height:32px; border-radius:4px;">%s</div>',
+    code_3
+  )
+}, character(1))
+```
+
+### Deep-Linking Pattern
+
+**For simple routes (e.g., #/sites/SITECODE):**
+```r
+observeEvent(route(), {
+  parts <- route()
+  if (length(parts) >= 1 && parts[1] == "sites") {
+    if (length(parts) >= 2) {
+      code <- parts[2]
+      # Find and select item by code
+      row <- df[trimws(df$Code) == trimws(code), ]
+      if (nrow(row) > 0) {
+        list_result$select_item(as.integer(row$ID[1]))
+      }
+    }
+  }
+}, ignoreInit = TRUE)
+```
+
+**For nested routes (e.g., #/actions/operations/OPCODE):**
+```r
+observeEvent(route(), {
+  parts <- route()
+  if (length(parts) >= 2 && parts[1] == "actions" && parts[2] == "operations") {
+    if (length(parts) >= 3) {
+      code <- parts[3]
+      # Find and select
+    }
+  }
+}, ignoreInit = TRUE)
+```
+
+**For composite codes (e.g., #/areas/SITECODE-AREACODE):**
+```r
+observeEvent(route(), {
+  parts <- route()
+  if (length(parts) >= 2 && parts[1] == "areas") {
+    composite <- parts[2]
+    if (grepl("-", composite, fixed = TRUE)) {
+      code_parts <- strsplit(composite, "-", fixed = TRUE)[[1]]
+      site_code <- trimws(code_parts[1])
+      area_code <- trimws(paste(code_parts[-1], collapse = "-"))
+      # Find by composite
+    }
+  }
+}, ignoreInit = TRUE)
+```
+
+### Error Handling Pattern
+
+```r
+error = function(e) {
+  error_msg <- conditionMessage(e)
+  cat("[Save Error]:", error_msg, "\n")
+
+  field_to_clear <- NULL
+  user_msg <- NULL
+
+  if (grepl("UNIQUE KEY constraint", error_msg, ignore.case = TRUE)) {
+    field_to_clear <- "Code"
+    if (grepl("duplicate key value is \\(([^)]+)\\)", error_msg, ignore.case = TRUE)) {
+      dup_value <- gsub(".*duplicate key value is \\(([^)]+)\\).*", "\\1", error_msg, ignore.case = TRUE)
+      user_msg <- paste0("Cannot save: Code '", dup_value, "' already exists.")
+    } else {
+      user_msg <- "Cannot save: This code already exists."
+    }
+  } else if (grepl("NULL", error_msg, ignore.case = TRUE) && grepl("cannot insert", error_msg, ignore.case = TRUE)) {
+    user_msg <- "Cannot save: Required field is missing."
+  } else {
+    user_msg <- paste0("Database error: ", substr(error_msg, 1, 200))
+  }
+
+  showNotification(user_msg, type = "error", duration = NULL)
+  form_module$handle_save_failure(field_to_clear)
+  return(FALSE)
+}
+```
+
+### Cross-Module State Management
+
+**Icon changes refresh dependencies:**
+```r
+# In form_data reactive
+if (!is.null(session$userData$icons_version)) {
+  session$userData$icons_version  # Depend on it
+}
+```
+
+**On save, increment version:**
+```r
+# In on_save callback
+if (!is.null(session$userData$icons_version)) {
+  session$userData$icons_version <- session$userData$icons_version + 1
+}
+```
+
+### Wiring in App Server
+
+```r
+# In route_map
+"items" = list(
+  title = "Items",
+  ui = function() {
+    if (exists("f_browser_items_ui")) f_browser_items_ui("items")
+    else div("Placeholder")
+  },
+  server = function() {
+    if (exists("f_browser_items_server")) f_browser_items_server("items", pool, route = current)
+  }
+)
+
+# In icon_map
+"items" = "icon-class"
+
+# In sidebar_structure
+list(key = "items@single", title = "Items", items = c("items"))
+```
 
 ---
 

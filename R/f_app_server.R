@@ -113,14 +113,26 @@ f_app_server <- function(input, output, session) {
 
   # --- Router helpers ---
   parse_route <- function(h) {
-    h <- sub("^#/", "", f_or(h, "sites"))
+    h <- sub("^#/", "", f_or(h, "home"))
     parts <- strsplit(h, "/", fixed = TRUE)[[1]]
     parts[nzchar(parts)]
   }
-  route_key <- function(parts) if (length(parts)) paste(parts, collapse = ".") else "sites"
+  route_key <- function(parts) if (length(parts)) paste(parts, collapse = ".") else "home"
   
   # --- Route map ---
   route_map <- list(
+    # Home / Landing page
+    "home" = list(
+      title = "Home",
+      ui    = function() {
+        if (exists("f_landing_page_ui")) f_landing_page_ui("landing")
+        else div(class = "p-3", h3("Home"), p("Welcome to Silo Operations"))
+      },
+      server = function() {
+        if (exists("f_landing_page_server")) f_landing_page_server("landing")
+      }
+    ),
+
     # Sites group
     "sites" = list(
       title = "Sites",
@@ -173,7 +185,7 @@ f_app_server <- function(input, output, session) {
         else div(class="p-3", h3("Operations"), p("Placeholder: container/silo operations will go here."))
       },
       server = function() {
-        if (exists("f_browser_operations_server")) f_browser_operations_server("ops", pool)
+        if (exists("f_browser_operations_server")) f_browser_operations_server("ops", pool, route = current)
       }
     ),
     
@@ -235,6 +247,7 @@ f_app_server <- function(input, output, session) {
   
   # Icon map for sidebar items (Semantic UI icon class names)
   icon_map <- c(
+    "home"                   = "home",
     "sites"                  = "building",
     "areas"                  = "map outline",
     "siloes"                 = "warehouse",
@@ -259,6 +272,11 @@ f_app_server <- function(input, output, session) {
   # --- Sidebar menu (explicit order + group metadata) ---
   # Define groups and items for rendering (and for collapse persistence)
   sidebar_structure <- list(
+    list(                      # Silo single (home/landing)
+      key   = "home@single",
+      title = "Silo",
+      items = c("home")
+    ),
     list(                      # Sites group
       key   = "sites@group",
       title = "Sites",
@@ -335,11 +353,11 @@ f_app_server <- function(input, output, session) {
   }
 
   # --- Hash -> route state ---
-  current <- reactiveVal(c("sites"))  # default to Sites
+  current <- reactiveVal(c("home"))  # default to Home
 
   # Helper to find the best matching route key
   find_route_key <- function(parts) {
-    if (length(parts) == 0) return("sites")
+    if (length(parts) == 0) return("home")
 
     # Try exact match first
     full_key <- route_key(parts)
@@ -354,8 +372,8 @@ f_app_server <- function(input, output, session) {
       if (!is.null(route_map[[test_key]])) return(test_key)
     }
 
-    # No match found, default to sites
-    return("sites")
+    # No match found, default to home
+    return("home")
   }
 
   output$f_sidebar_menu <- renderUI({
@@ -368,23 +386,23 @@ f_app_server <- function(input, output, session) {
     key <- find_route_key(parts)
 
     # If we found a valid route, keep the full parts for deep-linking
-    # Otherwise fall back to sites
-    if (key != "sites" || identical(parts, character(0)) || parts[1] == "sites") {
+    # Otherwise fall back to home
+    if (key != "home" || identical(parts, character(0)) || (length(parts) > 0 && parts[1] == "home")) {
       current(parts)
     } else {
-      current(c("sites"))
+      current(c("home"))
     }
   }, ignoreInit = FALSE)
 
   # --- Title & Outlet ---
   output$f_page_title <- renderText({
     key <- find_route_key(current())
-    info <- route_map[[key]] %||% route_map[["sites"]]
+    info <- route_map[[key]] %||% route_map[["home"]]
     info$title
   })
   output$f_route_outlet <- renderUI({
     key <- find_route_key(current())
-    info <- route_map[[key]] %||% route_map[["sites"]]
+    info <- route_map[[key]] %||% route_map[["home"]]
     info$ui()
   })
   

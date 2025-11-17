@@ -2,6 +2,7 @@
 
 # Static form/page entries that can be navigated to
 SEARCH_FORMS <- list(
+  list(id = "home",         label = "Home",             category = "forms", route = "#/home"),
   list(id = "sites",        label = "Sites",            category = "forms", route = "#/sites"),
   list(id = "sites_areas",  label = "Site Areas",       category = "forms", route = "#/sites/areas"),
   list(id = "siloes",       label = "Siloes",           category = "forms", route = "#/siloes"),
@@ -200,6 +201,34 @@ f_get_search_items <- function(category = "forms", query = "", pool = NULL, limi
           })
         }
       }
+
+      else if (category == "operations") {
+        # Fetch operations
+        if (nzchar(query)) {
+          safe_query <- gsub("'", "''", query)
+          sql <- sprintf(
+            "SELECT TOP %d OpCode, OpName FROM SiloOps.dbo.Operations WHERE OpCode LIKE '%%%s%%' OR OpName LIKE '%%%s%%'",
+            limit, safe_query, safe_query
+          )
+        } else {
+          sql <- sprintf(
+            "SELECT TOP %d OpCode, OpName FROM SiloOps.dbo.Operations",
+            limit
+          )
+        }
+        df <- DBI::dbGetQuery(pool, sql)
+
+        if (nrow(df) > 0) {
+          items <- lapply(1:nrow(df), function(i) {
+            list(
+              id = df$OpCode[i],
+              label = paste0(df$OpCode[i], " - ", df$OpName[i]),
+              category = "operations",
+              route = paste0("#/actions/operations/", df$OpCode[i])
+            )
+          })
+        }
+      }
     }, error = function(e) {
       warning("Search query error: ", conditionMessage(e))
     })
@@ -221,6 +250,7 @@ f_get_search_categories <- function() {
     list(value = "shapes",     label = "Shapes"),
     list(value = "siloes",     label = "Siloes"),
     list(value = "sites",      label = "Sites"),
-    list(value = "areas",      label = "Areas")
+    list(value = "areas",      label = "Areas"),
+    list(value = "operations", label = "Operations")
   )
 }

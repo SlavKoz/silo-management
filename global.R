@@ -79,6 +79,12 @@ source_dir("R/canvas")
 # Test modules
 if (file.exists("R/test_2column_form.R")) source("R/test_2column_form.R", local = globalenv())
 
+# Landing page
+if (file.exists("R/f_landing_page.R")) source("R/f_landing_page.R", local = globalenv())
+
+# Search registry
+if (file.exists("R/f_search_registry.R")) source("R/f_search_registry.R", local = globalenv())
+
 # 5) App shell (export app_ui/app_server to globalenv)
 # f_ app shell
 if (file.exists("R/f_app_ui.R"))     source("R/f_app_ui.R",     local = globalenv())
