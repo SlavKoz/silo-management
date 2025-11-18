@@ -25,20 +25,28 @@ test_siloplacements_ui <- function(id) {
       }
       .canvas-toolbar .form-group {
         margin-bottom: 0;
-        display: flex;
+        display: inline-block; 
+        /* display: flex;
         align-items: center;
-        gap: 0.3rem;
+        gap: 0.3rem;*/
       }
       .canvas-toolbar select.form-control {
-        padding: 0.15rem 0.5rem;
-        height: 26px;
+        padding: 0.15rem 1.5rem 0.15rem 0.5rem;
+        height: 28px;
         font-size: 12px;
         line-height: 1.2;
-        width: 180px;
+        background-position: right 0.3rem center;
+        background-size: 12px;
       }
       .canvas-toolbar input[type='text'].form-control {
         padding: 0.15rem 0.5rem;
-        height: 26px;
+        height: 28px;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+      .canvas-toolbar input[type='number'].form-control {
+        padding: 0.15rem 0.5rem;
+        height: 28px;
         font-size: 12px;
         line-height: 1.2;
       }
@@ -51,6 +59,12 @@ test_siloplacements_ui <- function(id) {
         margin: 0;
         font-size: 13px;
         font-weight: normal;
+      }
+      .canvas-toolbar .btn-sm {
+        height: 28px;
+        padding: 0.25rem 0.4rem;
+        font-size: 14px;
+        line-height: 1.2;
       }
       .canvas-viewport {
         position: relative;
@@ -83,53 +97,164 @@ test_siloplacements_ui <- function(id) {
 
     div(
       # Canvas area
-      div(class = "canvas-container",
-          # Top toolbar - Layout selector only
-          div(class = "canvas-toolbar", style = "background: #e9ecef; flex-wrap: wrap;",
-              div(style = "display: flex; gap: 0.5rem; align-items: center; width: 100%; flex-wrap: wrap;",
-                  div(style = "display: inline-flex; align-items: center; gap: 0.3rem;",
-                      # Add New button
-                      actionButton(ns("add_new_btn"), "Add New", class = "btn-sm btn-primary",
-                                  style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
+      div(
+        class = "canvas-container",
+        # Top toolbar - Layout selector + Delete
+        div(
+          class = "canvas-toolbar",
+          style = "background: #e9ecef; flex-wrap: wrap;",
+          div(
+            style = "display: flex; gap: 0.5rem; align-items: center; width: 100%; flex-wrap: wrap; justify-content: space-between;",  # CHANGED
+            
+            # LEFT side: Add New + Layout selector/text + Save Layout + Background Settings
+            div(
+              style = "display: inline-flex; align-items: center; gap: 0.3rem;",
 
-                      # Layout label
-                      tags$label("Layout:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+              # Add New button
+              actionButton(
+                ns("add_new_btn"), "Add New", class = "btn-sm btn-primary",
+                style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"
+              ),
 
-                      # Select input (visible by default)
-                      div(id = ns("select_container"), style = "display: inline-block;",
-                          selectInput(ns("layout_id"), label = NULL, choices = NULL, width = "180px",
-                                     selectize = FALSE)
-                      ),
+              # Layout label
+              tags$label(
+                "Layout:",
+                style = "margin: 0; font-size: 13px; font-weight: normal;"
+              ),
 
-                      # Text input + Save button (hidden by default)
-                      div(id = ns("text_container"), style = "display: none; inline-flex; gap: 0.2rem;",
-                          textInput(ns("new_layout_name"), label = NULL, placeholder = "Enter name...",
-                                   width = "130px"),
-                          actionButton(ns("save_new_btn"), "Save", class = "btn-sm btn-success",
-                                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 46px;")
-                      ),
+              # Select input (visible by default)
+              div(
+                id = ns("select_container"),
+                style = "display: inline-block;",
+                selectInput(
+                  ns("layout_id"), label = NULL, choices = NULL, width = "207px",
+                  selectize = TRUE
+                )
+              ),
 
-                      # JavaScript for Escape key handler
-                      tags$script(HTML(paste0("
-                        $(document).on('keydown', '#", ns("new_layout_name"), "', function(e) {
-                          if (e.which === 27) { // Escape key
-                            $('#", ns("text_container"), "').hide();
-                            $('#", ns("select_container"), "').show();
-                            $(this).val('');
-                          }
-                        });
-                      ")))
-                  )
+              # Text input + Save button (hidden by default)
+              div(
+                id = ns("text_container"),
+                style = "display: none;",  # inline-flex; gap: 0.2rem;
+                textInput(
+                  ns("new_layout_name"), label = NULL,
+                  placeholder = "Enter name...", width = "130px"
+                ),
+                actionButton(
+                  ns("save_new_btn"), "Save", class = "btn-sm btn-success",
+                  style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 46px;"
+                )
+              ),
+
+              # ENTER = click Save
+              tags$script(HTML(sprintf("
+            $(document).on('keyup', '#%s', function(e) {   // CHANGED from keydown to keyup
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                $('#%s').click();
+              }
+            });
+          ", ns("new_layout_name"), ns("save_new_btn")))
+              ),
+
+              # Save Layout button
+              actionButton(ns("save_bg_settings"), "Save Layout", icon = icon("save"), class = "btn-sm btn-success",
+                          style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
+
+              # Background Settings button
+              actionButton(ns("toggle_bg_controls"), "Background Settings", icon = icon("chevron-up"), class = "btn-sm btn-secondary",
+                          style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;")
+            ),
+
+            # RIGHT side: Delete (far right)
+            div(
+              style = "display: inline-flex; margin-left: auto;",
+              actionButton(
+                ns("delete_layout_btn"),
+                "Delete",
+                class = "btn-sm btn-danger",
+                style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"
               )
+            )
           ),
 
-          # Canvas viewport
-          div(class = "canvas-viewport",
-              tags$canvas(id = ns("canvas"), width = 1400, height = 600),
-              div(id = ns("labels"))
-          )
+          # JavaScript for Escape key handler (unchanged)
+          tags$script(HTML(paste0("
+        $(document).on('keydown', '#", ns("new_layout_name"), "', function(e) {
+          if (e.which === 27) { // Escape key
+            $('#", ns("text_container"), "').hide();
+            $('#", ns("select_container"), "').show();
+            $(this).val('');
+          }
+        });
+      ")))
+        ),
+
+        # Collapsible BG controls (auto-expanded, inline)
+        div(
+          id = ns("bg_controls"),
+          class = "canvas-toolbar",
+          style = "display: inline-flex; align-items: center; gap: 0.3rem; padding-left: 4.4rem;",
+          # Background label + selector + display switch
+          tags$label("Background:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+          selectInput(ns("canvas_id"), label = NULL, choices = NULL, width = "207px", selectize = TRUE),
+          checkboxInput(ns("display_bg"), "Display BG", value = TRUE, width = "auto"),
+          checkboxInput(ns("bg_pan_mode"), "Move BG", value = FALSE, width = "auto"),
+          actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°"),
+          numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "70px"),
+          actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°"),
+          actionButton(ns("bg_scale_down"), "", icon = icon("search-minus"), class = "btn-sm", title = "Shrink BG"),
+          numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "70px"),
+          actionButton(ns("bg_scale_up"), "", icon = icon("search-plus"), class = "btn-sm", title = "Enlarge BG")
+        ),
+
+        # JavaScript for collapsible controls
+        tags$script(HTML(sprintf("
+          $(document).ready(function() {
+            // Collapsible controls
+            $('#%s').on('click', function() {
+              var controls = $('#%s');
+              var icon = $(this).find('i');
+              if (controls.is(':visible')) {
+                controls.slideUp();
+                icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+              } else {
+                controls.slideDown();
+                icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+              }
+            });
+          });
+        ", ns("toggle_bg_controls"), ns("bg_controls")))),
+
+        # Main toolbar - Placement & View controls
+        div(
+          class = "canvas-toolbar",
+          style = "margin-bottom: 0.5rem;",
+          actionButton(ns("add"), "Add Placement", icon = icon("plus"), class = "btn-sm btn-primary"),
+          actionButton(ns("duplicate"), "Duplicate", icon = icon("copy"), class = "btn-sm btn-secondary"),
+          actionButton(ns("delete"), "Delete", icon = icon("trash"), class = "btn-sm btn-danger"),
+          div(style = "flex: 1;"),
+          checkboxInput(ns("edit_mode"), "Edit Mode", value = FALSE, width = "auto"),
+          numericInput(ns("snap_grid"), "Grid Snap", value = 0, min = 0, step = 10, width = "100px"),
+          actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm"),
+          actionButton(ns("zoom_out"), "", icon = icon("magnifying-glass-minus"), class = "btn-sm"),
+          actionButton(ns("fit_view"), "Fit View", icon = icon("expand"), class = "btn-sm")
+        ),
+
+        # Canvas viewport
+        div(
+          class = "canvas-viewport",
+          tags$canvas(id = ns("canvas"), width = 1400, height = 600),
+          div(id = ns("labels"))
+        )
+      ),
+
+      # Table below - full width
+      div(style = "margin-top: 1rem;",
+        mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
       )
     )
+    
   )
 }
 
@@ -145,6 +270,7 @@ test_siloplacements_server <- function(id) {
     current_layout_id <- reactiveVal(1)  # Default to layout 1
     background_image <- reactiveVal(NULL)
     layouts_refresh <- reactiveVal(0)  # Trigger to refresh layouts list
+    bg_offset <- reactiveVal(list(x = 0, y = 0))  # Track current background offset from pan mode
 
     # ---- Load layouts ----
     layouts_data <- reactive({
@@ -187,39 +313,106 @@ test_siloplacements_server <- function(id) {
     })
 
     # Handle "Save" button - create layout and toggle back to select mode
+    # Handle "Save" button - create layout and toggle back to select mode
     observeEvent(input$save_new_btn, {
       layout_name <- trimws(input$new_layout_name)
       cat("[Canvas Test] Creating layout:", shQuote(layout_name), "\n")
-
+      
       if (layout_name == "") {
         showNotification("Please enter a layout name", type = "error")
         return()
       }
-
+      
+      # Optional: prevent creating duplicate layout names (case-insensitive)    # ADDED (if you wired this earlier)
+      existing <- layouts_data()                                               # ADDED
+      if (nrow(existing) > 0) {                                                # ADDED
+        existing_names <- trimws(existing$LayoutName)                          # ADDED
+        match_idx <- match(tolower(layout_name), tolower(existing_names))      # ADDED
+        if (!is.na(match_idx)) {                                               # ADDED
+          showNotification(                                                    # ADDED
+            paste0("A layout called ", shQuote(layout_name), " already exists."),  # ADDED
+            type = "error"                                                     # ADDED
+          )                                                                    # ADDED
+          return()                                                             # ADDED
+        }                                                                      # ADDED
+      }                                                                        # ADDED
+      
       tryCatch({
         new_layout_id <- create_canvas_layout(layout_name = layout_name)
         cat("[Canvas Test] Created layout", layout_name, "with ID", new_layout_id, "\n")
-
+        
         # Clear text input
         updateTextInput(session, "new_layout_name", value = "")
-
+        
         # Refresh layouts and select the new one
         current_layout_id(new_layout_id)
         layouts_refresh(layouts_refresh() + 1)
-
+        
         # Toggle back to select mode
         shinyjs::hide("text_container")
         shinyjs::show("select_container")
-
-        showNotification(paste("Layout", shQuote(layout_name), "created"),
-                        type = "message", duration = 3)
-
+        
+        showNotification(
+          paste("Layout", shQuote(layout_name), "created"),
+          type = "message", duration = 3
+        )
+        
       }, error = function(e) {
         showNotification(paste("Error:", e$message), type = "error")
         cat("[Canvas Test] Error:", e$message, "\n")
       })
     })
-
+    
+    # Delete current layout                                                 # ADDED
+    observeEvent(input$delete_layout_btn, {                                 # ADDED
+      layout_id <- current_layout_id()                                      # ADDED
+      
+      if (is.null(layout_id) || is.na(layout_id) || layout_id == "") {      # ADDED
+        showNotification("No layout selected to delete.", type = "warning") # ADDED
+        return()                                                            # ADDED
+      }                                                                     # ADDED
+      
+      # Basic safety: don't delete layouts that still have placements       # ADDED
+      placements <- try(                                                    # ADDED
+        list_placements(layout_id = layout_id, limit = 1),                  # ADDED
+        silent = TRUE                                                       # ADDED
+      )                                                                     # ADDED
+      if (!inherits(placements, "try-error") &&                             # ADDED
+          !is.null(placements) && nrow(placements) > 0) {                   # ADDED
+        showNotification(                                                   # ADDED
+          "This layout has silo placements and cannot be deleted in this test.",  # ADDED
+          type = "error",                                                   # ADDED
+          duration = NULL                                                   # ADDED
+        )                                                                   # ADDED
+        return()                                                            # ADDED
+      }                                                                     # ADDED
+      
+      ok <- tryCatch({                                                      # ADDED
+        delete_canvas_layout(layout_id)                                     # ADDED
+        TRUE                                                                # ADDED
+      }, error = function(e) {                                              # ADDED
+        showNotification(                                                   # ADDED
+          paste("Delete failed:", conditionMessage(e)),                     # ADDED
+          type = "error"                                                    # ADDED
+        )                                                                   # ADDED
+        cat("[Canvas Test] Delete error:", conditionMessage(e), "\n")       # ADDED
+        FALSE                                                               # ADDED
+      })                                                                    # ADDED
+      if (!ok) return()                                                     # ADDED
+      
+      showNotification("Layout deleted.", type = "message")                 # ADDED
+      
+      # Clear current layout and refresh dropdown                           # ADDED
+      current_layout_id(NULL)                                               # ADDED
+      layouts_refresh(layouts_refresh() + 1)                                # ADDED
+      updateSelectInput(session, "layout_id", selected = "")                # ADDED
+      
+      # Make sure we are in select mode, not text mode                      # ADDED
+      shinyjs::hide("text_container")                                       # ADDED
+      shinyjs::show("select_container")                                     # ADDED
+    })                                                                      # ADDED
+    
+    
     # Handle layout selection from dropdown
     observeEvent(input$layout_id, {
       selected_value <- input$layout_id
@@ -282,11 +475,10 @@ test_siloplacements_server <- function(id) {
       bg_scale <- f_or(layout$BackgroundScaleX, 1)
       updateNumericInput(session, "bg_scale", value = bg_scale)
 
-      # Update background offset controls
+      # Get background offset and update reactiveVal
       bg_offset_x <- f_or(layout$BackgroundPanX, 0)
       bg_offset_y <- f_or(layout$BackgroundPanY, 0)
-      updateNumericInput(session, "bg_offset_x", value = bg_offset_x)
-      updateNumericInput(session, "bg_offset_y", value = bg_offset_y)
+      bg_offset(list(x = bg_offset_x, y = bg_offset_y))
 
       # Send background settings to JavaScript
       session$sendCustomMessage(paste0(ns("root"), ":setRotation"), list(angle = bg_rot))
@@ -639,19 +831,10 @@ test_siloplacements_server <- function(id) {
       updateNumericInput(session, "bg_scale", value = round(new_scale, 1))
     })
 
-    # Handle background offset
-    observeEvent(input$bg_offset_x, {
-      if (!is.null(input$bg_offset_x) && !is.null(input$bg_offset_y)) {
-        session$sendCustomMessage(paste0(ns("root"), ":setBackgroundOffset"),
-                                 list(x = as.numeric(input$bg_offset_x), y = as.numeric(input$bg_offset_y)))
-      }
-    })
-
-    observeEvent(input$bg_offset_y, {
-      if (!is.null(input$bg_offset_x) && !is.null(input$bg_offset_y)) {
-        session$sendCustomMessage(paste0(ns("root"), ":setBackgroundOffset"),
-                                 list(x = as.numeric(input$bg_offset_x), y = as.numeric(input$bg_offset_y)))
-      }
+    # Handle background display toggle
+    observe({
+      display <- isTRUE(input$display_bg)
+      session$sendCustomMessage(paste0(ns("root"), ":setBackgroundVisible"), list(visible = display))
     })
 
     # Handle background pan mode
@@ -660,66 +843,52 @@ test_siloplacements_server <- function(id) {
       session$sendCustomMessage(paste0(ns("root"), ":setBackgroundPanMode"), list(on = bg_pan))
     })
 
-    # Receive background offset updates from JavaScript (when dragging)
+    # Receive background offset updates from JavaScript (when dragging in pan mode)
     observeEvent(input$test_bg_offset_update, {
       offset <- input$test_bg_offset_update
       if (!is.null(offset)) {
-        updateNumericInput(session, "bg_offset_x", value = round(offset$x, 1))
-        updateNumericInput(session, "bg_offset_y", value = round(offset$y, 1))
+        bg_offset(list(x = offset$x, y = offset$y))
       }
     }, ignoreInit = TRUE)
 
-    observeEvent(input$rotate_cw_90, {
+    observeEvent(input$rotate_cw_5, {
       current <- f_or(input$bg_rotation, 0)
-      new_angle <- (current + 90) %% 360
-      if (new_angle > 180) new_angle <- new_angle - 360
-      updateNumericInput(session, "bg_rotation", value = new_angle)
-    })
-
-    observeEvent(input$rotate_ccw_90, {
-      current <- f_or(input$bg_rotation, 0)
-      new_angle <- (current - 90) %% 360
-      if (new_angle < -180) new_angle <- new_angle + 360
-      updateNumericInput(session, "bg_rotation", value = new_angle)
-    })
-
-    observeEvent(input$rotate_cw_15, {
-      current <- f_or(input$bg_rotation, 0)
-      new_angle <- current + 15
+      new_angle <- current + 5
       if (new_angle > 180) new_angle <- -180 + (new_angle - 180)
       updateNumericInput(session, "bg_rotation", value = new_angle)
     })
 
-    observeEvent(input$rotate_ccw_15, {
+    observeEvent(input$rotate_ccw_5, {
       current <- f_or(input$bg_rotation, 0)
-      new_angle <- current - 15
+      new_angle <- current - 5
       if (new_angle < -180) new_angle <- 180 + (new_angle + 180)
       updateNumericInput(session, "bg_rotation", value = new_angle)
     })
 
-    # Save background settings to database
+    # Save layout settings to database (including background)
     observeEvent(input$save_bg_settings, {
       layout_id <- current_layout_id()
       canvas_id <- input$canvas_id
       rotation <- input$bg_rotation
       scale <- input$bg_scale
-      offset_x <- input$bg_offset_x
-      offset_y <- input$bg_offset_y
+
+      # Get current offset from reactiveVal (tracked via pan mode)
+      offset <- bg_offset()
 
       result <- try(update_layout_background(
         layout_id = layout_id,
         canvas_id = if (canvas_id == "") NA else canvas_id,
         rotation = rotation,
-        pan_x = offset_x,
-        pan_y = offset_y,
+        pan_x = offset$x,
+        pan_y = offset$y,
         scale_x = scale,  # Uniform scaling
         scale_y = scale   # Same for both axes
       ), silent = TRUE)
 
       if (inherits(result, "try-error")) {
-        showNotification("Error saving background settings", type = "error", duration = 3)
+        showNotification("Error saving layout settings", type = "error", duration = 3)
       } else {
-        showNotification("Background settings saved", type = "message", duration = 2)
+        showNotification("Layout settings saved", type = "message", duration = 2)
       }
     })
 

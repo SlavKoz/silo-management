@@ -432,6 +432,123 @@ create_canvas_layout <- function(layout_name) {
   }
 }
 
+# ---- Canvas Layouts -------------------------------------------------------
+
+list_canvas_layouts <- function(limit = 100, offset = 0) {
+  sql <- "
+    SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
+           CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           CreatedAt, UpdatedAt
+    FROM SiloOps.dbo.CanvasLayouts
+    ORDER BY LayoutName
+    OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+  "
+  db_query_params(sql, list(as.integer(offset), as.integer(limit)))
+}
+
+get_layout_by_id <- function(layout_id) {
+  db_query_params("
+    SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
+           CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           CreatedAt, UpdatedAt
+    FROM SiloOps.dbo.CanvasLayouts
+    WHERE LayoutID = ?
+  ", list(as.integer(layout_id)))
+}
+
+# Update layout background settings
+update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NULL,
+                                     pan_x = NULL, pan_y = NULL, zoom = NULL,
+                                     scale_x = NULL, scale_y = NULL) {
+  pool <- db_pool()
+  
+  updates <- c()
+  params <- list()
+  
+  if (!is.null(canvas_id)) {
+    updates <- c(updates, "CanvasID = ?")
+    params <- c(params, list(if (canvas_id == "") NULL else as.integer(canvas_id)))
+  }
+  if (!is.null(rotation)) {
+    updates <- c(updates, "BackgroundRotation = ?")
+    params <- c(params, list(as.numeric(rotation)))
+  }
+  if (!is.null(pan_x)) {
+    updates <- c(updates, "BackgroundPanX = ?")
+    params <- c(params, list(as.numeric(pan_x)))
+  }
+  if (!is.null(pan_y)) {
+    updates <- c(updates, "BackgroundPanY = ?")
+    params <- c(params, list(as.numeric(pan_y)))
+  }
+  if (!is.null(zoom)) {
+    updates <- c(updates, "BackgroundZoom = ?")
+    params <- c(params, list(as.numeric(zoom)))
+  }
+  if (!is.null(scale_x)) {
+    updates <- c(updates, "BackgroundScaleX = ?")
+    params <- c(params, list(as.numeric(scale_x)))
+  }
+  if (!is.null(scale_y)) {
+    updates <- c(updates, "BackgroundScaleY = ?")
+    params <- c(params, list(as.numeric(scale_y)))
+  }
+  
+  if (length(updates) == 0) return(FALSE)
+  
+  updates <- c(updates, "UpdatedAt = GETDATE()")
+  params <- c(params, list(as.integer(layout_id)))
+  
+  sql <- sprintf("
+    UPDATE SiloOps.dbo.CanvasLayouts
+    SET %s
+    WHERE LayoutID = ?
+  ", paste(updates, collapse = ", "))
+  
+  DBI::dbExecute(pool, sql, params = params)
+  return(TRUE)
+}
+
+#' Create New Canvas Layout
+#' @param layout_name Name for the new layout
+#' @return The LayoutID of the newly created layout
+#' @note Width/Height default to 1000, but are primarily determined by background canvas
+create_canvas_layout <- function(layout_name) {
+  pool <- db_pool()
+  
+  # Use OUTPUT clause to get the inserted ID in a single statement
+  sql <- "
+    INSERT INTO SiloOps.dbo.CanvasLayouts
+      (LayoutName, WidthUnits, HeightUnits, IsDefault, CreatedAt, UpdatedAt)
+    OUTPUT INSERTED.LayoutID
+    VALUES (?, 1000, 1000, 0, GETDATE(), GETDATE());
+  "
+  
+  result <- db_query_params(sql, list(as.character(layout_name)))
+  
+  if (!is.null(result) && nrow(result) > 0 && !is.na(result$LayoutID[1])) {
+    return(as.integer(result$LayoutID[1]))
+  } else {
+    stop("Failed to create layout - no ID returned")
+  }
+}
+
+#' Delete Canvas Layout                                               
+#' @param layout_id ID of the layout to delete                        
+#' @return TRUE if the delete executes without error                  
+delete_canvas_layout <- function(layout_id) {                         
+  pool <- db_pool()                                                   
+  sql <- "                                                            
+    DELETE FROM SiloOps.dbo.CanvasLayouts                             
+    WHERE LayoutID = ?                                                
+  "                                                                   
+  DBI::dbExecute(pool, sql, params = list(as.integer(layout_id)))     
+  return(TRUE)                                                        
+}                                                                     
+
+
 # ---- Container Types -------------------------------------------------------
 
 # List for selector/table

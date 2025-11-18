@@ -39,6 +39,7 @@
         // Background image
         backgroundImage: null,
         backgroundLoaded: false,
+        backgroundVisible: true,  // Show/hide background
         backgroundScale: 1,  // Uniform scale
         backgroundOffsetX: 0,
         backgroundOffsetY: 0,
@@ -263,8 +264,8 @@
       ctx.rotate(state.rotation * Math.PI / 180);
     }
 
-    // Draw background image if loaded
-    if (state.backgroundImage && state.backgroundLoaded) {
+    // Draw background image if loaded and visible
+    if (state.backgroundImage && state.backgroundLoaded && state.backgroundVisible) {
       const img = state.backgroundImage;
 
       // Apply uniform background scaling
@@ -545,6 +546,17 @@
 
     state.backgroundPanMode = message.on || false;
     state.canvas.style.cursor = state.backgroundPanMode ? 'move' : 'grab';
+  });
+
+  // Custom message handler: set background visibility
+  Shiny.addCustomMessageHandler('test-root:setBackgroundVisible', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+
+    if (!state) return;
+
+    state.backgroundVisible = message.visible !== false;
+    render(state);  // Redraw canvas
   });
 
   // Custom message handler: zoom
