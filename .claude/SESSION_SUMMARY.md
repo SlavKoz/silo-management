@@ -1,185 +1,330 @@
 # Session Summary - SiloPlacements Canvas Implementation
 
-**Status**: Canvas test harness complete and ready for testing
-**Last Updated**: 2025-11-13
+**Status**: Layout selector complete with inline creation (no modal)
+**Last Updated**: 2025-11-18
 
 ---
 
-## Current Session - SiloPlacements Canvas Test Harness
+## Latest Session (2025-11-18) - Fixed Initial Flicking
 
-### Files Created
-1. **`R/test_siloplacements_canvas.R`** - Complete test harness
-   - Canvas drawing area (top) with toolbar
-   - React Table (bottom) for placement details
-   - Operations: Add, Duplicate, Delete, Drag-drop
-   - Edit mode, grid snap, fit view
+### Problem Solved
+Selector showed "Select existing or type new name..." placeholder on initial load, then flicked to first option.
 
-2. **`www/js/f_siloplacements_canvas.js`** - Canvas renderer
-   - Click to select shapes
-   - Drag-and-drop in edit mode
-   - Grid rendering with snap
-   - Real-time position updates
+### Solution Implemented
+**Initialize with Loading State**
+- Changed selectize from `choices = NULL` to `choices = c("Loading..." = "")`
+- Set `selected = ""` initially
+- Handler ignores empty value (line 166 check)
+- Observe block replaces "Loading..." with real choices and selects first option
+- Smooth transition without visible flicking
 
-### Files Modified
-1. **`R/db/queries.R`** - Added functions:
-   - `upsert_placement()` - Create/update placements
-   - `delete_placement()` - Remove placements
-   - `list_canvases()` - List canvas backgrounds
-   - `get_canvas_by_id()` - Get canvas details
+**Files Modified:**
+- `R/test_siloplacements_canvas.R` (lines 86-93)
 
-2. **`run_html_test.R`** - Updated test runner
-   - Supports: `Rscript run_html_test.R [form|canvas]`
-   - Default: form (original test)
-   - New: canvas (SiloPlacements test)
+---
 
-### Data Model Implementation
+## Previous Session (2025-11-17) - Layout Selector Implementation
 
-**SiloPlacements Table:**
-- PlacementID (PK)
-- SiloID (FK → Silos)
-- LayoutID (FK → Layouts)
-- ShapeTemplateID (FK → ShapeTemplates)
-- CenterX, CenterY (decimal 12,3)
-- ZIndex (int, nullable)
-- IsVisible, IsInteractive (bit)
-- CreatedAt (datetime2)
+### Problems Solved
+1. Layout selector overlapping "Background Settings" button
+2. Width changing based on content (flicking)
+3. "Add New" functionality blocked by React Table (modal wouldn't show)
 
-**Visual Representation:**
-- Circles (from ShapeTemplates.Radius)
-- Rectangles (from ShapeTemplates.Width/Height)
-- Labels show Silo codes
-- Colors: Blue for circles, green for rectangles
+### Solution Implemented
+1. **Fixed Width and Layout**
+   - Used selectizeInput with fixed 220px width (CSS on `.selectize-control`)
+   - Added inline label wrapper with `inline-flex`
+   - Prevents overlap with next button
 
-### Features Working ✅
+2. **Inline Creation Instead of Modal**
+   - Discovered React Table blocks modal dialogs entirely
+   - Switched to selectize's built-in `create: true` option
+   - Users can select existing or type new layout name directly
+   - No modal needed - creates layout immediately
+   - Clear placeholder: "Select existing or type new name..."
+
+3. **Fixed Reactive Dependency Loop**
+   - Used `isolate()` to break reactive dependency loop
+   - Observe block only depends on `layouts_data()`, not `current_layout_id()`
+   - Added `initial_load` reactive flag for proper first option selection
+   - Removed duplicate layout selection handler
+
+**Files Modified (2025-11-17):**
+
+**R/test_siloplacements_canvas.R**
+- CSS for fixed-width selectize (lines 31-43): `.selectize-control` width 220px
+- Changed UI to selectizeInput with `create: true` option (lines 84-94)
+- Added `layouts_refresh` reactive trigger (line 120)
+- Added `initial_load` reactive flag (line 131)
+- Populate dropdown logic with isolate() (lines 133-159)
+- Handler for selection or inline creation (lines 162-203)
+- Removed duplicate layout selection handler
+
+**R/db/queries.R** (Lines 411-433)
+- `create_canvas_layout(layout_name)` function
+- Uses `OUTPUT INSERTED.LayoutID` for reliable ID retrieval
+- Defaults: WidthUnits=1000, HeightUnits=1000, IsDefault=0
+
+**test_layout_selector.R** (New file)
+- Minimal test harness with mock database
+- Persistent storage for created layouts
+- Debug console output
+- Used to isolate and test layout selector behavior
+
+### Key Code Snippets
+
+**Selectize with Inline Creation (current):**
+```r
+# UI - Initialize with loading state to prevent flicking
+div(style = "display: inline-flex; align-items: center; gap: 0.3rem;",
+    tags$label("Layout:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+    selectizeInput(ns("layout_id"), label = NULL,
+                  choices = c("Loading..." = ""),
+                  selected = "",
+                  options = list(
+                    create = TRUE,
+                    createOnBlur = TRUE,
+                    placeholder = "Select existing or type new name..."
+                  ))
+)
+
+# CSS - Fixed width prevents resizing
+.canvas-toolbar .selectize-control {
+  width: 220px !important;
+  min-width: 220px;
+  max-width: 220px;
+  display: inline-block;
+}
+```
+
+**Populate and Select (with isolate to prevent dependency loop):**
+```r
+initial_load <- reactiveVal(TRUE)
+
+observe({
+  layouts <- layouts_data()
+  if (nrow(layouts) > 0) {
+    choices <- setNames(layouts$LayoutID, layouts$LayoutName)
+
+    if (initial_load()) {
+      selected_val <- as.character(layouts$LayoutID[1])
+      current_layout_id(layouts$LayoutID[1])
+      initial_load(FALSE)
+    } else {
+      current_id <- isolate(current_layout_id())
+      selected_val <- if (!is.null(current_id) && !is.na(current_id) &&
+                         as.character(current_id) %in% choices) {
+        as.character(current_id)
+      } else {
+        as.character(layouts$LayoutID[1])
+      }
+    }
+    updateSelectizeInput(session, "layout_id", choices = choices,
+                        selected = selected_val, server = FALSE)
+  }
+})
+```
+
+**Handler for Selection or Inline Creation:**
+```r
+observeEvent(input$layout_id, {
+  selected_value <- input$layout_id
+  if (is.null(selected_value) || selected_value == "") return()
+
+  layouts <- isolate(layouts_data())
+  existing_ids <- as.character(layouts$LayoutID)
+
+  if (selected_value %in% existing_ids) {
+    # Existing layout - select it
+    current_layout_id(as.integer(selected_value))
+  } else {
+    # New layout name - create it
+    layout_name <- trimws(selected_value)
+    tryCatch({
+      new_layout_id <- create_canvas_layout(layout_name = layout_name)
+      current_layout_id(new_layout_id)
+      layouts_refresh(layouts_refresh() + 1)
+      showNotification(paste("Layout", shQuote(layout_name), "created"),
+                      type = "message", duration = 3)
+    }, error = function(e) {
+      showNotification(paste("Error:", e$message), type = "error")
+      updateSelectizeInput(session, "layout_id",
+                          selected = as.character(isolate(current_layout_id())),
+                          server = FALSE)
+    })
+  }
+}, ignoreInit = TRUE)
+```
+
+### Working Features ✅
+- Layout dropdown with inline label (120px width, doesn't overlap)
+- Smooth selection without flicking
+- "Add New..." option at bottom of list
+- Modal dialog for creating new layouts
+- Enter key to confirm in modal
+- Auto-focus on modal input
+- Database persistence via `create_canvas_layout()`
+- Auto-refresh and auto-select new layout
+- Success/error notifications
+
+### CSS Styling
+```css
+.canvas-toolbar select.form-control {
+  padding: 0.15rem 0.5rem;
+  height: 28px;
+  font-size: 13px;
+  line-height: 1.3;
+  width: 120px;
+  display: inline-block;
+}
+.canvas-toolbar label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: normal;
+}
+```
+
+### Technical Decisions Made
+- **Simple selectInput** over selectizeInput - better layout control, no overlapping issues
+- **Modal dialog** for adding new layouts - cleaner UX than inline editing
+- **isolate()** for reading reactive values - prevents dependency loops and flicking
+- **120px width** for selector - tested to not overlap next button
+- **Inline flex wrapper** for label and input - keeps them together as one unit
+- **Enter key support** - improves UX for quick layout creation
+
+### Bugs Fixed
+1. **Selector obstructing button** - Fixed by using simple selectInput with inline wrapper
+2. **Flicking to first option** - Fixed by using `isolate()` in observe block
+3. **New layouts not appearing** - Fixed by checking `%in% choices` (values) instead of `%in% names(choices)`
+4. **Complex selectize issues** - Avoided by using simple selectInput
+
+---
+
+## Next Steps
+
+### Immediate Tasks
+1. **Test with Real Database**
+   - Run `run_canvas_test.R` with SQL Server
+   - Create several layouts
+   - Verify persistence across sessions
+   - Test with long names (60 char limit)
+
+2. **Add Layout Management** (Future)
+   - Edit layout name
+   - Delete layout (with confirmation dialog)
+   - Duplicate layout
+   - Set default layout
+   - Reorder layouts in dropdown
+
+3. **Layout Properties** (Future)
+   - Edit WidthUnits/HeightUnits
+   - View/edit IsDefault flag
+   - Show created/updated timestamps
+   - Add description/notes field
+
+### Testing Checklist for Next Session
+- [ ] Create new layout with actual SQL Server database
+- [ ] Verify new layout persists after app restart
+- [ ] Test with multiple users/sessions
+- [ ] Test switching between layouts preserves canvas settings
+- [ ] Test with long layout names (60 char limit)
+- [ ] Test with special characters in name
+- [ ] Test cancel button in modal
+- [ ] Test Escape key to close modal
+- [ ] Verify dropdown doesn't overlap button at different screen sizes
+
+### Known Limitations
+- No edit/delete functionality yet (only add)
+- No duplicate name validation
+- WidthUnits/HeightUnits are fixed at 1000 on creation
+- No way to set IsDefault from UI
+- No layout sorting options
+
+---
+
+## Previous Work - Canvas Background & Rotation
+
+### Background Image Features (Completed Earlier)
+- Background image selection from Canvases table
+- Background rotation (independent of shapes)
+- Background scaling (uniform, no stretching)
+- Background offset/panning
+- Collapsible background controls
+- Database persistence of all settings per layout
+
+### Key Files
+- **R/test_siloplacements_canvas.R** - Canvas test harness
+- **www/js/f_siloplacements_canvas.js** - Canvas renderer with background support
+- **R/db/queries.R** - Database functions for layouts and canvases
+
+---
+
+## Canvas Test Harness Features
+
+### Working Features ✅
 - Visual canvas rendering (circles & rectangles)
 - Click shapes to select
 - Drag-and-drop with grid snap (edit mode)
-- Add new placements
-- Duplicate placements (offset +50,+50)
-- Delete selected placement
+- Background image loading
+- Background rotation (shapes stay fixed)
+- Background scaling and offset
+- Add/Duplicate/Delete placements
 - React Table shows all placement attributes
 - Real-time DB updates on drag
 - Edit mode toggle
 - Grid snap (0 = disabled, >0 = grid units)
+- Fit view functionality
+- Layout selector with "Add New"
 
 ### Toolbar Controls
-- **Add** - Create new placement (opens form)
+**Top Toolbar:**
+- **Layout** - Select layout with "Add New..." option
+- **Background Settings** - Collapsible section for BG manipulation
+- **Save BG Settings** - Persist background settings to database
+
+**Main Toolbar:**
+- **Add** - Create new placement
 - **Duplicate** - Copy selected placement
 - **Delete** - Remove selected placement
 - **Edit Mode** - Enable/disable drag-and-drop
 - **Grid Snap** - Snap to grid (numeric input)
-- **Fit View** - Auto-zoom to content (skeleton)
+- **Zoom In/Out** - Canvas zoom controls
+- **Fit View** - Auto-zoom to content
 
 ---
 
-## Testing Instructions
+## Database Schema
 
-**Run the canvas test:**
-```bash
-Rscript run_html_test.R canvas
+### CanvasLayouts Table
+```sql
+LayoutID           int PK
+LayoutName         nvarchar(60) NOT NULL
+WidthUnits         int NOT NULL (default 1000)
+HeightUnits        int NOT NULL (default 1000)
+IsDefault          bit NOT NULL
+CreatedAt          datetime2 NOT NULL
+UpdatedAt          datetime2 NOT NULL
+CanvasID           int NULL (FK to Canvases)
+BackgroundRotation decimal(6,2) NULL
+BackgroundPanX     decimal(12,3) NULL
+BackgroundPanY     decimal(12,3) NULL
+BackgroundZoom     decimal(6,4) NULL
+BackgroundScaleX   decimal(6,4) NULL
+BackgroundScaleY   decimal(6,4) NULL
 ```
 
-**Run original form test:**
-```bash
-Rscript run_html_test.R form
-```
-
----
-
-## Next Session Tasks
-
-### Immediate Priorities
-1. **Test the canvas harness** - Verify rendering and interactions
-2. **Add canvas background support** - Implement Canvases table integration
-3. **Enhance shape styling** - Use ContainerTypes colors/borders
-4. **Implement fit view** - Calculate bounds and zoom to fit
-5. **Add canvas background picker** - Dropdown to select canvas
-
-### Future Enhancements
-- Multiple layout support (currently hardcoded LayoutID=1)
-- Canvas pan/zoom controls
-- Shape rotation support
-- Batch operations (move multiple shapes)
-- Undo/redo functionality
-- Export/import placement data
-
-### Integration into Main App
-Once test harness validated:
-1. Create `R/browsers/f_browser_siloplacements.R` using standard pattern
-2. Add to app server route map
-3. Add to sidebar structure
-4. Add to search palette
-5. Wire up with route parameter for deep-linking
-
----
-
-## Previous Work (Operations & Landing Page)
-
-### Completed Browsers
-1. ✅ **Operations** - OpCode, OpName, RequiresParams, ParamsSchemaJSON
-2. ✅ **Offline Reasons** - Icon selector, ReasonTypeCode, ReasonTypeName
-3. ✅ **Sites** - Address fields, map preview, IsActive checkbox
-4. ✅ **Areas** - Composite code routing (SiteCode-AreaCode)
-
-### Landing Page
-- ✅ Card-based navigation (Home route)
-- ✅ Organized by functional groups
-- ✅ Default landing page on app start
-- ✅ Search palette integration
-
-### Conventions Documented
-- ✅ Complete browser module pattern (conventions.md)
-- ✅ Icon display patterns (FK vs. badges)
-- ✅ Deep-linking patterns (3 types)
-- ✅ Error handling with field clearing
-- ✅ Cross-module state management
-
----
-
-## Key Technical Notes
-
-### Canvas Message Handlers
-```javascript
-// JavaScript → Shiny
-test-root:setData        // Load shapes
-test-root:setEditMode    // Toggle edit mode
-test-root:setSnap        // Set grid snap
-test-root:fitView        // Fit view to bounds
-
-// Shiny → JavaScript
-canvas_selection         // Shape selected
-canvas_moved            // Shape dragged
-```
-
-### Shape Data Structure
-```javascript
-{
-  id: "PlacementID",
-  type: "circle" | "rect",
-  x: number,          // Center X for circle, Top-left X for rect
-  y: number,          // Center Y for circle, Top-left Y for rect
-  r: number,          // Radius (circles only)
-  w: number,          // Width (rects only)
-  h: number,          // Height (rects only)
-  label: "SiloCode",
-  fill: "rgba(...)",
-  stroke: "rgba(...)",
-  strokeWidth: number
-}
-```
-
-### React Table Schema
-```r
-fields = list(
-  field("SiloID", "select", title="Silo", enum=silo_choices, required=TRUE),
-  field("ShapeTemplateID", "select", title="Shape Template", required=TRUE),
-  field("LayoutID", "number", title="Layout ID", required=TRUE, default=1),
-  field("CenterX", "number", title="Center X"),
-  field("CenterY", "number", title="Center Y"),
-  field("ZIndex", "number", title="Z-Index"),
-  field("IsVisible", "switch", title="Visible", default=TRUE),
-  field("IsInteractive", "switch", title="Interactive", default=TRUE)
-)
+### SiloPlacements Table
+```sql
+PlacementID       int PK
+SiloID            int NOT NULL (FK to Silos)
+LayoutID          int NOT NULL (FK to CanvasLayouts)
+ShapeTemplateID   int NOT NULL (FK to ShapeTemplates)
+CenterX           decimal(12,3) NOT NULL
+CenterY           decimal(12,3) NOT NULL
+ZIndex            int NULL
+IsVisible         bit NOT NULL
+IsInteractive     bit NOT NULL
+CreatedAt         datetime2 NOT NULL
 ```
 
 ---
@@ -187,13 +332,32 @@ fields = list(
 ## Quick Restart Guide
 
 **To continue next session:**
-1. Read this summary
-2. Read `.claude/conventions.md` (browser patterns)
-3. Test canvas: `Rscript run_html_test.R canvas`
-4. Review shape rendering and interactions
-5. Iterate on features based on test results
+1. Read this summary (you're doing it!)
+2. Test layout selector: `source("test_layout_selector.R")`
+3. Test canvas with real DB: `Rscript run_canvas_test.R`
+4. Focus on testing the "Add New Layout" feature end-to-end
+5. If issues found, use test_layout_selector.R to isolate and debug
 
-**Don't need to read:**
-- Previous session implementation details (all in conventions.md)
-- Individual browser files (pattern documented)
-- Search palette implementation (working)
+**Key Code Locations:**
+- Layout selector UI: R/test_siloplacements_canvas.R:74-77
+- Layout selection handler: R/test_siloplacements_canvas.R:187-220
+- Create layout handler: R/test_siloplacements_canvas.R:222-251
+- Create layout DB function: R/db/queries.R:415-433
+- Test harness: test_layout_selector.R
+
+**Troubleshooting:**
+- If flicking: Check `isolate()` usage in observe block (line 176)
+- If new layout doesn't appear: Check `%in% choices` not `%in% names(choices)` (line 177)
+- If overlap: Check width is 120px and wrapper is inline-flex (line 74)
+- If Enter key doesn't work: Check setTimeout and jQuery selectors in modal (line 195-207)
+
+---
+
+## Conventions & Patterns
+
+See `.claude/conventions.md` for:
+- Browser module pattern
+- Icon display patterns
+- Deep-linking patterns
+- Error handling
+- Cross-module state management

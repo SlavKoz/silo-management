@@ -2,6 +2,7 @@
 # Minimal test for layout selector with "Add New" functionality
 
 library(shiny)
+library(shinyjs)
 
 # Mock database - use environment to persist data
 mock_layouts_env <- new.env()
@@ -37,6 +38,7 @@ create_layout_mock <- function(name) {
 
 # UI
 ui <- fluidPage(
+  useShinyjs(),
   tags$head(
     tags$style(HTML("
       .toolbar {
@@ -50,10 +52,20 @@ ui <- fluidPage(
       }
       .toolbar select.form-control {
         padding: 0.15rem 0.5rem;
-        height: 28px;
-        font-size: 13px;
-        line-height: 1.3;
-        width: 120px;
+        height: 26px;
+        font-size: 12px;
+        line-height: 1.2;
+        width: 180px;
+      }
+      .toolbar input[type='text'].form-control {
+        padding: 0.15rem 0.5rem;
+        height: 26px;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+      #text_container {
+        display: inline-flex;
+        align-items: center;
       }
       .info-box {
         margin-top: 1rem;
@@ -69,8 +81,37 @@ ui <- fluidPage(
 
   div(class = "toolbar",
     div(style = "display: inline-flex; align-items: center; gap: 0.3rem;",
+      # Add New button
+      actionButton("add_new_btn", "Add New", class = "btn-sm btn-primary",
+                   style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
+
+      # Layout label
       tags$label("Layout:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
-      selectInput("layout_id", label = NULL, choices = NULL, width = "120px")
+
+      # Select input (visible by default)
+      div(id = "select_container", style = "display: inline-block;",
+          selectInput("layout_id", label = NULL, choices = NULL, width = "180px",
+                     selectize = FALSE)
+      ),
+
+      # Text input + Save button (hidden by default)
+      div(id = "text_container", style = "display: none; inline-flex; gap: 0.2rem;",
+          textInput("new_layout_name", label = NULL, placeholder = "Enter name...",
+                   width = "130px"),
+          actionButton("save_new_btn", "Save", class = "btn-sm btn-success",
+                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 46px;")
+      ),
+
+      # JavaScript for Escape key handler
+      tags$script(HTML("
+        $(document).on('keydown', '#new_layout_name', function(e) {
+          if (e.which === 27) { // Escape key
+            $('#text_container').hide();
+            $('#select_container').show();
+            $(this).val('');
+          }
+        });
+      "))
     ),
     actionButton("test_btn", "Test Button", class = "btn-sm btn-secondary")
   ),
@@ -94,72 +135,42 @@ server <- function(input, output, session) {
     get_layouts()
   })
 
-  # Populate dropdown (only when layouts data changes, not when selection changes)
+  # Populate dropdown
   observe({
     layouts <- layouts_data()
-    choices <- setNames(layouts$LayoutID, layouts$LayoutName)
-    # Add "Add New..." option at the end
-    choices <- c(choices, "Add New..." = "__ADD_NEW__")
+    cat("[Populate] Layouts count:", nrow(layouts), "\n")
 
-    # Use isolate to read current_layout_id without creating a dependency
-    current_id <- isolate(current_layout_id())
-    selected_val <- if (!is.null(current_id) && !is.na(current_id) && as.character(current_id) %in% choices) {
-      as.character(current_id)
-    } else {
-      NULL
+    if (nrow(layouts) > 0) {
+      choices <- setNames(layouts$LayoutID, layouts$LayoutName)
+      cat("[Populate] Choices:", paste(names(choices), "=", choices, collapse=", "), "\n")
+
+      # Use isolate to read current_layout_id without creating a dependency
+      current_id <- isolate(current_layout_id())
+      selected_val <- if (!is.null(current_id) && !is.na(current_id) &&
+                         as.character(current_id) %in% choices) {
+        as.character(current_id)
+      } else {
+        as.character(layouts$LayoutID[1])
+      }
+      cat("[Populate] Updating dropdown, selected:", selected_val, "\n")
+
+      updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
     }
-
-    cat("[Populate] Choices:", paste(names(choices), "=", choices, collapse=", "), "\n")
-
-    cat("[Populate] Updating choices, selecting:", selected_val, "\n")
-    updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
   })
 
-  # Handle layout selection
-  observeEvent(input$layout_id, {
-    selected_value <- input$layout_id
+  # Handle "Add New" button - toggle to text input mode
+  observeEvent(input$add_new_btn, {
+    cat("[Add New] Switching to text input mode\n")
+    shinyjs::hide("select_container")
+    shinyjs::show("text_container")
+    # Focus on text input
+    shinyjs::runjs("$('#new_layout_name').focus();")
+  })
 
-    cat("[Handler] Selected:", selected_value, "\n")
-
-    if (!is.null(selected_value) && selected_value != "") {
-      if (selected_value == "__ADD_NEW__") {
-        # Show modal for new layout
-        cat("[Handler] Opening modal for new layout\n")
-        showModal(modalDialog(
-          title = "New Layout",
-          textInput("new_layout_name", "Layout Name:", placeholder = "Enter name..."),
-          tags$script(HTML("
-            $(document).ready(function() {
-              setTimeout(function() {
-                $('#new_layout_name').focus();
-                $('#new_layout_name').on('keypress', function(e) {
-                  if (e.which === 13) {
-                    e.preventDefault();
-                    $('#confirm_new_layout').click();
-                  }
-                });
-              }, 300);
-            });
-          ")),
-          footer = tagList(
-            modalButton("Cancel"),
-            actionButton("confirm_new_layout", "Create", class = "btn-primary")
-          ),
-          size = "s",
-          easyClose = TRUE
-        ))
-        # Reset dropdown to previous selection
-        updateSelectInput(session, "layout_id", selected = as.character(isolate(current_layout_id())))
-      } else {
-        numeric_value <- as.integer(selected_value)
-        current_layout_id(numeric_value)
-      }
-    }
-  }, ignoreInit = TRUE)
-
-  # Handle create new layout
-  observeEvent(input$confirm_new_layout, {
+  # Handle "Save" button - create layout and toggle back to select mode
+  observeEvent(input$save_new_btn, {
     layout_name <- trimws(input$new_layout_name)
+    cat("[Save] Creating layout:", shQuote(layout_name), "\n")
 
     if (layout_name == "") {
       showNotification("Please enter a layout name", type = "error")
@@ -168,24 +179,37 @@ server <- function(input, output, session) {
 
     tryCatch({
       new_layout_id <- create_layout_mock(layout_name)
+      cat("[Save] Created layout", layout_name, "with ID", new_layout_id, "\n")
 
-      # Close modal
-      removeModal()
-
-      # Clear input
+      # Clear text input
       updateTextInput(session, "new_layout_name", value = "")
 
       # Refresh layouts and select the new one
       current_layout_id(new_layout_id)
       layouts_refresh(layouts_refresh() + 1)
 
-      showNotification(paste("Layout", shQuote(layout_name), "created"), type = "message", duration = 3)
+      # Toggle back to select mode
+      shinyjs::hide("text_container")
+      shinyjs::show("select_container")
+
+      showNotification(paste("Layout", shQuote(layout_name), "created"),
+                      type = "message", duration = 3)
 
     }, error = function(e) {
       showNotification(paste("Error:", e$message), type = "error")
-      cat("[Handler] Error:", e$message, "\n")
+      cat("[Save] Error:", e$message, "\n")
     })
   })
+
+  # Handle layout selection from dropdown
+  observeEvent(input$layout_id, {
+    selected_value <- input$layout_id
+    cat("[Handler] Selected:", selected_value, "\n")
+
+    if (!is.null(selected_value) && selected_value != "") {
+      current_layout_id(as.integer(selected_value))
+    }
+  }, ignoreInit = TRUE)
 
   # Display state
   output$state_info <- renderText({
@@ -197,11 +221,13 @@ server <- function(input, output, session) {
   })
 }
 
-cat("\n=== Layout Selector Test ===\n")
-cat("1. Select different layouts from dropdown\n")
-cat("2. Verify label is inline with selector\n")
-cat("3. Verify selector doesn't overlap Test Button\n")
-cat("4. Select 'Add New...' to create a new layout\n")
-cat("5. Watch console for debug output\n\n")
+cat("\n=== Layout Selector Test (Separate Add/Select Modes) ===\n")
+cat("New approach - separate buttons and toggle visibility:\n")
+cat("1. Default: 'Add New' button | 'Layout:' label | Select dropdown (180px)\n")
+cat("2. Click 'Add New': Hide select, show text input (130px) + 'Save' button (46px)\n")
+cat("3. Click 'Save': Create layout, hide text input, show select dropdown\n")
+cat("4. Press 'Escape': Cancel add mode, return to select dropdown\n")
+cat("5. NO flicking - simple selectInput with fixed width\n")
+cat("6. Watch console for debug output\n\n")
 
 shinyApp(ui, server, options = list(launch.browser = TRUE))

@@ -19,6 +19,37 @@ ALWAYS use f_or() for null-coalescing, NEVER create or use %||%
   - Do NOT define %||% anywhere in the codebase
 
 
+# R Installation Path
+
+For running Rscript commands via Bash tool:
+```
+C:\Users\slawomirkozielec\AppData\Local\Programs\R\R-4.5.1\bin\Rscript.exe
+```
+
+Example usage:
+```bash
+"C:\Users\slawomirkozielec\AppData\Local\Programs\R\R-4.5.1\bin\Rscript.exe" run_canvas_test.R
+```
+
+## Testing Policy - DO NOT Run Rscript Tests
+
+**IMPORTANT**: Do NOT run Rscript via Bash unless absolutely critical and impossible without it.
+
+**Why:**
+- You can only see R console output, NOT browser F12 console
+- You cannot see visual rendering, flicking, width changes, modal visibility
+- User can test directly and provide feedback more efficiently
+- Running Rscript consumes tokens without providing useful information
+
+**When it's acceptable:**
+- Reading server-side error messages that user cannot reproduce
+- Debugging database connection issues
+- Verifying R console output for server-side logic
+
+**Default approach:**
+- Make code changes
+- Let user test and report results
+- Iterate based on user feedback
 
 
 # Project Conventions & Naming

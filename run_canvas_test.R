@@ -2,7 +2,7 @@
 # Test runner for SiloPlacements Canvas
 
 # Check packages
-required <- c("shiny")
+required <- c("shiny", "shinyjs")
 for (pkg in required) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     cat("Installing", pkg, "...\n")

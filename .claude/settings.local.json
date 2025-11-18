@@ -6,7 +6,8 @@
       "Bash(Rscript:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(\"C:\\Users\\slawomirkozielec\\AppData\\Local\\Programs\\R\\R-4.5.1\\bin\\Rscript.exe\" run_canvas_test.R)"
     ],
     "deny": [],
     "ask": []
