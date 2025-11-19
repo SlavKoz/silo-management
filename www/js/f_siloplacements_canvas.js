@@ -7,6 +7,84 @@
   // Canvas state
   const canvases = new Map();
 
+  // Update cursor based on current state and zoom - ACTUAL SIZE PREVIEW
+  function updateShapeCursor(state) {
+    if (!state.selectedShapeTemplate) {
+      state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
+      return;
+    }
+
+    const template = state.selectedShapeTemplate;
+    const shapeType = template.shapeType;
+    const zoom = state.zoom;
+
+    // Calculate ACTUAL cursor size based on zoom (no artificial clamping)
+    let cursorSize, centerX, centerY, svg;
+
+    if (shapeType === 'CIRCLE') {
+      const radius = template.radius || 20;
+      const scaledRadius = radius * zoom;
+
+      // Minimal clamping for visibility (2px minimum, 200px max for browser compatibility)
+      const displayRadius = Math.max(2, Math.min(200, scaledRadius));
+      cursorSize = displayRadius * 2 + 4; // +4 for stroke
+      centerX = centerY = cursorSize / 2;
+
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cursorSize}" height="${cursorSize}">
+        <circle cx="${centerX}" cy="${centerY}" r="${displayRadius}" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.8)" stroke-width="2"/>
+      </svg>`;
+
+    } else if (shapeType === 'RECTANGLE') {
+      const width = template.width || 40;
+      const height = template.height || 40;
+      const scaledWidth = width * zoom;
+      const scaledHeight = height * zoom;
+
+      // Minimal clamping for browser compatibility
+      const displayWidth = Math.max(4, Math.min(200, scaledWidth));
+      const displayHeight = Math.max(4, Math.min(200, scaledHeight));
+      cursorSize = Math.max(displayWidth, displayHeight) + 4;
+      centerX = cursorSize / 2;
+      centerY = cursorSize / 2;
+
+      const rectX = centerX - displayWidth / 2;
+      const rectY = centerY - displayHeight / 2;
+
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cursorSize}" height="${cursorSize}">
+        <rect x="${rectX}" y="${rectY}" width="${displayWidth}" height="${displayHeight}" fill="rgba(34,197,94,0.15)" stroke="rgba(34,197,94,0.8)" stroke-width="2"/>
+      </svg>`;
+
+    } else if (shapeType === 'TRIANGLE') {
+      const radius = template.radius || 20;
+      const scaledRadius = radius * zoom;
+
+      const displayRadius = Math.max(2, Math.min(200, scaledRadius));
+      cursorSize = displayRadius * 2 + 4;
+      centerX = centerY = cursorSize / 2;
+
+      // Triangle points (equilateral, pointing up)
+      const p1x = centerX;
+      const p1y = centerY - displayRadius;
+      const p2x = centerX - displayRadius * 0.866;
+      const p2y = centerY + displayRadius * 0.5;
+      const p3x = centerX + displayRadius * 0.866;
+      const p3y = centerY + displayRadius * 0.5;
+
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cursorSize}" height="${cursorSize}">
+        <polygon points="${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}" fill="rgba(168,85,247,0.15)" stroke="rgba(168,85,247,0.8)" stroke-width="2"/>
+      </svg>`;
+
+    } else {
+      state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
+      return;
+    }
+
+    const url = 'data:image/svg+xml;base64,' + btoa(svg);
+    state.canvas.style.cursor = `url('${url}') ${centerX} ${centerY}, crosshair`;
+
+    console.log('[Canvas] Cursor updated - type:', shapeType, 'zoom:', zoom.toFixed(2), 'size:', cursorSize.toFixed(0), 'actual dims:', template);
+  }
+
   // Initialize canvas when DOM ready
   $(document).on('shiny:connected', function() {
     // Find all canvas elements
@@ -17,6 +95,8 @@
 
       // Get namespace (remove -canvas suffix)
       const ns = canvasId.replace(/-canvas$/, '');
+
+      console.log('[Canvas] Initializing - canvasId:', canvasId, 'ns:', ns);
 
       // Initialize state
       const state = {
@@ -45,7 +125,9 @@
         backgroundOffsetY: 0,
         backgroundPanMode: false,
         isBackgroundPanning: false,
-        bgPanStart: null
+        bgPanStart: null,
+        // Selected shape template for cursor
+        selectedShapeTemplate: null
       };
 
       canvases.set(canvasId, state);
@@ -54,6 +136,15 @@
       setupCanvasEvents(canvas, state);
 
       console.log('[Canvas] Initialized:', canvasId);
+    });
+
+    // Global ESC key handler to deselect shape template
+    $(document).on('keydown', function(e) {
+      if (e.key === 'Escape') {
+        // Find the shape template selector and reset it
+        $('#test-shape_template_id').val('').trigger('change');
+        console.log('[Canvas] ESC pressed - shape deselected');
+      }
     });
   });
 
@@ -76,9 +167,10 @@
       state.zoom = newZoom;
 
       render(state);
+      updateShapeCursor(state); // Update cursor size with new zoom
     });
 
-    // Click to select
+    // Click to select OR add new placement
     $(canvas).on('click', function(e) {
       if (state.isPanning) return; // Don't select if we were panning
 
@@ -90,18 +182,37 @@
       const x = (canvasX - state.panX) / state.zoom;
       const y = (canvasY - state.panY) / state.zoom;
 
+      console.log('[Canvas] Click at canvas:', canvasX.toFixed(0), canvasY.toFixed(0), 'world:', x.toFixed(0), y.toFixed(0));
+      console.log('[Canvas] Has template?', !!state.selectedShapeTemplate, state.selectedShapeTemplate);
+
+      // If shape template selected, add new placement at click location
+      if (state.selectedShapeTemplate) {
+        const inputName = state.ns + '-canvas_add_at';
+        console.log('[Canvas] Adding placement at:', x.toFixed(2), y.toFixed(2), 'template:', state.selectedShapeTemplate.templateId);
+        console.log('[Canvas] Sending to Shiny input:', inputName);
+
+        Shiny.setInputValue(inputName, {
+          x: x,
+          y: y,
+          templateId: state.selectedShapeTemplate.templateId
+        }, {priority: 'event'});
+        return;
+      }
+
+      // Otherwise, select existing shape
       const clickedShape = findShapeAtPoint(state.shapes, x, y);
+      console.log('[Canvas] Clicked shape:', clickedShape ? clickedShape.id : 'none');
 
       if (clickedShape) {
         state.selectedId = clickedShape.id;
         render(state);
 
         // Send selection to Shiny
-        Shiny.setInputValue(state.ns + '_canvas_selection', clickedShape.id, {priority: 'event'});
+        Shiny.setInputValue(state.ns + '-canvas_selection', clickedShape.id, {priority: 'event'});
       } else {
         state.selectedId = null;
         render(state);
-        Shiny.setInputValue(state.ns + '_canvas_selection', null, {priority: 'event'});
+        Shiny.setInputValue(state.ns + '-canvas_selection', null, {priority: 'event'});
       }
     });
 
@@ -151,8 +262,14 @@
         // Panning background offset
         const dx = (canvasX - state.bgPanStart.x) / state.zoom;
         const dy = (canvasY - state.bgPanStart.y) / state.zoom;
-        state.backgroundOffsetX = state.bgPanStart.offsetX + dx;
-        state.backgroundOffsetY = state.bgPanStart.offsetY + dy;
+
+        // Apply rotation transformation to deltas (counter-rotate by current rotation)
+        const angle = -state.rotation * Math.PI / 180;
+        const rotatedDx = dx * Math.cos(angle) - dy * Math.sin(angle);
+        const rotatedDy = dx * Math.sin(angle) + dy * Math.cos(angle);
+
+        state.backgroundOffsetX = state.bgPanStart.offsetX + rotatedDx;
+        state.backgroundOffsetY = state.bgPanStart.offsetY + rotatedDy;
         render(state);
       } else if (state.isDragging) {
         // Dragging a shape (no rotation transform needed)
@@ -198,7 +315,7 @@
         canvas.style.cursor = state.backgroundPanMode ? 'move' : 'grab';
 
         // Send updated background offset to Shiny
-        Shiny.setInputValue(state.ns + '_bg_offset_update', {
+        Shiny.setInputValue(state.ns + '-bg_offset_update', {
           x: state.backgroundOffsetX,
           y: state.backgroundOffsetY
         }, {priority: 'event'});
@@ -214,7 +331,7 @@
           const centerX = shape.type === 'circle' ? shape.x : shape.x + shape.w / 2;
           const centerY = shape.type === 'circle' ? shape.y : shape.y + shape.h / 2;
 
-          Shiny.setInputValue(state.ns + '_canvas_moved', {
+          Shiny.setInputValue(state.ns + '-canvas_moved', {
             id: shape.id,
             x: centerX,
             y: centerY
@@ -402,7 +519,13 @@
     if (!state) return;
 
     state.editMode = message.on;
-    state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
+
+    // Don't override cursor if shape template is selected (cursor shows shape preview)
+    if (!state.selectedShapeTemplate) {
+      state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
+    }
+
+    console.log('[Canvas] Edit mode:', state.editMode, 'has template:', !!state.selectedShapeTemplate);
   });
 
   // Custom message handler: set snap grid
@@ -454,6 +577,7 @@
     state.panY = state.canvas.height / 2 - centerY * state.zoom;
 
     render(state);
+    updateShapeCursor(state); // Update cursor size with new zoom
     console.log('[Canvas] Fit view - zoom:', state.zoom.toFixed(2), 'center:', centerX.toFixed(0), centerY.toFixed(0));
   }
 
@@ -585,6 +709,30 @@
 
     console.log('[Canvas] New zoom:', state.zoom);
     render(state);
+    updateShapeCursor(state); // Update cursor size with new zoom
+  });
+
+  // Custom message handler: set shape cursor
+  Shiny.addCustomMessageHandler('test-root:setShapeCursor', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+
+    if (!state) {
+      console.error('[Canvas] State not found for setShapeCursor');
+      return;
+    }
+
+    console.log('[Canvas] setShapeCursor received:', message);
+
+    if (message.shapeType === 'default') {
+      state.selectedShapeTemplate = null;
+      console.log('[Canvas] Template cleared');
+    } else {
+      state.selectedShapeTemplate = message;
+      console.log('[Canvas] Template set:', message.shapeType, 'ID:', message.templateId);
+    }
+
+    updateShapeCursor(state);
   });
 
 })();

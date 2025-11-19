@@ -99,116 +99,239 @@ test_siloplacements_ui <- function(id) {
       # Canvas area
       div(
         class = "canvas-container",
-        # Top toolbar - Layout selector + Delete
+
+        # Grid-based toolbar for perfect alignment
+        tags$style(HTML("
+          .toolbar-grid {
+            display: grid;
+            grid-template-columns: 80px 90px 220px 110px 150px 1fr 100px;
+            gap: 0.3rem;
+            align-items: center;
+            padding: 0.3rem;
+            background: #e9ecef;
+            border-radius: 4px;
+          }
+          .toolbar-grid-bottom {
+            display: grid;
+            grid-template-columns: 80px 90px 220px 110px 150px 1fr 1fr 100px;
+            gap: 0.3rem;
+            align-items: center;
+            padding: 0.3rem;
+            background: #e9ecef;
+            border-radius: 4px;
+          }
+          .toolbar-grid-placement {
+            display: grid;
+            grid-template-columns: 80px 90px 220px auto;
+            gap: 0.3rem;
+            align-items: center;
+            padding: 0.3rem;
+            background: #e9ecef;
+            border-radius: 4px;
+          }
+          .toolbar-grid .form-group,
+          .toolbar-grid-bottom .form-group,
+          .toolbar-grid-placement .form-group {
+            margin-bottom: 0;
+          }
+          .toolbar-grid label,
+          .toolbar-grid-bottom label,
+          .toolbar-grid-placement label {
+            text-align: right;
+          }
+          .toggle-btn {
+            position: relative;
+            padding-left: 2.5rem;
+            border: 1px solid #ddd !important;
+          }
+          .toggle-btn::before {
+            content: '';
+            position: absolute;
+            left: 0.3rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1.8rem;
+            height: 1rem;
+            background: #ccc;
+            border-radius: 0.5rem;
+            transition: background 0.3s;
+          }
+          .toggle-btn::after {
+            content: '';
+            position: absolute;
+            left: 0.4rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0.8rem;
+            height: 0.8rem;
+            background: white;
+            border-radius: 50%;
+            transition: left 0.3s;
+          }
+          .toggle-btn.active {
+            border-color: #28a745 !important;
+          }
+          .toggle-btn.active::before {
+            background: #28a745;
+          }
+          .toggle-btn.active::after {
+            left: 1.3rem;
+          }
+          .control-group {
+            display: flex;
+            gap: 0.2rem;
+            align-items: center;
+            justify-content: center;
+          }
+        ")),
+
+        # Top toolbar - Layouts row
         div(
-          class = "canvas-toolbar",
-          style = "background: #e9ecef; flex-wrap: wrap;",
+          class = "toolbar-grid",
+
+          # Column 1: Add New Layout button
+          actionButton(
+            ns("add_new_layout_btn"), "Add New", class = "btn-sm btn-primary",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
+
+          # Column 2: Layout label
+          tags$label(
+            "Layout:",
+            style = "margin: 0; font-size: 13px; font-weight: normal;"
+          ),
+
+          # Column 3: Layout selector (or action input for new layout)
           div(
-            style = "display: flex; gap: 0.5rem; align-items: center; width: 100%; flex-wrap: wrap; justify-content: space-between;",  # CHANGED
-            
-            # LEFT side: Add New + Layout selector/text + Save Layout + Background Settings
+            style = "position: relative;",
+            # Select input (visible by default)
             div(
-              style = "display: inline-flex; align-items: center; gap: 0.3rem;",
-
-              # Add New button
-              actionButton(
-                ns("add_new_btn"), "Add New", class = "btn-sm btn-primary",
-                style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"
-              ),
-
-              # Layout label
-              tags$label(
-                "Layout:",
-                style = "margin: 0; font-size: 13px; font-weight: normal;"
-              ),
-
-              # Select input (visible by default)
-              div(
-                id = ns("select_container"),
-                style = "display: inline-block;",
-                selectInput(
-                  ns("layout_id"), label = NULL, choices = NULL, width = "207px",
-                  selectize = TRUE
-                )
-              ),
-
-              # Text input + Save button (hidden by default)
-              div(
-                id = ns("text_container"),
-                style = "display: none;",  # inline-flex; gap: 0.2rem;
-                textInput(
-                  ns("new_layout_name"), label = NULL,
-                  placeholder = "Enter name...", width = "130px"
-                ),
-                actionButton(
-                  ns("save_new_btn"), "Save", class = "btn-sm btn-success",
-                  style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 46px;"
-                )
-              ),
-
-              # ENTER = click Save
-              tags$script(HTML(sprintf("
-            $(document).on('keyup', '#%s', function(e) {   // CHANGED from keydown to keyup
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                $('#%s').click();
-              }
-            });
-          ", ns("new_layout_name"), ns("save_new_btn")))
-              ),
-
-              # Save Layout button
-              actionButton(ns("save_bg_settings"), "Save Layout", icon = icon("save"), class = "btn-sm btn-success",
-                          style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
-
-              # Background Settings button
-              actionButton(ns("toggle_bg_controls"), "Background Settings", icon = icon("chevron-up"), class = "btn-sm btn-secondary",
-                          style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;")
+              id = ns("select_container"),
+              style = "display: block;",
+              selectInput(
+                ns("layout_id"), label = NULL, choices = NULL, width = "100%",
+                selectize = TRUE
+              )
             ),
-
-            # RIGHT side: Delete (far right)
+            # Fomantic-style action input (hidden by default)
             div(
-              style = "display: inline-flex; margin-left: auto;",
+              id = ns("text_container"),
+              class = "ui action input",
+              style = "display: none; width: 100%;",
+              tags$input(
+                type = "text",
+                id = ns("new_layout_name"),
+                placeholder = "Enter name...",
+                style = "height: 26px; font-size: 12px; padding: 0.15rem 0.5rem;"
+              ),
               actionButton(
-                ns("delete_layout_btn"),
-                "Delete",
-                class = "btn-sm btn-danger",
+                ns("save_new_btn"), "Save", class = "ui button btn-sm btn-success",
                 style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"
               )
             )
           ),
 
-          # JavaScript for Escape key handler (unchanged)
-          tags$script(HTML(paste0("
-        $(document).on('keydown', '#", ns("new_layout_name"), "', function(e) {
-          if (e.which === 27) { // Escape key
-            $('#", ns("text_container"), "').hide();
-            $('#", ns("select_container"), "').show();
-            $(this).val('');
-          }
-        });
-      ")))
+          # Column 4: Save Layout button
+          actionButton(ns("save_bg_settings"), "Save Layout", icon = icon("save"), class = "btn-sm btn-success",
+                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
+
+          # Column 5: Backgrounds button
+          actionButton(ns("toggle_bg_controls"), "Backgrounds", icon = icon("chevron-up"), class = "btn-sm btn-secondary",
+                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
+
+          # Column 6: Empty spacer
+          div(),
+
+          # Column 7: Delete button (far right)
+          actionButton(
+            ns("delete_layout_btn"), "Delete", class = "btn-sm btn-danger",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          )
         ),
 
-        # Collapsible BG controls (auto-expanded, inline)
+        # JavaScript for layout input toggle
+        tags$script(HTML(sprintf("
+          $(document).on('keyup', '#%s', function(e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              $('#%s').click();
+            }
+          });
+          $(document).on('keydown', '#%s', function(e) {
+            if (e.which === 27) { // Escape key
+              $('#%s').hide();
+              $('#%s').show();
+              $(this).val('');
+            }
+          });
+        ", ns("new_layout_name"), ns("save_new_btn"),
+           ns("new_layout_name"), ns("text_container"), ns("select_container")))),
+
+        # Bottom toolbar - Backgrounds row (collapsible)
         div(
           id = ns("bg_controls"),
-          class = "canvas-toolbar",
-          style = "display: inline-flex; align-items: center; gap: 0.3rem; padding-left: 4.4rem;",
-          # Background label + selector + display switch
-          tags$label("Background:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
-          selectInput(ns("canvas_id"), label = NULL, choices = NULL, width = "207px", selectize = TRUE),
-          checkboxInput(ns("display_bg"), "Display BG", value = TRUE, width = "auto"),
-          checkboxInput(ns("bg_pan_mode"), "Move BG", value = FALSE, width = "auto"),
-          actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°"),
-          numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "70px"),
-          actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°"),
-          actionButton(ns("bg_scale_down"), "", icon = icon("search-minus"), class = "btn-sm", title = "Shrink BG"),
-          numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "70px"),
-          actionButton(ns("bg_scale_up"), "", icon = icon("search-plus"), class = "btn-sm", title = "Enlarge BG")
+          class = "toolbar-grid-bottom",
+          style = "margin-top: 0.3rem;",
+
+          # Column 1: Add New Background button
+          tags$a(
+            href = "#/canvases",
+            target = "_blank",
+            actionButton(
+              ns("add_new_bg_btn"), "Add New", class = "btn-sm btn-primary",
+              style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;",
+              onclick = "window.open('#/canvases', '_blank'); return false;"
+            )
+          ),
+
+          # Column 2: Background label
+          tags$label(
+            "Background:",
+            style = "margin: 0; font-size: 13px; font-weight: normal;"
+          ),
+
+          # Column 3: Background selector
+          selectInput(ns("canvas_id"), label = NULL, choices = NULL, width = "100%", selectize = TRUE),
+
+          # Column 4: Display BG toggle button
+          actionButton(
+            ns("display_bg_toggle"), "Display BG", class = "btn-sm toggle-btn active",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
+
+          # Column 5: Move BG toggle button
+          actionButton(
+            ns("move_bg_toggle"), "Move BG", class = "btn-sm toggle-btn",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
+
+          # Column 6: Rotation controls group
+          div(
+            class = "control-group",
+            tags$label("Rotate:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+            actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°",
+                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
+            numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "65px"),
+            actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°",
+                        style = "height: 26px; padding: 0.2rem 0.4rem;")
+          ),
+
+          # Column 7: Zoom controls group
+          div(
+            class = "control-group",
+            tags$label("Zoom:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+            actionButton(ns("bg_scale_down"), "", icon = icon("search-minus"), class = "btn-sm", title = "Shrink BG",
+                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
+            numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "65px"),
+            actionButton(ns("bg_scale_up"), "", icon = icon("search-plus"), class = "btn-sm", title = "Enlarge BG",
+                        style = "height: 26px; padding: 0.2rem 0.4rem;")
+          ),
+
+          # Column 8: Empty spacer (matches Delete button position)
+          div()
         ),
 
-        # JavaScript for collapsible controls
+        # JavaScript for collapsible controls and toggle button
         tags$script(HTML(sprintf("
           $(document).ready(function() {
             // Collapsible controls
@@ -228,17 +351,41 @@ test_siloplacements_ui <- function(id) {
 
         # Main toolbar - Placement & View controls
         div(
-          class = "canvas-toolbar",
+          class = "toolbar-grid-placement",
           style = "margin-bottom: 0.5rem;",
-          actionButton(ns("add"), "Add Placement", icon = icon("plus"), class = "btn-sm btn-primary"),
-          actionButton(ns("duplicate"), "Duplicate", icon = icon("copy"), class = "btn-sm btn-secondary"),
-          actionButton(ns("delete"), "Delete", icon = icon("trash"), class = "btn-sm btn-danger"),
-          div(style = "flex: 1;"),
-          checkboxInput(ns("edit_mode"), "Edit Mode", value = FALSE, width = "auto"),
-          numericInput(ns("snap_grid"), "Grid Snap", value = 0, min = 0, step = 10, width = "100px"),
-          actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm"),
-          actionButton(ns("zoom_out"), "", icon = icon("magnifying-glass-minus"), class = "btn-sm"),
-          actionButton(ns("fit_view"), "Fit View", icon = icon("expand"), class = "btn-sm")
+
+          # Column 1: Edit toggle
+          actionButton(
+            ns("edit_mode_toggle"), "Edit", class = "btn-sm toggle-btn",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
+
+          # Column 2: New label
+          tags$label(
+            "New:",
+            style = "margin: 0; font-size: 13px; font-weight: normal;"
+          ),
+
+          # Column 3: Shape template selector
+          selectInput(ns("shape_template_id"), label = NULL, choices = NULL, width = "100%", selectize = TRUE),
+
+          # Column 4: Rest of controls
+          div(
+            style = "display: flex; gap: 0.3rem; align-items: center;",
+            actionButton(ns("duplicate"), "Duplicate", icon = icon("copy"), class = "btn-sm btn-secondary",
+                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
+            actionButton(ns("delete"), "Delete", icon = icon("trash"), class = "btn-sm btn-danger",
+                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
+            div(style = "flex: 1;"),
+            tags$label("Grid Snap:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+            numericInput(ns("snap_grid"), label = NULL, value = 0, min = 0, step = 10, width = "70px"),
+            actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm",
+                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
+            actionButton(ns("zoom_out"), "", icon = icon("magnifying-glass-minus"), class = "btn-sm",
+                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
+            actionButton(ns("fit_view"), "Fit View", icon = icon("expand"), class = "btn-sm",
+                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;")
+          )
         ),
 
         # Canvas viewport
@@ -271,6 +418,10 @@ test_siloplacements_server <- function(id) {
     background_image <- reactiveVal(NULL)
     layouts_refresh <- reactiveVal(0)  # Trigger to refresh layouts list
     bg_offset <- reactiveVal(list(x = 0, y = 0))  # Track current background offset from pan mode
+    bg_display_state <- reactiveVal(TRUE)  # Track background display toggle state
+    bg_move_state <- reactiveVal(FALSE)  # Track background move toggle state
+    edit_mode_state <- reactiveVal(FALSE)  # Track edit mode toggle state
+    canvas_initialized <- reactiveVal(FALSE)  # Track if canvas has been initially fitted
 
     # ---- Load layouts ----
     layouts_data <- reactive({
@@ -303,8 +454,8 @@ test_siloplacements_server <- function(id) {
       }
     })
 
-    # Handle "Add New" button - toggle to text input mode
-    observeEvent(input$add_new_btn, {
+    # Handle "Add New Layout" button - toggle to text input mode
+    observeEvent(input$add_new_layout_btn, {
       cat("[Canvas Test] Switching to text input mode\n")
       shinyjs::hide("select_container")
       shinyjs::show("text_container")
@@ -512,10 +663,15 @@ test_siloplacements_server <- function(id) {
       trigger_refresh()
       layout_id <- current_layout_id()
 
+      cat("[Canvas Test] Loading placements for layout:", layout_id, "\n")
+
       df <- try(list_placements(layout_id = layout_id, limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) {
+        cat("[Canvas Test] Error loading placements\n")
         return(data.frame())
       }
+
+      cat("[Canvas Test] Loaded", nrow(df), "placements from DB\n")
       df
     })
 
@@ -536,11 +692,79 @@ test_siloplacements_server <- function(id) {
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
 
+    # Populate shape template dropdown
+    observe({
+      templates <- shape_templates_data()
+      choices <- c("(select shape)" = "")
+      if (nrow(templates) > 0) {
+        choices <- c(choices, setNames(
+          as.character(templates$ShapeTemplateID),
+          paste0(templates$TemplateCode, " (", templates$ShapeType, ")")
+        ))
+      }
+      updateSelectInput(session, "shape_template_id", choices = choices)
+    })
+
+    # Update cursor based on selected shape template
+    observeEvent(input$shape_template_id, {
+      template_id <- input$shape_template_id
+
+      if (is.null(template_id) || template_id == "") {
+        # No shape selected - default cursor, disable edit mode
+        session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(
+          shapeType = "default"
+        ))
+
+        # Turn off edit mode
+        if (edit_mode_state()) {
+          edit_mode_state(FALSE)
+          shinyjs::removeClass("edit_mode_toggle", "active")
+          session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = FALSE))
+        }
+        return()
+      }
+
+      # Find the template
+      templates <- shape_templates_data()
+      template <- templates[templates$ShapeTemplateID == as.integer(template_id), ]
+
+      if (nrow(template) > 0) {
+        shape_type <- template$ShapeType[1]
+
+        # Build shape data with dimensions
+        shape_data <- list(
+          shapeType = shape_type,
+          templateId = as.integer(template_id)
+        )
+
+        if (shape_type == "CIRCLE") {
+          shape_data$radius <- as.numeric(f_or(template$Radius[1], 20))
+        } else if (shape_type == "RECTANGLE") {
+          shape_data$width <- as.numeric(f_or(template$Width[1], 40))
+          shape_data$height <- as.numeric(f_or(template$Height[1], 40))
+        } else if (shape_type == "TRIANGLE") {
+          shape_data$radius <- as.numeric(f_or(template$Radius[1], 20))
+        }
+
+        session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), shape_data)
+
+        # Auto-enable edit mode when shape selected
+        if (!edit_mode_state()) {
+          edit_mode_state(TRUE)
+          shinyjs::addClass("edit_mode_toggle", "active")
+          session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
+        }
+      }
+    }, ignoreInit = TRUE)
+
     # ---- Convert placements to canvas shapes ----
     observe({
       placements <- raw_placements()
+      cat("[Canvas Test] Converting placements to shapes, count:", nrow(placements), "\n")
+
       if (!nrow(placements)) {
         canvas_shapes(list())
+        session$sendCustomMessage(paste0(ns("root"), ":setData"), list(data = list(), autoFit = FALSE))
         return()
       }
 
@@ -594,8 +818,16 @@ test_siloplacements_server <- function(id) {
 
       canvas_shapes(shapes)
 
-      # Send to canvas with auto-fit
-      session$sendCustomMessage(paste0(ns("root"), ":setData"), list(data = shapes, autoFit = TRUE))
+      cat("[Canvas Test] Sending", length(shapes), "shapes to canvas\n")
+
+      # Only autofit on initial load, not on updates
+      should_autofit <- !canvas_initialized()
+      if (should_autofit) {
+        canvas_initialized(TRUE)
+        cat("[Canvas Test] Initial load - will autofit\n")
+      }
+
+      session$sendCustomMessage(paste0(ns("root"), ":setData"), list(data = shapes, autoFit = should_autofit))
     })
 
     # ---- Form schema for placement details ----
@@ -711,9 +943,63 @@ test_siloplacements_server <- function(id) {
     )
 
     # ---- Toolbar button handlers ----
-    observeEvent(input$add, {
-      selected_placement_id(NA)  # Trigger new mode
-    })
+
+    # Handle canvas click to add placement (namespace is auto-applied, so listen for canvas_add_at not test_canvas_add_at)
+    observeEvent(input$canvas_add_at, {
+      cat("[Canvas Test] *** observeEvent FIRED for canvas_add_at ***\n")
+
+      click_data <- input$canvas_add_at
+      cat("[Canvas Test] Received click_data:", !is.null(click_data), "\n")
+
+      if (is.null(click_data)) {
+        cat("[Canvas Test] click_data is NULL, returning\n")
+        return()
+      }
+
+      cat("[Canvas Test] Adding placement at:", click_data$x, click_data$y, "template:", click_data$templateId, "\n")
+
+      # Get current layout
+      layout_id <- current_layout_id()
+      if (is.null(layout_id) || is.na(layout_id)) {
+        showNotification("No layout selected", type = "error")
+        return()
+      }
+
+      # TODO: Open silo selector or use default
+      # For now, we'll need to prompt the user to select a silo
+      # Create placement with dummy silo (will be updated via form)
+      new_placement <- list(
+        SiloID = 1,  # Default - user will select via form
+        LayoutID = layout_id,
+        ShapeTemplateID = as.integer(click_data$templateId),
+        CenterX = as.numeric(click_data$x),
+        CenterY = as.numeric(click_data$y),
+        ZIndex = 0,
+        IsVisible = TRUE,
+        IsInteractive = TRUE
+      )
+
+      tryCatch({
+        new_id <- upsert_placement(new_placement)
+        cat("[Canvas Test] Placement created with ID:", new_id, "\n")
+
+        selected_placement_id(as.integer(new_id))
+
+        # Force refresh to show new placement on canvas
+        old_refresh <- trigger_refresh()
+        trigger_refresh(old_refresh + 1)
+        cat("[Canvas Test] Triggered refresh from", old_refresh, "to", old_refresh + 1, "\n")
+
+        # Deselect shape template to revert cursor and prevent duplicate clicks
+        updateSelectInput(session, "shape_template_id", selected = "")
+        cat("[Canvas Test] Shape template deselected\n")
+
+        showNotification("Placement added - select silo in form", type = "message", duration = 3)
+      }, error = function(e) {
+        showNotification(paste("Error adding placement:", conditionMessage(e)), type = "error")
+        cat("[Canvas Test] Error:", conditionMessage(e), "\n")
+      })
+    }, ignoreInit = TRUE)
 
     observeEvent(input$duplicate, {
       pid <- selected_placement_id()
@@ -761,17 +1047,17 @@ test_siloplacements_server <- function(id) {
 
     # ---- Canvas interactions ----
 
-    # Handle canvas selection (JavaScript sends with underscore: test_canvas_selection)
-    observeEvent(input$test_canvas_selection, {
-      sel_id <- input$test_canvas_selection
+    # Handle canvas selection (namespace auto-applied: listen for canvas_selection not test_canvas_selection)
+    observeEvent(input$canvas_selection, {
+      sel_id <- input$canvas_selection
       if (!is.null(sel_id) && nzchar(sel_id)) {
         selected_placement_id(as.integer(sel_id))
       }
     }, ignoreInit = TRUE)
 
     # Handle canvas move (drag in edit mode)
-    observeEvent(input$test_canvas_moved, {
-      moved <- input$test_canvas_moved
+    observeEvent(input$canvas_moved, {
+      moved <- input$canvas_moved
       if (is.null(moved)) return()
 
       # Update placement position in DB
@@ -789,10 +1075,21 @@ test_siloplacements_server <- function(id) {
       })
     }, ignoreInit = TRUE)
 
-    # Handle edit mode toggle
-    observe({
-      edit_on <- isTRUE(input$edit_mode)
-      session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = edit_on))
+    # Handle edit mode toggle button
+    observeEvent(input$edit_mode_toggle, {
+      # Toggle state
+      new_state <- !edit_mode_state()
+      edit_mode_state(new_state)
+
+      # Update button class
+      if (new_state) {
+        shinyjs::addClass("edit_mode_toggle", "active")
+      } else {
+        shinyjs::removeClass("edit_mode_toggle", "active")
+      }
+
+      # Send to JavaScript
+      session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = new_state))
     })
 
     # Handle snap grid changes
@@ -831,21 +1128,43 @@ test_siloplacements_server <- function(id) {
       updateNumericInput(session, "bg_scale", value = round(new_scale, 1))
     })
 
-    # Handle background display toggle
-    observe({
-      display <- isTRUE(input$display_bg)
-      session$sendCustomMessage(paste0(ns("root"), ":setBackgroundVisible"), list(visible = display))
+    # Handle background display toggle button
+    observeEvent(input$display_bg_toggle, {
+      # Toggle state
+      new_state <- !bg_display_state()
+      bg_display_state(new_state)
+
+      # Update button class
+      if (new_state) {
+        shinyjs::addClass("display_bg_toggle", "active")
+      } else {
+        shinyjs::removeClass("display_bg_toggle", "active")
+      }
+
+      # Send to JavaScript
+      session$sendCustomMessage(paste0(ns("root"), ":setBackgroundVisible"), list(visible = new_state))
     })
 
-    # Handle background pan mode
-    observe({
-      bg_pan <- isTRUE(input$bg_pan_mode)
-      session$sendCustomMessage(paste0(ns("root"), ":setBackgroundPanMode"), list(on = bg_pan))
+    # Handle background move toggle button
+    observeEvent(input$move_bg_toggle, {
+      # Toggle state
+      new_state <- !bg_move_state()
+      bg_move_state(new_state)
+
+      # Update button class
+      if (new_state) {
+        shinyjs::addClass("move_bg_toggle", "active")
+      } else {
+        shinyjs::removeClass("move_bg_toggle", "active")
+      }
+
+      # Send to JavaScript
+      session$sendCustomMessage(paste0(ns("root"), ":setBackgroundPanMode"), list(on = new_state))
     })
 
     # Receive background offset updates from JavaScript (when dragging in pan mode)
-    observeEvent(input$test_bg_offset_update, {
-      offset <- input$test_bg_offset_update
+    observeEvent(input$bg_offset_update, {
+      offset <- input$bg_offset_update
       if (!is.null(offset)) {
         bg_offset(list(x = offset$x, y = offset$y))
       }

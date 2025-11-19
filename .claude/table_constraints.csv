@@ -1,0 +1,49 @@
+"TABLE_SCHEMA","TABLE_NAME","CONSTRAINT_NAME","CONSTRAINT_TYPE","COLUMN_NAME","ColumnOrder","ReferencedConstraint","ReferencedSchema","ReferencedTable","ReferencedColumn"
+"dbo","Canvases","PK__Canvases__3213E83F95C65537","PRIMARY KEY","id",1,NA,NA,NA,NA
+"dbo","CanvasLayouts","CK_Layout_Positive","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","CanvasLayouts","FK_CanvasLayouts_Canvases","FOREIGN KEY","CanvasID",1,"PK__Canvases__3213E83F95C65537","dbo","Canvases","id"
+"dbo","CanvasLayouts","PK__CanvasLa__203586F5DD18DD84","PRIMARY KEY","LayoutID",1,NA,NA,NA,NA
+"dbo","CanvasLayouts","UQ__CanvasLa__81CBB024A8C64EE5","UNIQUE","LayoutName",1,NA,NA,NA,NA
+"dbo","ContainerTypeOperations","FK__Container__Conta__398D8EEE","FOREIGN KEY","ContainerTypeID",1,"PK__Containe__46FA6FF9E285AB8F","dbo","ContainerTypes","ContainerTypeID"
+"dbo","ContainerTypeOperations","FK__Container__Opera__3A81B327","FOREIGN KEY","OperationID",1,"PK__Operatio__A4F5FC64C1609DD9","dbo","Operations","OperationID"
+"dbo","ContainerTypeOperations","PK__Containe__1CB5303FF0C206DA","PRIMARY KEY","ContainerTypeID",1,NA,NA,NA,NA
+"dbo","ContainerTypeOperations","PK__Containe__1CB5303FF0C206DA","PRIMARY KEY","OperationID",2,NA,NA,NA,NA
+"dbo","ContainerTypes","CK_ContainerTypes_BottomType","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","ContainerTypes","PK__Containe__46FA6FF9E285AB8F","PRIMARY KEY","ContainerTypeID",1,NA,NA,NA,NA
+"dbo","ContainerTypes","UQ__Containe__3E1CDC7CB4B3F41A","UNIQUE","TypeCode",1,NA,NA,NA,NA
+"dbo","Icons","PK__Icons__3213E83F4F3430AC","PRIMARY KEY","id",1,NA,NA,NA,NA
+"dbo","OfflineReasonTypes","PK__OfflineR__B87FDA26D204ACC2","PRIMARY KEY","ReasonTypeID",1,NA,NA,NA,NA
+"dbo","OfflineReasonTypes","UQ__OfflineR__E2867CE3690CBA31","UNIQUE","ReasonTypeCode",1,NA,NA,NA,NA
+"dbo","Operations","PK__Operatio__A4F5FC64C1609DD9","PRIMARY KEY","OperationID",1,NA,NA,NA,NA
+"dbo","Operations","UQ__Operatio__969D67200FF9336B","UNIQUE","OpCode",1,NA,NA,NA,NA
+"dbo","ShapeTemplates","CK__ShapeTemp__Shape__787EE5A0","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","ShapeTemplates","CK_ShapeTemplates_Geom","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","ShapeTemplates","CK_ShapeTemplates_Positive","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","ShapeTemplates","CK_ShapeTemplates_ShapeType_New","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","ShapeTemplates","PK__ShapeTem__8FCAA5271A1E2F5F","PRIMARY KEY","ShapeTemplateID",1,NA,NA,NA,NA
+"dbo","ShapeTemplates","UQ__ShapeTem__0FDB5081C8147A4D","UNIQUE","TemplateCode",1,NA,NA,NA,NA
+"dbo","SiloOfflineEvents","CK_SiloOfflineEvents_Interval","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","SiloOfflineEvents","FK_SiloOfflineEvents_ReasonTypes","FOREIGN KEY","ReasonTypeID",1,"PK__OfflineR__B87FDA26D204ACC2","dbo","OfflineReasonTypes","ReasonTypeID"
+"dbo","SiloOfflineEvents","FK_SiloOfflineEvents_Silos","FOREIGN KEY","SiloID",1,"PK__Silos__6B33E3855976CCCD","dbo","Silos","SiloID"
+"dbo","SiloOfflineEvents","PK__SiloOffl__8ADD579C7C7A2FEC","PRIMARY KEY","SiloOfflineEventID",1,NA,NA,NA,NA
+"dbo","SiloPlacements","FK__SiloPlace__Layou__4D94879B","FOREIGN KEY","LayoutID",1,"PK__CanvasLa__203586F5DD18DD84","dbo","CanvasLayouts","LayoutID"
+"dbo","SiloPlacements","FK__SiloPlace__Shape__4E88ABD4","FOREIGN KEY","ShapeTemplateID",1,"PK__ShapeTem__8FCAA5271A1E2F5F","dbo","ShapeTemplates","ShapeTemplateID"
+"dbo","SiloPlacements","FK__SiloPlace__SiloI__4CA06362","FOREIGN KEY","SiloID",1,"PK__Silos__6B33E3855976CCCD","dbo","Silos","SiloID"
+"dbo","SiloPlacements","PK__SiloPlac__2E328C45193927EC","PRIMARY KEY","PlacementID",1,NA,NA,NA,NA
+"dbo","SiloPlacements","UQ_SiloPlacements_Silo_Layout","UNIQUE","SiloID",1,NA,NA,NA,NA
+"dbo","SiloPlacements","UQ_SiloPlacements_Silo_Layout","UNIQUE","LayoutID",2,NA,NA,NA,NA
+"dbo","Silos","CK_Silos_Volume_Positive","CHECK",NA,NA,NA,NA,NA,NA
+"dbo","Silos","FK__Silos__Container__2A4B4B5E","FOREIGN KEY","ContainerTypeID",1,"PK__Containe__46FA6FF9E285AB8F","dbo","ContainerTypes","ContainerTypeID"
+"dbo","Silos","FK_Silos_ShapeTemplates","FOREIGN KEY","ShapeID",1,"PK__ShapeTem__8FCAA5271A1E2F5F","dbo","ShapeTemplates","ShapeTemplateID"
+"dbo","Silos","FK_Silos_SiteAreas","FOREIGN KEY","AreaID",1,"PK__SiteArea__70B82028F6181180","dbo","SiteAreas","AreaID"
+"dbo","Silos","FK_Silos_Sites","FOREIGN KEY","SiteID",1,"PK__Sites__B9DCB9034E614C4C","dbo","Sites","SiteID"
+"dbo","Silos","PK__Silos__6B33E3855976CCCD","PRIMARY KEY","SiloID",1,NA,NA,NA,NA
+"dbo","Silos","UQ_Silos_SiloCode","UNIQUE","SiloCode",1,NA,NA,NA,NA
+"dbo","SiteAreas","FK_SiteAreas_Sites","FOREIGN KEY","SiteID",1,"PK__Sites__B9DCB9034E614C4C","dbo","Sites","SiteID"
+"dbo","SiteAreas","PK__SiteArea__70B82028F6181180","PRIMARY KEY","AreaID",1,NA,NA,NA,NA
+"dbo","SiteAreas","UQ_SiteAreas_Site_AreaCode","UNIQUE","SiteID",1,NA,NA,NA,NA
+"dbo","SiteAreas","UQ_SiteAreas_Site_AreaCode","UNIQUE","AreaCode",2,NA,NA,NA,NA
+"dbo","SiteAreas","UQ_SiteAreas_Site_AreaName","UNIQUE","SiteID",1,NA,NA,NA,NA
+"dbo","SiteAreas","UQ_SiteAreas_Site_AreaName","UNIQUE","AreaName",2,NA,NA,NA,NA
+"dbo","Sites","PK__Sites__B9DCB9034E614C4C","PRIMARY KEY","SiteID",1,NA,NA,NA,NA
+"dbo","Sites","UQ__Sites__A12A336788CF80C8","UNIQUE","SiteCode",1,NA,NA,NA,NA

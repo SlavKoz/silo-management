@@ -1,11 +1,156 @@
 # Session Summary - SiloPlacements Canvas Implementation
 
-**Status**: Layout selector complete with inline creation (no modal)
+**Status**: Layout selector using toggle pattern + Background controls with Display BG checkbox
 **Last Updated**: 2025-11-18
 
 ---
 
-## Latest Session (2025-11-18) - Fixed Initial Flicking
+## Latest Session (2025-11-18 Part 2) - Toolbar Restructure & Selector Alignment
+
+### Problems Solved
+1. Layout selector pattern changed from selectize inline creation to toggle pattern (Add New button + select/text visibility toggle)
+2. Toolbar buttons in wrong location (needed to be AFTER selector, not before)
+3. Background controls auto-collapsed instead of expanded
+4. Layout and Background selectors not visually matching (no chevrons, different padding, misaligned)
+5. Display BG checkbox added but not wired to JavaScript
+
+### Solutions Implemented
+
+**1. Toggle Pattern for Layout Selector (from test_layout_selector.R sandbox)**
+- Replaced selectize inline creation with separate modes:
+  - Default mode: "Add New" button + "Layout:" label + Select dropdown (207px)
+  - Add mode: Text input (130px) + "Save" button (46px) replace the dropdown
+- Click "Add New" → hide select, show text input
+- Click "Save" → create layout, hide text input, show select dropdown
+- Press "Escape" → cancel, return to select dropdown
+- Simple `selectInput` initially, then changed to `selectize = TRUE` for dropdown arrows
+
+**2. Toolbar Restructure**
+- Moved "Save Layout" and "Background Settings" buttons AFTER the layout selector
+- Left side: Add New | Layout: [selector] | Save Layout | Background Settings
+- Right side: Delete button (far right with margin-left: auto)
+
+**3. Background Controls Auto-Expanded**
+- Removed `display: none;` from bg_controls div
+- Changed chevron icon from `chevron-down` to `chevron-up` to indicate expanded state
+- Controls visible by default with collapsible toggle
+
+**4. Inline Background Label**
+- Added "Background:" label matching "Layout:" style (13px font, normal weight)
+- Positioned inline with background selector
+
+**5. Display BG Checkbox with JavaScript Integration**
+- Added checkbox: `checkboxInput(ns("display_bg"), "Display BG", value = TRUE)`
+- Server observe handler sends message to JavaScript on toggle
+- JavaScript: Added `backgroundVisible` state property (default: true)
+- JavaScript: Added `setBackgroundVisible` message handler
+- JavaScript: Render function checks visibility flag before drawing background
+
+**6. Viewport Controls Refinements**
+- Removed labels from rotation and scale numeric inputs
+- Changed rotation buttons from ±90°/±15° to just ±5° buttons
+- Unified all input heights to 28px (selects, text inputs, numeric inputs, buttons)
+
+**7. Selector Alignment & Styling**
+- Extended layout selector width from 180px to 207px (matches background selector)
+- Both selectors use `selectize = TRUE` to show dropdown chevron arrows
+- Added `padding-left: 4.4rem;` to bg_controls div for horizontal alignment
+- CSS enhancements for chevrons:
+  - `padding: 0.15rem 1.5rem 0.15rem 0.5rem;` (extra right padding for chevron)
+  - `background-position: right 0.3rem center;`
+  - `background-size: 12px;`
+
+### Files Modified
+
+**R/test_siloplacements_canvas.R**
+- Lines 33-40: Enhanced select CSS with chevron styling
+- Lines 112-165: Layout selector UI with toggle pattern (Add New button, select/text containers, Escape handler)
+- Lines 159-164: Save Layout and Background Settings buttons moved after selector
+- Lines 193-207: Background controls with inline label, Display BG checkbox, auto-expanded
+- Line 197: `padding-left: 4.4rem;` for alignment
+- Lines 200: Background selector with `selectize = TRUE` and 207px width
+- Lines 131, 200: Both selectors use `selectize = TRUE` for dropdown arrows
+- Lines 201-206: Removed labels from rotation/scale inputs, changed to ±5° buttons only
+- Server handlers: Display BG observe block, rotation ±5° buttons
+
+**www/js/f_siloplacements_canvas.js**
+- Line 42: Added `backgroundVisible: true` to state initialization
+- Lines 551-560: Added `setBackgroundVisible` message handler
+- Line 268: Render function checks `state.backgroundVisible` before drawing background
+
+### Key Code Snippets
+
+**Toggle Pattern - Add New + Layout Selector:**
+```r
+# Add New button
+actionButton(ns("add_new_btn"), "Add New", ...),
+
+# Layout label
+tags$label("Layout:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+
+# Select input (visible by default)
+div(id = ns("select_container"), style = "display: inline-block;",
+    selectInput(ns("layout_id"), label = NULL, choices = NULL, width = "207px",
+               selectize = TRUE)),
+
+# Text input + Save button (hidden by default)
+div(id = ns("text_container"), style = "display: none;",
+    textInput(ns("new_layout_name"), label = NULL, placeholder = "Enter name...", width = "130px"),
+    actionButton(ns("save_new_btn"), "Save", ...))
+```
+
+**Display BG Integration:**
+```r
+# Server - R side
+observe({
+  display <- isTRUE(input$display_bg)
+  session$sendCustomMessage(paste0(ns("root"), ":setBackgroundVisible"),
+                           list(visible = display))
+})
+
+// JavaScript side
+Shiny.addCustomMessageHandler('test-root:setBackgroundVisible', function(message) {
+  const state = canvases.get('test-canvas');
+  state.backgroundVisible = message.visible !== false;
+  render(state);
+});
+
+// Render check
+if (state.backgroundImage && state.backgroundLoaded && state.backgroundVisible) {
+  // Draw background
+}
+```
+
+**Selector Alignment CSS:**
+```css
+.canvas-toolbar select.form-control {
+  padding: 0.15rem 1.5rem 0.15rem 0.5rem;
+  height: 28px;
+  background-position: right 0.3rem center;
+  background-size: 12px;
+}
+```
+
+### Working Features ✅
+- Layout selector with toggle pattern (Add New button switches to text input)
+- Both selectors show dropdown chevron arrows
+- Layout and Background selectors aligned horizontally
+- Display BG checkbox toggles background visibility without changing selection
+- Background controls auto-expanded by default (collapsible)
+- Rotation controls: ±5° buttons only
+- All inputs unified at 28px height
+- Escape key cancels add mode
+- Enter key saves new layout
+
+### Technical Notes
+- **rem units**: CSS unit relative to root font size (typically 16px, so 1rem = 16px)
+- **selectize = TRUE**: Shows native dropdown chevron, better than selectize = FALSE for visual consistency
+- **padding-left: 4.4rem**: Aligns Background label with Layout label (accounts for Add New button width)
+- **Toggle visibility pattern**: Cleaner than inline creation, avoids selectize flicking issues from previous sessions
+
+---
+
+## Earlier Session (2025-11-18 Part 1) - Fixed Initial Flicking
 
 ### Problem Solved
 Selector showed "Select existing or type new name..." placeholder on initial load, then flicked to first option.
