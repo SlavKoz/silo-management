@@ -8,6 +8,77 @@ test_siloplacements_ui <- function(id) {
   tagList(
     shinyjs::useShinyjs(),
     tags$style(HTML(sprintf("
+      body {
+        overflow: hidden !important;
+      }
+
+      .main-content {
+        margin-left: 0 !important;
+        transition: margin-left 0.5s ease;
+      }
+
+      .main-content.panel-open {
+        margin-left: 400px;
+      }
+
+      .sliding-panel {
+        position: fixed;
+        top: 0;
+        left: -400px;
+        width: 400px;
+        height: 100vh;
+        background: white;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+        transition: left 0.5s ease;
+        z-index: 1000;
+        overflow-y: auto;
+      }
+
+      .sliding-panel.open {
+        left: 0;
+      }
+
+      .panel-toggle {
+        position: fixed;
+        top: 50%%;
+        left: 0;
+        transform: translateY(-50%%);
+        width: 30px;
+        height: 80px;
+        background: #2185d0;
+        color: white;
+        border: none;
+        border-radius: 0 4px 4px 0;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+        transition: left 0.5s ease;
+        font-size: 18px;
+      }
+
+      .panel-toggle.panel-open {
+        left: 400px;
+      }
+
+      .panel-toggle:hover {
+        background: #1678c2;
+      }
+
+      .panel-header {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .panel-content {
+        padding: 1rem;
+      }
+
       .canvas-container {
         border: 1px solid #ddd;
         border-radius: 4px;
@@ -25,7 +96,7 @@ test_siloplacements_ui <- function(id) {
       }
       .canvas-toolbar .form-group {
         margin-bottom: 0;
-        display: inline-block; 
+        display: inline-block;
         /* display: flex;
         align-items: center;
         gap: 0.3rem;*/
@@ -95,7 +166,8 @@ test_siloplacements_ui <- function(id) {
       }
     ", ns("canvas")))),
 
-    div(
+    # Main content (shifts left when panel opens)
+    div(class = "main-content", id = ns("main-content"),
       # Canvas area
       div(
         class = "canvas-container",
@@ -394,14 +466,80 @@ test_siloplacements_ui <- function(id) {
           tags$canvas(id = ns("canvas"), width = 1400, height = 600),
           div(id = ns("labels"))
         )
-      ),
+      )
+    ),
 
-      # Table below - full width
-      div(style = "margin-top: 1rem;",
+    # Panel toggle arrow (on left side)
+    tags$button(id = ns("panel_toggle"), class = "panel-toggle",
+      tags$i(class = "fas fa-chevron-right")
+    ),
+
+    # Sliding panel (slides in from right)
+    div(id = ns("sliding_panel"), class = "sliding-panel",
+      div(class = "panel-header",
+        h3(class = "ui header", style = "margin: 0;", "Placement Details"),
+        actionButton(ns("close_panel_btn"), "", icon = icon("times"),
+                     class = "ui icon button", style = "margin: 0;")
+      ),
+      div(class = "panel-content",
         mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
       )
-    )
-    
+    ),
+
+    # JavaScript for panel toggle
+    tags$script(HTML(sprintf("
+      $(document).ready(function() {
+        // Toggle panel function
+        function togglePanel_%s(open) {
+          if (open) {
+            $('#%s').addClass('open');
+            $('#%s').addClass('panel-open');
+            $('#%s').addClass('panel-open');
+            $('#%s i').removeClass('fa-chevron-right').addClass('fa-chevron-left');
+          } else {
+            $('#%s').removeClass('open');
+            $('#%s').removeClass('panel-open');
+            $('#%s').removeClass('panel-open');
+            $('#%s i').removeClass('fa-chevron-left').addClass('fa-chevron-right');
+
+            // Clear temp shape when closing panel
+            if (Shiny && Shiny.setInputValue) {
+              Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+            }
+          }
+        }
+
+        // Close panel button
+        $('#%s').on('click', function() {
+          togglePanel_%s(false);
+        });
+
+        // Panel toggle arrow
+        $('#%s').on('click', function() {
+          var isOpen = $('#%s').hasClass('open');
+          togglePanel_%s(!isOpen);
+        });
+
+        // ESC key to close
+        $(document).on('keydown', function(e) {
+          if (e.key === 'Escape' && $('#%s').hasClass('open')) {
+            togglePanel_%s(false);
+          }
+        });
+
+        // Expose toggle function globally for R to call
+        window.togglePanel_%s = togglePanel_%s;
+      });
+    ",
+      gsub("-", "_", ns("root")),
+      ns("sliding_panel"), ns("main-content"), ns("panel_toggle"), ns("panel_toggle"),
+      ns("sliding_panel"), ns("main-content"), ns("panel_toggle"), ns("panel_toggle"),
+      ns("panel_closed"),
+      ns("close_panel_btn"), gsub("-", "_", ns("root")),
+      ns("panel_toggle"), ns("sliding_panel"), gsub("-", "_", ns("root")),
+      ns("sliding_panel"), gsub("-", "_", ns("root")),
+      gsub("-", "_", ns("root")), gsub("-", "_", ns("root"))
+    )))
   )
 }
 
@@ -413,6 +551,7 @@ test_siloplacements_server <- function(id) {
     # Reactive values
     trigger_refresh <- reactiveVal(0)
     selected_placement_id <- reactiveVal(NULL)
+    pending_placement <- reactiveVal(NULL)  # Store pending placement data before DB insert
     canvas_shapes <- reactiveVal(list())
     current_layout_id <- reactiveVal(1)  # Default to layout 1
     background_image <- reactiveVal(NULL)
@@ -832,9 +971,22 @@ test_siloplacements_server <- function(id) {
 
     # ---- Form schema for placement details ----
     schema_config <- reactive({
-      # Build dropdown choices
-      silo_choices <- c("(select silo)" = "")
+      # Get all silos
       silos <- silos_data()
+
+      # Get all placements for current layout to filter out already-placed silos
+      layout_id <- current_layout_id()
+      placements <- raw_placements()
+
+      # Filter out silos that already have placements in this layout
+      if (nrow(silos) > 0 && nrow(placements) > 0) {
+        placed_silo_ids <- placements$SiloID
+        silos <- silos[!silos$SiloID %in% placed_silo_ids, ]
+        cat("[Canvas Test] Filtered silos - available:", nrow(silos), "already placed:", length(placed_silo_ids), "\n")
+      }
+
+      # Build dropdown choices (only unallocated silos)
+      silo_choices <- c("(select silo)" = "")
       if (nrow(silos) > 0) {
         silo_choices <- c(silo_choices, setNames(
           as.character(silos$SiloID),
@@ -873,17 +1025,32 @@ test_siloplacements_server <- function(id) {
       pid <- selected_placement_id()
 
       if (is.null(pid) || is.na(pid)) {
-        # New placement
-        return(list(
-          SiloID = "",
-          ShapeTemplateID = "",
-          LayoutID = 1,
-          CenterX = 100,
-          CenterY = 100,
-          ZIndex = 0,
-          IsVisible = TRUE,
-          IsInteractive = TRUE
-        ))
+        # New placement - use pending data if available
+        pending <- pending_placement()
+        if (!is.null(pending)) {
+          return(list(
+            SiloID = "",  # User needs to select
+            ShapeTemplateID = as.character(pending$ShapeTemplateID),
+            LayoutID = pending$LayoutID,
+            CenterX = pending$CenterX,
+            CenterY = pending$CenterY,
+            ZIndex = f_or(pending$ZIndex, 0),
+            IsVisible = f_or(pending$IsVisible, TRUE),
+            IsInteractive = f_or(pending$IsInteractive, TRUE)
+          ))
+        } else {
+          # No pending data - empty form
+          return(list(
+            SiloID = "",
+            ShapeTemplateID = "",
+            LayoutID = current_layout_id(),
+            CenterX = 100,
+            CenterY = 100,
+            ZIndex = 0,
+            IsVisible = TRUE,
+            IsInteractive = TRUE
+          ))
+        }
       }
 
       # Existing placement - fetch from DB
@@ -915,9 +1082,21 @@ test_siloplacements_server <- function(id) {
       show_delete_button = TRUE,
       on_save = function(data) {
         tryCatch({
+          is_new_record <- is.null(data$PlacementID) || is.na(data$PlacementID)
+
           saved_id <- upsert_placement(data)
           selected_placement_id(as.integer(saved_id))
           trigger_refresh(trigger_refresh() + 1)
+
+          # Clear pending placement and temp shape if this was a new record
+          if (is_new_record) {
+            pending_placement(NULL)
+            session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+          }
+
+          # Close panel after successful save
+          shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
           showNotification("Placement saved", type = "message", duration = 2)
           return(TRUE)
         }, error = function(e) {
@@ -927,12 +1106,28 @@ test_siloplacements_server <- function(id) {
       },
       on_delete = function() {
         pid <- selected_placement_id()
-        if (is.null(pid) || is.na(pid)) return(FALSE)
 
+        # If it's a new placement (NA), treat as "Reset"
+        if (is.null(pid) || is.na(pid)) {
+          cat("[Canvas Test] Reset clicked - clearing temp shape\n")
+          pending_placement(NULL)
+          session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+
+          # Close panel
+          shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
+          return(TRUE)
+        }
+
+        # Otherwise, it's a real delete
         tryCatch({
           delete_placement(pid)
           selected_placement_id(NULL)
           trigger_refresh(trigger_refresh() + 1)
+
+          # Close panel after deletion
+          shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
           showNotification("Placement deleted", type = "message", duration = 2)
           return(TRUE)
         }, error = function(e) {
@@ -943,6 +1138,18 @@ test_siloplacements_server <- function(id) {
     )
 
     # ---- Toolbar button handlers ----
+
+    # Handle panel close - clear temp shape if not saved
+    observeEvent(input$panel_closed, {
+      cat("[Canvas Test] Panel closed\n")
+
+      # If there's pending placement, clear it and temp shape
+      if (!is.null(pending_placement())) {
+        cat("[Canvas Test] Clearing pending placement and temp shape\n")
+        pending_placement(NULL)
+        session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+      }
+    }, ignoreInit = TRUE)
 
     # Handle canvas click to add placement (namespace is auto-applied, so listen for canvas_add_at not test_canvas_add_at)
     observeEvent(input$canvas_add_at, {
@@ -956,7 +1163,7 @@ test_siloplacements_server <- function(id) {
         return()
       }
 
-      cat("[Canvas Test] Adding placement at:", click_data$x, click_data$y, "template:", click_data$templateId, "\n")
+      cat("[Canvas Test] Preparing new placement at:", click_data$x, click_data$y, "template:", click_data$templateId, "\n")
 
       # Get current layout
       layout_id <- current_layout_id()
@@ -965,11 +1172,19 @@ test_siloplacements_server <- function(id) {
         return()
       }
 
-      # TODO: Open silo selector or use default
-      # For now, we'll need to prompt the user to select a silo
-      # Create placement with dummy silo (will be updated via form)
-      new_placement <- list(
-        SiloID = 1,  # Default - user will select via form
+      # Find the template to get shape type and dimensions
+      templates <- shape_templates_data()
+      template <- templates[templates$ShapeTemplateID == as.integer(click_data$templateId), ]
+
+      if (nrow(template) == 0) {
+        showNotification("Template not found", type = "error")
+        return()
+      }
+
+      shape_type <- template$ShapeType[1]
+
+      # Store pending placement data (NOT inserted to DB yet)
+      pending_placement(list(
         LayoutID = layout_id,
         ShapeTemplateID = as.integer(click_data$templateId),
         CenterX = as.numeric(click_data$x),
@@ -977,28 +1192,58 @@ test_siloplacements_server <- function(id) {
         ZIndex = 0,
         IsVisible = TRUE,
         IsInteractive = TRUE
+      ))
+
+      # Build temp shape for canvas
+      temp_shape <- if (shape_type == "CIRCLE") {
+        radius <- as.numeric(f_or(template$Radius[1], 20))
+        list(
+          type = "circle",
+          x = as.numeric(click_data$x),
+          y = as.numeric(click_data$y),
+          r = radius,
+          label = "New"
+        )
+      } else {
+        width <- as.numeric(f_or(template$Width[1], 40))
+        height <- as.numeric(f_or(template$Height[1], 40))
+        list(
+          type = "rect",
+          x = as.numeric(click_data$x) - width / 2,
+          y = as.numeric(click_data$y) - height / 2,
+          w = width,
+          h = height,
+          label = "New"
+        )
+      }
+
+      # Send temp shape to canvas (dotted border)
+      session$sendCustomMessage(paste0(ns("root"), ":setTempShape"), list(shape = temp_shape))
+
+      # Set to "new placement" mode
+      selected_placement_id(NA)
+
+      # Deselect shape template and clear cursor
+      updateSelectInput(session, "shape_template_id", selected = "")
+      session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(shapeType = "default"))
+      cat("[Canvas Test] Shape template deselected, cursor reset\n")
+
+      # Open panel in edit mode for new placement
+      # Send custom message to open panel and trigger edit mode after animation
+      module_id_form <- ns("form")
+      module_id_js <- gsub("-", "_", module_id_form)
+      root_id_js <- gsub("-", "_", ns("root"))
+
+      session$sendCustomMessage(
+        type = paste0(ns("root"), ":openPanelInEditMode"),
+        message = list(
+          rootId = root_id_js,
+          formId = module_id_form,
+          formIdJs = module_id_js
+        )
       )
 
-      tryCatch({
-        new_id <- upsert_placement(new_placement)
-        cat("[Canvas Test] Placement created with ID:", new_id, "\n")
-
-        selected_placement_id(as.integer(new_id))
-
-        # Force refresh to show new placement on canvas
-        old_refresh <- trigger_refresh()
-        trigger_refresh(old_refresh + 1)
-        cat("[Canvas Test] Triggered refresh from", old_refresh, "to", old_refresh + 1, "\n")
-
-        # Deselect shape template to revert cursor and prevent duplicate clicks
-        updateSelectInput(session, "shape_template_id", selected = "")
-        cat("[Canvas Test] Shape template deselected\n")
-
-        showNotification("Placement added - select silo in form", type = "message", duration = 3)
-      }, error = function(e) {
-        showNotification(paste("Error adding placement:", conditionMessage(e)), type = "error")
-        cat("[Canvas Test] Error:", conditionMessage(e), "\n")
-      })
+      cat("[Canvas Test] Panel opened with temp shape on canvas\n")
     }, ignoreInit = TRUE)
 
     observeEvent(input$duplicate, {
@@ -1052,6 +1297,21 @@ test_siloplacements_server <- function(id) {
       sel_id <- input$canvas_selection
       if (!is.null(sel_id) && nzchar(sel_id)) {
         selected_placement_id(as.integer(sel_id))
+
+        # Open panel to show placement details
+        shinyjs::runjs(sprintf("window.togglePanel_%s(true);", gsub("-", "_", ns("root"))))
+
+        # Ensure button says "Delete" for existing placement
+        module_id_form <- ns("form")
+        shinyjs::delay(300, {
+          shinyjs::runjs(sprintf("
+            const deleteBtn = document.querySelector('#%s .btn-delete span');
+            if (deleteBtn) {
+              deleteBtn.textContent = ' Delete';
+              console.log('[Canvas] Button set to Delete for existing placement');
+            }
+          ", module_id_form))
+        })
       }
     }, ignoreInit = TRUE)
 

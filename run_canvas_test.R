@@ -20,7 +20,7 @@ source("R/react_table/react_table_auto.R", local = TRUE)
 source("R/react_table/html_form_renderer.R", local = TRUE)
 source("R/react_table/mod_html_form.R", local = TRUE)
 source("R/test_siloplacements_canvas.R", local = TRUE)
-
+#source("sandbox_panel.R", local = TRUE)
 cat("\n=== Launching SiloPlacements Canvas Test ===\n")
 cat("Canvas + React Table for placement management\n\n")
 

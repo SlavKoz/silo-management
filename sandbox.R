@@ -1,167 +1,211 @@
 #!/usr/bin/env Rscript
-# Minimal test for click-to-add placements
+# Sandbox for sliding panel with React Table
 
 library(shiny)
+library(shiny.semantic)
 library(shinyjs)
 
+# Load modules
+source("R/utils/f_helper_core.R", local = TRUE)
+source("R/react_table/mod_react_table.R", local = TRUE)
+
 # UI
-ui <- fluidPage(
+ui <- semanticPage(
   useShinyjs(),
+  
   tags$head(
-    tags$script(HTML("
-      var shapes = [];
-
-      function drawCanvas() {
-        var canvas = document.getElementById('test_canvas');
-        var ctx = canvas.getContext('2d');
-
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Draw all shapes
-        shapes.forEach(function(shape) {
-          console.log('[Sandbox] Drawing shape:', shape);
-
-          if (shape.template === 'circle_20') {
-            ctx.beginPath();
-            ctx.arc(shape.x, shape.y, 20, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          } else if (shape.template === 'rect_60_30') {
-            ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
-            ctx.fillRect(shape.x - 30, shape.y - 15, 60, 30);
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(shape.x - 30, shape.y - 15, 60, 30);
-          }
-        });
-
-        console.log('[Sandbox] Canvas redrawn with', shapes.length, 'shapes');
+    tags$style(HTML("
+      body {
+        overflow: hidden !important;
       }
 
-      $(document).ready(function() {
-        // Simple canvas click handler
-        $('#test_canvas').on('click', function(e) {
-          var rect = this.getBoundingClientRect();
-          var x = e.clientX - rect.left;
-          var y = e.clientY - rect.top;
+      .main-content {
+        margin-right: 0 !important;
+        transition: margin-right 0.5s ease;
+      }
 
-          console.log('[Sandbox] Canvas clicked at:', x, y);
-          console.log('[Sandbox] Shape template:', $('#shape_template').val());
+      .main-content.panel-open {
+        margin-right: 400px;
+      }
 
-          // Send to Shiny
-          var template = $('#shape_template').val();
-          if (template && template !== '') {
-            console.log('[Sandbox] Sending to Shiny input: canvas_click_add');
-            Shiny.setInputValue('canvas_click_add', {
-              x: x,
-              y: y,
-              template: template
-            }, {priority: 'event'});
-          } else {
-            console.log('[Sandbox] No template selected');
-          }
-        });
-      });
+      .sliding-panel {
+        position: fixed;
+        top: 0;
+        right: -400px;
+        width: 400px;
+        height: 100vh;
+        background: white;
+        box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+        transition: right 0.5s ease;
+        z-index: 1000;
+        overflow-y: auto;
+      }
 
-      // Handler to receive shapes from R
-      Shiny.addCustomMessageHandler('updateShapes', function(data) {
-        console.log('[Sandbox] Received shapes from R:', data);
-        shapes = data;
-        drawCanvas();
-      });
+      .sliding-panel.open {
+        right: 0;
+      }
+
+      .panel-toggle {
+        position: fixed;
+        top: 50%;
+        right: 0;
+        transform: translateY(-50%);
+        width: 30px;
+        height: 80px;
+        background: #2185d0;
+        color: white;
+        border: none;
+        border-radius: 4px 0 0 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+        transition: right 0.5s ease;
+        font-size: 18px;
+      }
+
+      .panel-toggle.panel-open {
+        right: 400px;
+      }
+
+      .panel-toggle:hover {
+        background: #1678c2;
+      }
+
+      .panel-header {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .panel-content {
+        padding: 1rem;
+      }
+
+      .test-canvas {
+        border: 2px solid #333;
+        background: #f8f9fa;
+        cursor: crosshair;
+      }
     "))
   ),
-
-  titlePanel("Click-to-Add Test"),
-
-  div(style = "padding: 1rem; background: #e9ecef; margin-bottom: 1rem;",
-    tags$label("Shape Template:"),
-    selectInput("shape_template", label = NULL,
-                choices = c("(select)" = "", "Circle 20px" = "circle_20", "Rectangle 60x30" = "rect_60_30"),
-                width = "200px")
+  
+  # Main content
+  div(class = "main-content", id = "main-content",
+      div(class = "ui container", style = "padding: 2rem;",
+          h2(class = "ui header", "Sliding Panel Test"),
+          
+          actionButton("open_panel_btn", "Open Panel", class = "ui primary button"),
+          
+          div(style = "margin-top: 2rem;",
+              tags$canvas(id = "test_canvas", class = "test-canvas", width = 800, height = 400)
+          )
+      )
   ),
-
-  div(style = "margin-bottom: 1rem;",
-    tags$canvas(id = "test_canvas", width = 800, height = 400,
-                style = "border: 2px solid #333; background: #f8f9fa; cursor: crosshair;")
+  
+  # Panel toggle arrow (visible when panel closed)
+  tags$button(id = "panel_toggle", class = "panel-toggle",
+              icon("chevron left")
   ),
+  
+  # Sliding panel
+  div(id = "sliding_panel", class = "sliding-panel",
+      div(class = "panel-header",
+          h3(class = "ui header", style = "margin: 0;", "Placement React Table"),
+          actionButton("close_panel_btn", "", icon = icon("times"),
+                       class = "ui icon button", style = "margin: 0;")
+      ),
+      div(class = "panel-content",
+          react_table_ui("silo_table", height = "calc(100vh - 160px)")
+      )
+  ),
+  
+  tags$script(HTML("
+    $(document).ready(function() {
+      // Toggle panel
+      function togglePanel(open) {
+        if (open) {
+          $('#sliding_panel').addClass('open');
+          $('#main-content').addClass('panel-open');
+          $('#panel_toggle').addClass('panel-open');
+          $('#panel_toggle i').removeClass('chevron left').addClass('chevron right');
+        } else {
+          $('#sliding_panel').removeClass('open');
+          $('#main-content').removeClass('panel-open');
+          $('#panel_toggle').removeClass('panel-open');
+          $('#panel_toggle i').removeClass('chevron right').addClass('chevron left');
+        }
+      }
 
-  div(class = "info-box", style = "padding: 1rem; background: #fff; border: 1px solid #ddd;",
-    h4("Debug Info:"),
-    verbatimTextOutput("debug_info")
-  )
+      // Open panel button
+      $('#open_panel_btn').on('click', function() {
+        togglePanel(true);
+      });
+
+      // Close panel button
+      $('#close_panel_btn').on('click', function() {
+        togglePanel(false);
+      });
+
+      // Panel toggle arrow
+      $('#panel_toggle').on('click', function() {
+        var isOpen = $('#sliding_panel').hasClass('open');
+        togglePanel(!isOpen);
+      });
+
+      // ESC key to close
+      $(document).on('keydown', function(e) {
+        if (e.key === 'Escape' && $('#sliding_panel').hasClass('open')) {
+          togglePanel(false);
+        }
+      });
+    });
+  "))
 )
 
 # Server
 server <- function(input, output, session) {
-
-  # Track shapes
-  shapes_list <- reactiveVal(list())
-  click_count <- reactiveVal(0)
-  last_click <- reactiveVal(NULL)
-
-  # Handle canvas click
-  observeEvent(input$canvas_click_add, {
-    cat("\n[Sandbox R] *** observeEvent FIRED ***\n")
-
-    click_data <- input$canvas_click_add
-    cat("[Sandbox R] Received data:", !is.null(click_data), "\n")
-
-    if (!is.null(click_data)) {
-      cat("[Sandbox R] Click at:", click_data$x, click_data$y, "template:", click_data$template, "\n")
-
-      # Add new shape to list
-      current_shapes <- shapes_list()
-      new_shape <- list(
-        x = click_data$x,
-        y = click_data$y,
-        template = click_data$template
-      )
-      current_shapes[[length(current_shapes) + 1]] <- new_shape
-      shapes_list(current_shapes)
-
-      cat("[Sandbox R] Total shapes:", length(current_shapes), "\n")
-      cat("[Sandbox R] Sending shapes to JavaScript\n")
-
-      # Send updated shapes to JavaScript
-      session$sendCustomMessage("updateShapes", current_shapes)
-
-      click_count(click_count() + 1)
-      last_click(click_data)
-
-      showNotification(
-        paste0("Added ", click_data$template, " at (", round(click_data$x), ", ", round(click_data$y), ")"),
-        type = "message",
-        duration = 2
-      )
-    }
-  }, ignoreInit = TRUE)
-
-  # Display debug info
-  output$debug_info <- renderText({
-    paste0(
-      "Selected Template: ", ifelse(is.null(input$shape_template), "NULL", input$shape_template), "\n",
-      "Click Count: ", click_count(), "\n",
-      "Shapes Count: ", length(shapes_list()), "\n",
-      "Last Click: ", if (!is.null(last_click())) {
-        paste0("(", last_click()$x, ", ", last_click()$y, ") - ", last_click()$template)
-      } else {
-        "None"
-      }
-    )
-  })
+  
+  sample_columns <- list(
+    list(id = "PlacementID", label = "ID", width = 80, type = "number"),
+    list(id = "PlacementName", label = "Placement", width = 180),
+    list(id = "Status", label = "Status", width = 120),
+    list(id = "UpdatedAt", label = "Updated", width = 180)
+  )
+  
+  sample_data <- data.frame(
+    PlacementID = 1:6,
+    PlacementName = c(
+      "North Hopper",
+      "South Hopper",
+      "West Feed",
+      "Main Intake",
+      "Aux Mixer",
+      "Cooling Bin"
+    ),
+    Status = c("Active", "Paused", "Active", "Maintenance", "Active", "Offline"),
+    UpdatedAt = format(Sys.time() - c(1200, 3600, 7200, 10800, 20000, 40000), "%Y-%m-%d %H:%M"),
+    stringsAsFactors = FALSE
+  )
+  
+  react_table_server(
+    "silo_table",
+    columns = sample_columns,
+    data_fn = function() sample_data,
+    key = "PlacementID",
+    selection = "single"
+  )
 }
 
-cat("\n=== Click-to-Add Sandbox Test ===\n")
-cat("1. Select a shape template from dropdown\n")
-cat("2. Click anywhere on the canvas\n")
-cat("3. Watch console for:\n")
-cat("   - Browser console: [Sandbox] messages\n")
-cat("   - R console: [Sandbox R] messages\n")
-cat("4. If observeEvent fires, you'll see notification\n\n")
+cat("\n=== Sliding Panel Sandbox ===\n")
+cat("1. Click 'Open Panel' button or arrow on right side\n")
+cat("2. Panel slides in from right (400px width)\n")
+cat("3. Contains React Table with placement sample data\n")
+cat("4. Close with X button, arrow, or ESC key\n")
+cat("5. Panel slides out smoothly\n\n")
 
 shinyApp(ui, server, options = list(launch.browser = TRUE))

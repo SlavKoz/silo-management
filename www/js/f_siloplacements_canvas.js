@@ -104,6 +104,7 @@
         ctx: ctx,
         ns: ns,
         shapes: [],
+        tempShape: null,  // Temporary shape with dotted border (before saving)
         selectedId: null,
         isDragging: false,
         dragStart: null,
@@ -457,6 +458,53 @@
       ctx.restore();
     });
 
+    // Draw temporary shape (with dotted border)
+    if (state.tempShape) {
+      const shape = state.tempShape;
+      ctx.save();
+
+      // Set dotted line style
+      ctx.setLineDash([5, 5]);
+
+      if (shape.type === 'circle') {
+        ctx.beginPath();
+        ctx.arc(shape.x, shape.y, shape.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw label
+        if (shape.label) {
+          ctx.setLineDash([]);  // Solid for text
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#666';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(shape.label, shape.x, shape.y);
+        }
+      } else if (shape.type === 'rect') {
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.1)';
+        ctx.fillRect(shape.x, shape.y, shape.w, shape.h);
+        ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(shape.x, shape.y, shape.w, shape.h);
+
+        // Draw label
+        if (shape.label) {
+          ctx.setLineDash([]);  // Solid for text
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#666';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(shape.label, shape.x + shape.w / 2, shape.y + shape.h / 2);
+        }
+      }
+
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 
@@ -733,6 +781,99 @@
     }
 
     updateShapeCursor(state);
+  });
+
+  // Set temporary shape (shown with dotted border before saving)
+  Shiny.addCustomMessageHandler('test-root:setTempShape', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+
+    if (!state) {
+      console.error('[Canvas] State not found for setTempShape');
+      return;
+    }
+
+    console.log('[Canvas] setTempShape received:', message);
+
+    state.tempShape = message.shape;
+    render(state);
+
+    console.log('[Canvas] Temporary shape set');
+  });
+
+  // Clear temporary shape
+  Shiny.addCustomMessageHandler('test-root:clearTempShape', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+
+    if (!state) {
+      console.error('[Canvas] State not found for clearTempShape');
+      return;
+    }
+
+    console.log('[Canvas] clearTempShape called');
+
+    state.tempShape = null;
+    render(state);
+
+    console.log('[Canvas] Temporary shape cleared');
+  });
+
+  // Open panel in edit mode for new placement
+  Shiny.addCustomMessageHandler('test-root:openPanelInEditMode', function(message) {
+    console.log('[Canvas] openPanelInEditMode received:', message);
+
+    const rootId = message.rootId;
+    const formId = message.formId;
+    const formIdJs = message.formIdJs;
+
+    // Open the panel
+    const toggleFn = window['togglePanel_' + rootId];
+    if (toggleFn) {
+      toggleFn(true);
+      console.log('[Canvas] Panel opened');
+    } else {
+      console.error('[Canvas] togglePanel function not found:', 'togglePanel_' + rootId);
+      return;
+    }
+
+    // Wait for panel animation to complete (500ms) + small buffer for form render
+    setTimeout(function() {
+      console.log('[Canvas] Attempting to toggle edit mode after animation...');
+      console.log('[Canvas] Looking for form:', '#' + formId);
+      console.log('[Canvas] Looking for edit button:', '#' + formId + ' .btn-edit');
+      console.log('[Canvas] Looking for delete button:', '#' + formId + ' .btn-delete span');
+
+      const form = document.querySelector('#' + formId);
+      console.log('[Canvas] Form found:', !!form);
+
+      const editBtn = document.querySelector('#' + formId + ' .btn-edit');
+      console.log('[Canvas] Edit button found:', !!editBtn);
+
+      const deleteBtn = document.querySelector('#' + formId + ' .btn-delete span');
+      console.log('[Canvas] Delete button found:', !!deleteBtn);
+
+      // Toggle edit mode
+      const toggleEditFn = window['toggleEditMode_' + formIdJs];
+      if (toggleEditFn) {
+        if (editBtn) {
+          toggleEditFn(editBtn);
+          console.log('[Canvas] Edit mode toggled for new placement');
+        } else {
+          console.error('[Canvas] Edit button not found!');
+        }
+      } else {
+        console.error('[Canvas] toggleEditMode function not found:', 'toggleEditMode_' + formIdJs);
+      }
+
+      // Change delete button text to Reset
+      if (deleteBtn) {
+        deleteBtn.textContent = ' Reset';
+        console.log('[Canvas] Button changed to Reset');
+      } else {
+        console.error('[Canvas] Delete button not found!');
+      }
+    }, 700);  // 500ms panel animation + 200ms buffer
   });
 
 })();
