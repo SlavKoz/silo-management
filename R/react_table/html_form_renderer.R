@@ -8,7 +8,7 @@ if (!exists("div", mode = "function")) {
 }
 
 # Helper operator - use f_or if available, otherwise define
-render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_header = TRUE, title_field = NULL, module_id = NULL, show_footer = TRUE, on_delete = NULL, delete_disabled = FALSE) {
+render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_header = TRUE, title_field = NULL, module_id = NULL, show_footer = TRUE, on_delete = NULL, delete_disabled = FALSE, initial_mode = "locked") {
   if (is.null(schema) || is.null(schema$properties)) {
     return(div("No schema provided"))
   }
@@ -48,7 +48,7 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
     field_column <- max(1, min(columns, field_column))  # Clamp to valid range
 
     # Add rendered field to the appropriate column
-    rendered <- render_field(fname, field_schema, field_ui, field_value, ns_prefix)
+    rendered <- render_field(fname, field_schema, field_ui, field_value, ns_prefix, initial_mode)
     column_fields[[field_column]][[length(column_fields[[field_column]]) + 1]] <- rendered
   }
 
@@ -71,15 +71,23 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
         ),
         tags$button(
           type = "button",
-          class = "btn btn-edit-toggle",
+          class = paste("btn btn-edit-toggle", if (initial_mode == "edit") "editing" else ""),
           id = paste0(ns_prefix, "edit_btn"),
           onclick = if (!is.null(module_id)) {
             sprintf("toggleEditMode_%s(this)", gsub("-", "_", module_id))
           } else {
             "toggleEditMode(this)"  # Fallback for legacy usage
           },
-          tags$i(class = "bi bi-pencil-square"),
-          tags$span(" Edit")
+          if (initial_mode == "edit") {
+            tags$i(class = "bi bi-floppy")
+          } else {
+            tags$i(class = "bi bi-pencil-square")
+          },
+          if (initial_mode == "edit") {
+            tags$span(" Save")
+          } else {
+            tags$span(" Edit")
+          }
         )
       )
     )
@@ -112,9 +120,11 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
   }
 
   # Wrap in columns dynamically with frame
+  wrapper_class <- paste("form-wrapper border rounded p-3", if (initial_mode == "edit") "edit-mode" else "")
+
   if (columns == 1) {
     # Single column - no grid needed
-    div(class = "form-wrapper border rounded p-3",
+    div(class = wrapper_class,
       header_html,
       div(column_fields[[1]]),
       footer_html
@@ -139,7 +149,7 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
     })
 
     # Wrap everything in a frame
-    div(class = "form-wrapper border rounded p-3",
+    div(class = wrapper_class,
       header_html,
       div(class = "row flex-nowrap", column_divs),
       footer_html
@@ -147,7 +157,7 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
   }
 }
 
-render_field <- function(name, schema, ui, value, ns_prefix) {
+render_field <- function(name, schema, ui, value, ns_prefix, initial_mode = "locked") {
   type <- f_or(schema$type, "string")
   title <- f_or(schema$title, name)
   widget <- f_or(ui[["ui:widget"]], NULL)
@@ -296,7 +306,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
     select_element <- tags$select(
       id = input_id,
       class = select_class,
-      disabled = "disabled",
+      disabled = if (initial_mode == "locked") "disabled" else NULL,
       `data-required` = if (is_required) "true" else NULL,
       `data-required-if` = required_if_attr,
       options_list

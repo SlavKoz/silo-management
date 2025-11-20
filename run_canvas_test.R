@@ -25,3 +25,4 @@ cat("\n=== Launching SiloPlacements Canvas Test ===\n")
 cat("Canvas + React Table for placement management\n\n")
 
 run_siloplacements_canvas_test()
+

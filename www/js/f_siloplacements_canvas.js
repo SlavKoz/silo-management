@@ -17,17 +17,22 @@
     const template = state.selectedShapeTemplate;
     const shapeType = template.shapeType;
     const zoom = state.zoom;
+    const MAX_CURSOR = 120; // Browser cursor limit ~128px, use 120 for safety
 
-    // Calculate ACTUAL cursor size based on zoom (no artificial clamping)
     let cursorSize, centerX, centerY, svg;
 
     if (shapeType === 'CIRCLE') {
       const radius = template.radius || 20;
       const scaledRadius = radius * zoom;
 
-      // Minimal clamping for visibility (2px minimum, 200px max for browser compatibility)
-      const displayRadius = Math.max(2, Math.min(200, scaledRadius));
-      cursorSize = displayRadius * 2 + 4; // +4 for stroke
+      // Calculate needed cursor size
+      const neededSize = scaledRadius * 2 + 4;
+
+      // Scale down proportionally if too large
+      const scaleFactor = neededSize > MAX_CURSOR ? MAX_CURSOR / neededSize : 1;
+      const displayRadius = scaledRadius * scaleFactor;
+
+      cursorSize = Math.min(neededSize, MAX_CURSOR);
       centerX = centerY = cursorSize / 2;
 
       svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cursorSize}" height="${cursorSize}">
@@ -40,10 +45,15 @@
       const scaledWidth = width * zoom;
       const scaledHeight = height * zoom;
 
-      // Minimal clamping for browser compatibility
-      const displayWidth = Math.max(4, Math.min(200, scaledWidth));
-      const displayHeight = Math.max(4, Math.min(200, scaledHeight));
-      cursorSize = Math.max(displayWidth, displayHeight) + 4;
+      // Calculate needed cursor size
+      const neededSize = Math.max(scaledWidth, scaledHeight) + 4;
+
+      // Scale down proportionally if too large
+      const scaleFactor = neededSize > MAX_CURSOR ? MAX_CURSOR / neededSize : 1;
+      const displayWidth = scaledWidth * scaleFactor;
+      const displayHeight = scaledHeight * scaleFactor;
+
+      cursorSize = Math.min(neededSize, MAX_CURSOR);
       centerX = cursorSize / 2;
       centerY = cursorSize / 2;
 
@@ -58,8 +68,14 @@
       const radius = template.radius || 20;
       const scaledRadius = radius * zoom;
 
-      const displayRadius = Math.max(2, Math.min(200, scaledRadius));
-      cursorSize = displayRadius * 2 + 4;
+      // Calculate needed cursor size
+      const neededSize = scaledRadius * 2 + 4;
+
+      // Scale down proportionally if too large
+      const scaleFactor = neededSize > MAX_CURSOR ? MAX_CURSOR / neededSize : 1;
+      const displayRadius = scaledRadius * scaleFactor;
+
+      cursorSize = Math.min(neededSize, MAX_CURSOR);
       centerX = centerY = cursorSize / 2;
 
       // Triangle points (equilateral, pointing up)
@@ -81,8 +97,6 @@
 
     const url = 'data:image/svg+xml;base64,' + btoa(svg);
     state.canvas.style.cursor = `url('${url}') ${centerX} ${centerY}, crosshair`;
-
-    console.log('[Canvas] Cursor updated - type:', shapeType, 'zoom:', zoom.toFixed(2), 'size:', cursorSize.toFixed(0), 'actual dims:', template);
   }
 
   // Initialize canvas when DOM ready
@@ -95,8 +109,6 @@
 
       // Get namespace (remove -canvas suffix)
       const ns = canvasId.replace(/-canvas$/, '');
-
-      console.log('[Canvas] Initializing - canvasId:', canvasId, 'ns:', ns);
 
       // Initialize state
       const state = {
@@ -135,16 +147,17 @@
 
       // Set up event listeners
       setupCanvasEvents(canvas, state);
-
-      console.log('[Canvas] Initialized:', canvasId);
     });
 
     // Global ESC key handler to deselect shape template
     $(document).on('keydown', function(e) {
       if (e.key === 'Escape') {
+        console.log('[Cursor] ESC pressed - resetting cursor');
         // Find the shape template selector and reset it
         $('#test-shape_template_id').val('').trigger('change');
-        console.log('[Canvas] ESC pressed - shape deselected');
+
+        // Also send cursor reset message directly
+        Shiny.setInputValue('test-esc_pressed', Date.now(), {priority: 'event'});
       }
     });
   });
@@ -183,14 +196,9 @@
       const x = (canvasX - state.panX) / state.zoom;
       const y = (canvasY - state.panY) / state.zoom;
 
-      console.log('[Canvas] Click at canvas:', canvasX.toFixed(0), canvasY.toFixed(0), 'world:', x.toFixed(0), y.toFixed(0));
-      console.log('[Canvas] Has template?', !!state.selectedShapeTemplate, state.selectedShapeTemplate);
-
       // If shape template selected, add new placement at click location
       if (state.selectedShapeTemplate) {
         const inputName = state.ns + '-canvas_add_at';
-        console.log('[Canvas] Adding placement at:', x.toFixed(2), y.toFixed(2), 'template:', state.selectedShapeTemplate.templateId);
-        console.log('[Canvas] Sending to Shiny input:', inputName);
 
         Shiny.setInputValue(inputName, {
           x: x,
@@ -202,7 +210,6 @@
 
       // Otherwise, select existing shape
       const clickedShape = findShapeAtPoint(state.shapes, x, y);
-      console.log('[Canvas] Clicked shape:', clickedShape ? clickedShape.id : 'none');
 
       if (clickedShape) {
         state.selectedId = clickedShape.id;
@@ -358,6 +365,22 @@
         if (dist <= s.r) return s;
       } else if (s.type === 'rect') {
         if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return s;
+      } else if (s.type === 'triangle') {
+        // Point-in-triangle test using barycentric coordinates
+        const r = s.r || 20;
+        const p1x = s.x;
+        const p1y = s.y - r;
+        const p2x = s.x - r * 0.866;
+        const p2y = s.y + r * 0.5;
+        const p3x = s.x + r * 0.866;
+        const p3y = s.y + r * 0.5;
+
+        const denom = ((p2y - p3y) * (p1x - p3x) + (p3x - p2x) * (p1y - p3y));
+        const a = ((p2y - p3y) * (x - p3x) + (p3x - p2x) * (y - p3y)) / denom;
+        const b = ((p3y - p1y) * (x - p3x) + (p1x - p3x) * (y - p3y)) / denom;
+        const c = 1 - a - b;
+
+        if (a >= 0 && a <= 1 && b >= 0 && b <= 1 && c >= 0 && c <= 1) return s;
       }
     }
     return null;
@@ -453,6 +476,36 @@
           ctx.textBaseline = 'middle';
           ctx.fillText(shape.label, shape.x + shape.w / 2, shape.y + shape.h / 2);
         }
+      } else if (shape.type === 'triangle') {
+        // Draw equilateral triangle pointing up
+        const r = shape.r || 20;
+        const p1x = shape.x;
+        const p1y = shape.y - r;
+        const p2x = shape.x - r * 0.866;
+        const p2y = shape.y + r * 0.5;
+        const p3x = shape.x + r * 0.866;
+        const p3y = shape.y + r * 0.5;
+
+        ctx.beginPath();
+        ctx.moveTo(p1x, p1y);
+        ctx.lineTo(p2x, p2y);
+        ctx.lineTo(p3x, p3y);
+        ctx.closePath();
+
+        ctx.fillStyle = shape.fill || 'rgba(168, 85, 247, 0.2)';
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? 'rgba(239, 68, 68, 0.9)' : (shape.stroke || 'rgba(168, 85, 247, 0.8)');
+        ctx.lineWidth = isSelected ? 3 : (shape.strokeWidth || 2);
+        ctx.stroke();
+
+        // Draw label
+        if (shape.label) {
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#333';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(shape.label, shape.x, shape.y);
+        }
       }
 
       ctx.restore();
@@ -499,6 +552,37 @@
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(shape.label, shape.x + shape.w / 2, shape.y + shape.h / 2);
+        }
+      } else if (shape.type === 'triangle') {
+        // Draw equilateral triangle pointing up
+        const r = shape.r || 20;
+        const p1x = shape.x;
+        const p1y = shape.y - r;
+        const p2x = shape.x - r * 0.866;
+        const p2y = shape.y + r * 0.5;
+        const p3x = shape.x + r * 0.866;
+        const p3y = shape.y + r * 0.5;
+
+        ctx.beginPath();
+        ctx.moveTo(p1x, p1y);
+        ctx.lineTo(p2x, p2y);
+        ctx.lineTo(p3x, p3y);
+        ctx.closePath();
+
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.1)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw label
+        if (shape.label) {
+          ctx.setLineDash([]);  // Solid for text
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#666';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(shape.label, shape.x, shape.y);
         }
       }
 
@@ -549,8 +633,6 @@
     state.shapes = message.data || [];
     render(state);
 
-    console.log('[Canvas] Loaded', state.shapes.length, 'shapes');
-
     // Auto-fit if requested
     if (message.autoFit && state.shapes.length > 0) {
       setTimeout(function() {
@@ -572,8 +654,6 @@
     if (!state.selectedShapeTemplate) {
       state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
     }
-
-    console.log('[Canvas] Edit mode:', state.editMode, 'has template:', !!state.selectedShapeTemplate);
   });
 
   // Custom message handler: set snap grid
@@ -585,8 +665,6 @@
 
     state.snapGrid = message.units || 0;
     render(state);
-
-    console.log('[Canvas] Snap grid:', state.snapGrid);
   });
 
   // Fit view function
@@ -626,22 +704,14 @@
 
     render(state);
     updateShapeCursor(state); // Update cursor size with new zoom
-    console.log('[Canvas] Fit view - zoom:', state.zoom.toFixed(2), 'center:', centerX.toFixed(0), centerY.toFixed(0));
   }
 
   // Custom message handler: fit view
   Shiny.addCustomMessageHandler('test-root:fitView', function(message) {
-    console.log('[Canvas] Fit view handler called');
     const canvasId = 'test-canvas';
-    console.log('[Canvas] Looking for canvas:', canvasId);
-    console.log('[Canvas] Available canvases:', Array.from(canvases.keys()));
     const state = canvases.get(canvasId);
-    console.log('[Canvas] State found:', state ? 'yes' : 'no');
     if (state) {
-      console.log('[Canvas] Calling fitView with', state.shapes.length, 'shapes');
       fitView(state);
-    } else {
-      console.error('[Canvas] State not found for:', canvasId);
     }
   });
 
@@ -664,7 +734,6 @@
     img.onload = function() {
       state.backgroundImage = img;
       state.backgroundLoaded = true;
-      console.log('[Canvas] Background image loaded:', img.width, 'x', img.height);
       render(state);
     };
     img.onerror = function() {
@@ -733,18 +802,15 @@
 
   // Custom message handler: zoom
   Shiny.addCustomMessageHandler('test-root:setZoom', function(message) {
-    console.log('[Canvas] Zoom handler called, direction:', message.direction);
     const canvasId = 'test-canvas';
     const state = canvases.get(canvasId);
 
     if (!state) {
-      console.error('[Canvas] State not found for zoom');
       return;
     }
 
     const direction = message.direction; // 'in' or 'out'
     const factor = direction === 'in' ? 1.2 : 0.8;
-    console.log('[Canvas] Current zoom:', state.zoom, 'factor:', factor);
 
     // Zoom towards center
     const centerX = state.canvas.width / 2;
@@ -755,29 +821,27 @@
     state.panY = centerY - (centerY - state.panY) * (newZoom / state.zoom);
     state.zoom = newZoom;
 
-    console.log('[Canvas] New zoom:', state.zoom);
     render(state);
     updateShapeCursor(state); // Update cursor size with new zoom
   });
 
   // Custom message handler: set shape cursor
   Shiny.addCustomMessageHandler('test-root:setShapeCursor', function(message) {
+    console.log('[Cursor] Received setShapeCursor message:', message);
     const canvasId = 'test-canvas';
     const state = canvases.get(canvasId);
 
     if (!state) {
-      console.error('[Canvas] State not found for setShapeCursor');
+      console.warn('[Cursor] Canvas state not found');
       return;
     }
 
-    console.log('[Canvas] setShapeCursor received:', message);
-
     if (message.shapeType === 'default') {
+      console.log('[Cursor] Setting to default cursor');
       state.selectedShapeTemplate = null;
-      console.log('[Canvas] Template cleared');
     } else {
+      console.log('[Cursor] Setting shape template:', message.shapeType);
       state.selectedShapeTemplate = message;
-      console.log('[Canvas] Template set:', message.shapeType, 'ID:', message.templateId);
     }
 
     updateShapeCursor(state);
@@ -789,16 +853,11 @@
     const state = canvases.get(canvasId);
 
     if (!state) {
-      console.error('[Canvas] State not found for setTempShape');
       return;
     }
 
-    console.log('[Canvas] setTempShape received:', message);
-
     state.tempShape = message.shape;
     render(state);
-
-    console.log('[Canvas] Temporary shape set');
   });
 
   // Clear temporary shape
@@ -807,22 +866,15 @@
     const state = canvases.get(canvasId);
 
     if (!state) {
-      console.error('[Canvas] State not found for clearTempShape');
       return;
     }
 
-    console.log('[Canvas] clearTempShape called');
-
     state.tempShape = null;
     render(state);
-
-    console.log('[Canvas] Temporary shape cleared');
   });
 
   // Open panel in edit mode for new placement
   Shiny.addCustomMessageHandler('test-root:openPanelInEditMode', function(message) {
-    console.log('[Canvas] openPanelInEditMode received:', message);
-
     const rootId = message.rootId;
     const formId = message.formId;
     const formIdJs = message.formIdJs;
@@ -831,49 +883,128 @@
     const toggleFn = window['togglePanel_' + rootId];
     if (toggleFn) {
       toggleFn(true);
-      console.log('[Canvas] Panel opened');
     } else {
-      console.error('[Canvas] togglePanel function not found:', 'togglePanel_' + rootId);
       return;
     }
 
-    // Wait for panel animation to complete (500ms) + small buffer for form render
-    setTimeout(function() {
-      console.log('[Canvas] Attempting to toggle edit mode after animation...');
-      console.log('[Canvas] Looking for form:', '#' + formId);
-      console.log('[Canvas] Looking for edit button:', '#' + formId + ' .btn-edit');
-      console.log('[Canvas] Looking for delete button:', '#' + formId + ' .btn-delete span');
+    // Wait for DOM to settle after panel opens
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // The actual form container has "-form" appended
+        const formContainerId = formId + '-form';
+        const editBtnId = formId + '-field_edit_btn';
+        const deleteBtnId = formId + '-field_delete_btn';
 
-      const form = document.querySelector('#' + formId);
-      console.log('[Canvas] Form found:', !!form);
+        console.log('Looking for edit button:', editBtnId);
+        console.log('Looking for delete button:', deleteBtnId);
 
-      const editBtn = document.querySelector('#' + formId + ' .btn-edit');
-      console.log('[Canvas] Edit button found:', !!editBtn);
+        const editBtn = document.getElementById(editBtnId);
+        const deleteBtn = document.getElementById(deleteBtnId);
 
-      const deleteBtn = document.querySelector('#' + formId + ' .btn-delete span');
-      console.log('[Canvas] Delete button found:', !!deleteBtn);
+        console.log('Edit button found:', !!editBtn);
+        console.log('Delete button found:', !!deleteBtn);
 
-      // Toggle edit mode
-      const toggleEditFn = window['toggleEditMode_' + formIdJs];
-      if (toggleEditFn) {
         if (editBtn) {
-          toggleEditFn(editBtn);
-          console.log('[Canvas] Edit mode toggled for new placement');
-        } else {
-          console.error('[Canvas] Edit button not found!');
+          console.log('Edit button classes BEFORE:', editBtn.className);
         }
-      } else {
-        console.error('[Canvas] toggleEditMode function not found:', 'toggleEditMode_' + formIdJs);
-      }
 
-      // Change delete button text to Reset
-      if (deleteBtn) {
-        deleteBtn.textContent = ' Reset';
-        console.log('[Canvas] Button changed to Reset');
-      } else {
-        console.error('[Canvas] Delete button not found!');
-      }
-    }, 700);  // 500ms panel animation + 200ms buffer
+        // Toggle edit mode - function name is based on the form container ID
+        const formContainerIdJs = formIdJs + '_form';
+        const toggleEditFn = window['toggleEditMode_' + formContainerIdJs];
+
+        console.log('Looking for function:', 'toggleEditMode_' + formContainerIdJs);
+        console.log('Function found:', !!toggleEditFn);
+
+        if (toggleEditFn && editBtn) {
+          // Only toggle if button is NOT already in editing mode
+          const isEditing = editBtn.classList.contains('editing');
+          console.log('Button already in editing mode:', isEditing);
+
+          // Check form container BEFORE
+          const formContainer = document.getElementById(formContainerId);
+          if (formContainer) {
+            console.log('Form container classes BEFORE:', formContainer.className);
+          }
+
+          if (!isEditing) {
+            toggleEditFn(editBtn);
+            console.log('Edit mode toggled to ON');
+
+            // Check if it actually changed
+            setTimeout(() => {
+              console.log('Edit button classes AFTER (100ms):', editBtn.className);
+              const stillEditing = editBtn.classList.contains('editing');
+              console.log('Still in editing mode:', stillEditing);
+
+              // Check form container AFTER
+              if (formContainer) {
+                console.log('Form container classes AFTER (100ms):', formContainer.className);
+                const hasEditMode = formContainer.classList.contains('edit-mode');
+                console.log('Form has edit-mode class:', hasEditMode);
+
+                // Check if inputs are enabled
+                const inputs = formContainer.querySelectorAll('input:not([type="hidden"])');
+                const selects = formContainer.querySelectorAll('select');
+                console.log('Sample input disabled?', inputs[0]?.disabled, 'readonly?', inputs[0]?.readOnly);
+                console.log('Sample select disabled?', selects[0]?.disabled, 'readonly?', selects[0]?.readOnly);
+              }
+            }, 100);
+          } else {
+            console.log('Already in edit mode, skipping toggle');
+          }
+        }
+
+        // Change delete button text to Reset
+        if (deleteBtn) {
+          const deleteBtnSpan = deleteBtn.querySelector('span');
+          if (deleteBtnSpan) {
+            console.log('Delete button span text BEFORE:', deleteBtnSpan.textContent);
+            deleteBtnSpan.textContent = ' Reset';
+            console.log('Delete button span text AFTER:', deleteBtnSpan.textContent);
+
+            // Check if it persists
+            setTimeout(() => {
+              console.log('Delete button span text (100ms later):', deleteBtnSpan.textContent);
+            }, 100);
+          } else {
+            deleteBtn.textContent = ' Reset';
+            console.log('Button text changed to Reset (direct)');
+          }
+        }
+      });
+    });
+  });
+
+  // Update a single shape on the canvas
+  Shiny.addCustomMessageHandler('test-root:updateShape', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+
+    if (!state) {
+      console.warn('[Canvas] State not found for:', canvasId);
+      return;
+    }
+
+    const updatedShape = message.shape;
+    if (!updatedShape || !updatedShape.id) {
+      console.warn('[Canvas] Invalid shape data:', message);
+      return;
+    }
+
+    // Find the shape by ID and update it
+    const shapeIndex = state.shapes.findIndex(s => s.id === updatedShape.id);
+    if (shapeIndex === -1) {
+      console.warn('[Canvas] Shape not found with ID:', updatedShape.id);
+      return;
+    }
+
+    console.log('[Canvas] Updating shape:', updatedShape.id, 'from', state.shapes[shapeIndex].type, 'to', updatedShape.type);
+
+    // Replace the shape with the updated one
+    state.shapes[shapeIndex] = updatedShape;
+
+    // Re-render canvas
+    render(state);
   });
 
 })();

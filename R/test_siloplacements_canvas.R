@@ -562,6 +562,23 @@ test_siloplacements_server <- function(id) {
     edit_mode_state <- reactiveVal(FALSE)  # Track edit mode toggle state
     canvas_initialized <- reactiveVal(FALSE)  # Track if canvas has been initially fitted
 
+    # ---- Hard reset cursor to default (centralized function) ----
+    reset_cursor <- function() {
+      cat("[Cursor] HARD RESET to default\n")
+
+      # Clear cursor immediately
+      session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(shapeType = "default"))
+
+      # Blur dropdown, move focus away, reset value, trigger change
+      shinyjs::runjs("
+        $('#test-shape_template_id').blur();
+        $('#test-edit_mode_toggle').focus();
+        setTimeout(function() {
+          $('#test-shape_template_id').val('').trigger('change');
+        }, 50);
+      ")
+    }
+
     # ---- Load layouts ----
     layouts_data <- reactive({
       layouts_refresh()  # Depend on refresh trigger
@@ -573,11 +590,9 @@ test_siloplacements_server <- function(id) {
     # Populate layout dropdown
     observe({
       layouts <- layouts_data()
-      cat("[Canvas Test] Populating dropdown, layouts count:", nrow(layouts), "\n")
 
       if (nrow(layouts) > 0) {
         choices <- setNames(layouts$LayoutID, layouts$LayoutName)
-        cat("[Canvas Test] Choices:", paste(names(choices), "=", choices, collapse = ", "), "\n")
 
         # Use isolate to read current_layout_id without creating a dependency
         current_id <- isolate(current_layout_id())
@@ -587,7 +602,6 @@ test_siloplacements_server <- function(id) {
         } else {
           as.character(layouts$LayoutID[1])
         }
-        cat("[Canvas Test] Updating dropdown, selected:", selected_val, "\n")
 
         updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
       }
@@ -595,7 +609,6 @@ test_siloplacements_server <- function(id) {
 
     # Handle "Add New Layout" button - toggle to text input mode
     observeEvent(input$add_new_layout_btn, {
-      cat("[Canvas Test] Switching to text input mode\n")
       shinyjs::hide("select_container")
       shinyjs::show("text_container")
       # Focus on text input
@@ -606,8 +619,7 @@ test_siloplacements_server <- function(id) {
     # Handle "Save" button - create layout and toggle back to select mode
     observeEvent(input$save_new_btn, {
       layout_name <- trimws(input$new_layout_name)
-      cat("[Canvas Test] Creating layout:", shQuote(layout_name), "\n")
-      
+
       if (layout_name == "") {
         showNotification("Please enter a layout name", type = "error")
         return()
@@ -629,8 +641,7 @@ test_siloplacements_server <- function(id) {
       
       tryCatch({
         new_layout_id <- create_canvas_layout(layout_name = layout_name)
-        cat("[Canvas Test] Created layout", layout_name, "with ID", new_layout_id, "\n")
-        
+
         # Clear text input
         updateTextInput(session, "new_layout_name", value = "")
         
@@ -649,7 +660,6 @@ test_siloplacements_server <- function(id) {
         
       }, error = function(e) {
         showNotification(paste("Error:", e$message), type = "error")
-        cat("[Canvas Test] Error:", e$message, "\n")
       })
     })
     
@@ -685,7 +695,6 @@ test_siloplacements_server <- function(id) {
           paste("Delete failed:", conditionMessage(e)),                     # ADDED
           type = "error"                                                    # ADDED
         )                                                                   # ADDED
-        cat("[Canvas Test] Delete error:", conditionMessage(e), "\n")       # ADDED
         FALSE                                                               # ADDED
       })                                                                    # ADDED
       if (!ok) return()                                                     # ADDED
@@ -706,7 +715,6 @@ test_siloplacements_server <- function(id) {
     # Handle layout selection from dropdown
     observeEvent(input$layout_id, {
       selected_value <- input$layout_id
-      cat("[Canvas Test] Selected:", selected_value, "\n")
 
       if (!is.null(selected_value) && selected_value != "") {
         current_layout_id(as.integer(selected_value))
@@ -802,15 +810,11 @@ test_siloplacements_server <- function(id) {
       trigger_refresh()
       layout_id <- current_layout_id()
 
-      cat("[Canvas Test] Loading placements for layout:", layout_id, "\n")
-
       df <- try(list_placements(layout_id = layout_id, limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) {
-        cat("[Canvas Test] Error loading placements\n")
         return(data.frame())
       }
 
-      cat("[Canvas Test] Loaded", nrow(df), "placements from DB\n")
       df
     })
 
@@ -847,9 +851,11 @@ test_siloplacements_server <- function(id) {
     # Update cursor based on selected shape template
     observeEvent(input$shape_template_id, {
       template_id <- input$shape_template_id
+      cat("[Cursor] shape_template_id changed to:", template_id, "\n")
 
       if (is.null(template_id) || template_id == "") {
         # No shape selected - default cursor, disable edit mode
+        cat("[Cursor] Clearing cursor to default (template_id empty)\n")
         session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(
           shapeType = "default"
         ))
@@ -885,6 +891,7 @@ test_siloplacements_server <- function(id) {
           shape_data$radius <- as.numeric(f_or(template$Radius[1], 20))
         }
 
+        cat("[Cursor] Sending setShapeCursor message:", shape_type, "template:", template_id, "\n")
         session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), shape_data)
 
         # Auto-enable edit mode when shape selected
@@ -899,7 +906,6 @@ test_siloplacements_server <- function(id) {
     # ---- Convert placements to canvas shapes ----
     observe({
       placements <- raw_placements()
-      cat("[Canvas Test] Converting placements to shapes, count:", nrow(placements), "\n")
 
       if (!nrow(placements)) {
         canvas_shapes(list())
@@ -937,7 +943,7 @@ test_siloplacements_server <- function(id) {
             stroke = "rgba(59, 130, 246, 0.8)",
             strokeWidth = 2
           )
-        } else {
+        } else if (shape_type == "RECTANGLE") {
           width <- if (nrow(template) > 0 && !is.na(template$Width[1])) as.numeric(template$Width[1]) else 40
           height <- if (nrow(template) > 0 && !is.na(template$Height[1])) as.numeric(template$Height[1]) else 40
           list(
@@ -952,18 +958,41 @@ test_siloplacements_server <- function(id) {
             stroke = "rgba(34, 197, 94, 0.8)",
             strokeWidth = 2
           )
+        } else if (shape_type == "TRIANGLE") {
+          radius <- if (nrow(template) > 0 && !is.na(template$Radius[1])) as.numeric(template$Radius[1]) else 20
+          list(
+            id = as.character(p$PlacementID),
+            type = "triangle",
+            x = as.numeric(p$CenterX),
+            y = as.numeric(p$CenterY),
+            r = radius,
+            label = silo_code,
+            fill = "rgba(168, 85, 247, 0.2)",
+            stroke = "rgba(168, 85, 247, 0.8)",
+            strokeWidth = 2
+          )
+        } else {
+          # Fallback to circle for unknown types
+          list(
+            id = as.character(p$PlacementID),
+            type = "circle",
+            x = as.numeric(p$CenterX),
+            y = as.numeric(p$CenterY),
+            r = 20,
+            label = silo_code,
+            fill = "rgba(59, 130, 246, 0.2)",
+            stroke = "rgba(59, 130, 246, 0.8)",
+            strokeWidth = 2
+          )
         }
       })
 
       canvas_shapes(shapes)
 
-      cat("[Canvas Test] Sending", length(shapes), "shapes to canvas\n")
-
       # Only autofit on initial load, not on updates
       should_autofit <- !canvas_initialized()
       if (should_autofit) {
         canvas_initialized(TRUE)
-        cat("[Canvas Test] Initial load - will autofit\n")
       }
 
       session$sendCustomMessage(paste0(ns("root"), ":setData"), list(data = shapes, autoFit = should_autofit))
@@ -972,25 +1001,42 @@ test_siloplacements_server <- function(id) {
     # ---- Form schema for placement details ----
     schema_config <- reactive({
       # Get all silos
-      silos <- silos_data()
+      all_silos <- silos_data()
 
       # Get all placements for current layout to filter out already-placed silos
       layout_id <- current_layout_id()
       placements <- raw_placements()
 
-      # Filter out silos that already have placements in this layout
-      if (nrow(silos) > 0 && nrow(placements) > 0) {
-        placed_silo_ids <- placements$SiloID
-        silos <- silos[!silos$SiloID %in% placed_silo_ids, ]
-        cat("[Canvas Test] Filtered silos - available:", nrow(silos), "already placed:", length(placed_silo_ids), "\n")
+      # Get current silo ID if editing existing placement
+      pid <- selected_placement_id()
+      current_silo_id <- NULL
+      if (!is.null(pid) && !is.na(pid)) {
+        current_placement <- placements[placements$PlacementID == pid, ]
+        if (nrow(current_placement) > 0) {
+          current_silo_id <- current_placement$SiloID[1]
+        }
       }
 
-      # Build dropdown choices (only unallocated silos)
+      # Filter out silos that already have placements in this layout
+      # BUT keep the current silo if we're editing
+      available_silos <- all_silos
+      if (nrow(all_silos) > 0 && nrow(placements) > 0) {
+        placed_silo_ids <- placements$SiloID
+
+        # Exclude placed silos, except the current one
+        if (!is.null(current_silo_id)) {
+          available_silos <- all_silos[!all_silos$SiloID %in% placed_silo_ids | all_silos$SiloID == current_silo_id, ]
+        } else {
+          available_silos <- all_silos[!all_silos$SiloID %in% placed_silo_ids, ]
+        }
+      }
+
+      # Build dropdown choices (unallocated silos + current silo if editing)
       silo_choices <- c("(select silo)" = "")
-      if (nrow(silos) > 0) {
+      if (nrow(available_silos) > 0) {
         silo_choices <- c(silo_choices, setNames(
-          as.character(silos$SiloID),
-          paste0(silos$SiloCode, " - ", silos$SiloName)
+          as.character(available_silos$SiloID),
+          paste0(available_silos$SiloCode, " - ", available_silos$SiloName)
         ))
       }
 
@@ -1086,6 +1132,74 @@ test_siloplacements_server <- function(id) {
 
           saved_id <- upsert_placement(data)
           selected_placement_id(as.integer(saved_id))
+
+          # Update the canvas shape immediately after save (before refresh)
+          if (!is_new_record && !is.null(data$ShapeTemplateID) && data$ShapeTemplateID != "") {
+            # Find template for saved shape
+            templates <- shape_templates_data()
+            template <- templates[templates$ShapeTemplateID == as.integer(data$ShapeTemplateID), ]
+
+            if (nrow(template) > 0) {
+              shape_type <- template$ShapeType[1]
+
+              # Get silo info for label
+              silos <- silos_data()
+              silo <- silos[silos$SiloID == as.integer(data$SiloID), ]
+              silo_code <- if (nrow(silo) > 0) silo$SiloCode[1] else paste0("S", data$SiloID)
+
+              # Build updated shape
+              updated_shape <- if (shape_type == "CIRCLE") {
+                radius <- as.numeric(f_or(template$Radius[1], 20))
+                list(
+                  id = as.character(saved_id),
+                  type = "circle",
+                  x = as.numeric(data$CenterX),
+                  y = as.numeric(data$CenterY),
+                  r = radius,
+                  label = silo_code,
+                  fill = "rgba(59, 130, 246, 0.2)",
+                  stroke = "rgba(59, 130, 246, 0.8)",
+                  strokeWidth = 2
+                )
+              } else if (shape_type == "RECTANGLE") {
+                width <- as.numeric(f_or(template$Width[1], 40))
+                height <- as.numeric(f_or(template$Height[1], 40))
+                list(
+                  id = as.character(saved_id),
+                  type = "rect",
+                  x = as.numeric(data$CenterX) - width / 2,
+                  y = as.numeric(data$CenterY) - height / 2,
+                  w = width,
+                  h = height,
+                  label = silo_code,
+                  fill = "rgba(34, 197, 94, 0.2)",
+                  stroke = "rgba(34, 197, 94, 0.8)",
+                  strokeWidth = 2
+                )
+              } else if (shape_type == "TRIANGLE") {
+                radius <- as.numeric(f_or(template$Radius[1], 20))
+                list(
+                  id = as.character(saved_id),
+                  type = "triangle",
+                  x = as.numeric(data$CenterX),
+                  y = as.numeric(data$CenterY),
+                  r = radius,
+                  label = silo_code,
+                  fill = "rgba(168, 85, 247, 0.2)",
+                  stroke = "rgba(168, 85, 247, 0.8)",
+                  strokeWidth = 2
+                )
+              } else {
+                NULL
+              }
+
+              if (!is.null(updated_shape)) {
+                cat("[Canvas] Updating shape on save:", saved_id, "to type:", shape_type, "\n")
+                session$sendCustomMessage(paste0(ns("root"), ":updateShape"), list(shape = updated_shape))
+              }
+            }
+          }
+
           trigger_refresh(trigger_refresh() + 1)
 
           # Clear pending placement and temp shape if this was a new record
@@ -1093,6 +1207,9 @@ test_siloplacements_server <- function(id) {
             pending_placement(NULL)
             session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
           }
+
+          # Always clear cursor after saving (new or existing)
+          reset_cursor()
 
           # Close panel after successful save
           shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
@@ -1109,7 +1226,6 @@ test_siloplacements_server <- function(id) {
 
         # If it's a new placement (NA), treat as "Reset"
         if (is.null(pid) || is.na(pid)) {
-          cat("[Canvas Test] Reset clicked - clearing temp shape\n")
           pending_placement(NULL)
           session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
 
@@ -1141,11 +1257,8 @@ test_siloplacements_server <- function(id) {
 
     # Handle panel close - clear temp shape if not saved
     observeEvent(input$panel_closed, {
-      cat("[Canvas Test] Panel closed\n")
-
       # If there's pending placement, clear it and temp shape
       if (!is.null(pending_placement())) {
-        cat("[Canvas Test] Clearing pending placement and temp shape\n")
         pending_placement(NULL)
         session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
       }
@@ -1153,17 +1266,12 @@ test_siloplacements_server <- function(id) {
 
     # Handle canvas click to add placement (namespace is auto-applied, so listen for canvas_add_at not test_canvas_add_at)
     observeEvent(input$canvas_add_at, {
-      cat("[Canvas Test] *** observeEvent FIRED for canvas_add_at ***\n")
-
       click_data <- input$canvas_add_at
-      cat("[Canvas Test] Received click_data:", !is.null(click_data), "\n")
+      cat("[Canvas] canvas_add_at triggered with data:", str(click_data), "\n")
 
       if (is.null(click_data)) {
-        cat("[Canvas Test] click_data is NULL, returning\n")
         return()
       }
-
-      cat("[Canvas Test] Preparing new placement at:", click_data$x, click_data$y, "template:", click_data$templateId, "\n")
 
       # Get current layout
       layout_id <- current_layout_id()
@@ -1223,10 +1331,8 @@ test_siloplacements_server <- function(id) {
       # Set to "new placement" mode
       selected_placement_id(NA)
 
-      # Deselect shape template and clear cursor
-      updateSelectInput(session, "shape_template_id", selected = "")
-      session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(shapeType = "default"))
-      cat("[Canvas Test] Shape template deselected, cursor reset\n")
+      # DON'T clear cursor here - keep it so user can place more shapes
+      # It will be cleared after successful save
 
       # Open panel in edit mode for new placement
       # Send custom message to open panel and trigger edit mode after animation
@@ -1242,8 +1348,6 @@ test_siloplacements_server <- function(id) {
           formIdJs = module_id_js
         )
       )
-
-      cat("[Canvas Test] Panel opened with temp shape on canvas\n")
     }, ignoreInit = TRUE)
 
     observeEvent(input$duplicate, {
@@ -1335,6 +1439,11 @@ test_siloplacements_server <- function(id) {
       })
     }, ignoreInit = TRUE)
 
+    # Handle ESC key press
+    observeEvent(input$esc_pressed, {
+      reset_cursor()
+    }, ignoreInit = TRUE)
+
     # Handle edit mode toggle button
     observeEvent(input$edit_mode_toggle, {
       # Toggle state
@@ -1346,6 +1455,9 @@ test_siloplacements_server <- function(id) {
         shinyjs::addClass("edit_mode_toggle", "active")
       } else {
         shinyjs::removeClass("edit_mode_toggle", "active")
+
+        # Clear cursor when exiting edit mode
+        reset_cursor()
       }
 
       # Send to JavaScript
@@ -1487,6 +1599,147 @@ test_siloplacements_server <- function(id) {
       cat("[Canvas] Fit view button clicked\n")
       cat("[Canvas] Sending message:", paste0(ns("root"), ":fitView"), "\n")
       session$sendCustomMessage(paste0(ns("root"), ":fitView"), list())
+    })
+
+    # ---- Update canvas shape when ShapeTemplateID changes in form ----
+    # Note: form module has namespace "form", so field IDs are "form-field_X"
+    observeEvent(input[["form-field_ShapeTemplateID"]], {
+      pid <- selected_placement_id()
+      template_id <- input[["form-field_ShapeTemplateID"]]
+
+      cat("[Canvas] ShapeTemplateID changed to:", template_id, "for placement:", pid, "\n")
+
+      # Skip if no template selected
+      if (is.null(template_id) || template_id == "") {
+        cat("[Canvas] Skipping - no template selected\n")
+        return()
+      }
+
+      # Find the template to get shape type and dimensions
+      templates <- shape_templates_data()
+      template <- templates[templates$ShapeTemplateID == as.integer(template_id), ]
+
+      if (nrow(template) == 0) {
+        return()
+      }
+
+      shape_type <- template$ShapeType[1]
+
+      # Handle NEW placement (temp shape)
+      if (is.null(pid) || is.na(pid)) {
+        pending <- pending_placement()
+        if (!is.null(pending)) {
+          # Update temp shape with new template
+          temp_shape <- if (shape_type == "CIRCLE") {
+            radius <- as.numeric(f_or(template$Radius[1], 20))
+            list(
+              type = "circle",
+              x = as.numeric(pending$CenterX),
+              y = as.numeric(pending$CenterY),
+              r = radius,
+              label = "New"
+            )
+          } else if (shape_type == "RECTANGLE") {
+            width <- as.numeric(f_or(template$Width[1], 40))
+            height <- as.numeric(f_or(template$Height[1], 40))
+            list(
+              type = "rect",
+              x = as.numeric(pending$CenterX) - width / 2,
+              y = as.numeric(pending$CenterY) - height / 2,
+              w = width,
+              h = height,
+              label = "New"
+            )
+          } else if (shape_type == "TRIANGLE") {
+            radius <- as.numeric(f_or(template$Radius[1], 20))
+            list(
+              type = "triangle",
+              x = as.numeric(pending$CenterX),
+              y = as.numeric(pending$CenterY),
+              r = radius,
+              label = "New"
+            )
+          } else {
+            return()
+          }
+
+          # Update temp shape on canvas
+          session$sendCustomMessage(paste0(ns("root"), ":setTempShape"), list(shape = temp_shape))
+
+          # Update pending placement data
+          pending$ShapeTemplateID <- as.integer(template_id)
+          pending_placement(pending)
+        }
+        return()
+      }
+
+      # Handle EXISTING placement - update visual only (not DB)
+      current_placements <- raw_placements()
+      placement <- current_placements[current_placements$PlacementID == pid, ]
+
+      if (nrow(placement) == 0) {
+        return()
+      }
+
+      # Get silo info for label
+      silos <- silos_data()
+      silo <- silos[silos$SiloID == placement$SiloID, ]
+      silo_code <- if (nrow(silo) > 0) silo$SiloCode[1] else paste0("S", placement$SiloID)
+
+      # Build updated shape
+      if (shape_type == "CIRCLE") {
+        radius <- as.numeric(f_or(template$Radius[1], 20))
+        updated_shape <- list(
+          id = as.character(pid),
+          type = "circle",
+          x = as.numeric(placement$CenterX),
+          y = as.numeric(placement$CenterY),
+          r = radius,
+          label = silo_code,
+          fill = "rgba(59, 130, 246, 0.2)",
+          stroke = "rgba(59, 130, 246, 0.8)",
+          strokeWidth = 2
+        )
+      } else if (shape_type == "RECTANGLE") {
+        width <- as.numeric(f_or(template$Width[1], 40))
+        height <- as.numeric(f_or(template$Height[1], 40))
+        updated_shape <- list(
+          id = as.character(pid),
+          type = "rect",
+          x = as.numeric(placement$CenterX) - width / 2,
+          y = as.numeric(placement$CenterY) - height / 2,
+          w = width,
+          h = height,
+          label = silo_code,
+          fill = "rgba(34, 197, 94, 0.2)",
+          stroke = "rgba(34, 197, 94, 0.8)",
+          strokeWidth = 2
+        )
+      } else if (shape_type == "TRIANGLE") {
+        radius <- as.numeric(f_or(template$Radius[1], 20))
+        updated_shape <- list(
+          id = as.character(pid),
+          type = "triangle",
+          x = as.numeric(placement$CenterX),
+          y = as.numeric(placement$CenterY),
+          r = radius,
+          label = silo_code,
+          fill = "rgba(168, 85, 247, 0.2)",
+          stroke = "rgba(168, 85, 247, 0.8)",
+          strokeWidth = 2
+        )
+      } else {
+        return()
+      }
+
+      # Send message to update this specific shape on canvas (visual only, not committed)
+      cat("[Canvas] Sending updateShape message for shape", pid, "type:", shape_type, "\n")
+      session$sendCustomMessage(paste0(ns("root"), ":updateShape"), list(shape = updated_shape))
+    }, ignoreInit = TRUE)
+
+    # Debug: print all inputs starting with field_
+    observe({
+      cat("[Canvas] form-field_ShapeTemplateID value:", input[["form-field_ShapeTemplateID"]], "\n")
     })
 
     # Initial load - trigger first refresh (run once only)

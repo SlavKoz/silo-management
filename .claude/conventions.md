@@ -51,6 +51,94 @@ Example usage:
 - Let user test and report results
 - Iterate based on user feedback
 
+## Debugging DOM Manipulation - CRITICAL FIRST STEP
+
+**BEFORE trying setTimeout delays, timing fixes, or complex workarounds:**
+
+### 1. ALWAYS Inspect Actual DOM Element Names First
+
+Add temporary debug code to list all relevant DOM elements:
+
+```javascript
+// List all elements with specific substring in ID
+const allElements = document.querySelectorAll('[id*="form"]');
+console.log('All form elements:', Array.from(allElements).map(el => el.id));
+```
+
+### 2. Common Issues & Real Solutions
+
+**❌ WRONG Approach:**
+- Adding setTimeout delays (100ms, 500ms, 1000ms, etc.)
+- Increasing delay times when it doesn't work
+- Trying different delay combinations
+- Assuming "it just needs more time to render"
+
+**✅ CORRECT Approach:**
+1. **Inspect the DOM** - Get actual element IDs from F12 console
+2. **Check if elements exist** - Use correct IDs/selectors
+3. **Fix root cause**:
+   - Shiny modules have double namespacing: `test-form-form` not `test-form`
+   - Use direct IDs: `getElementById('test-form-field_edit_btn')` not class selectors
+   - Check `suspendWhenHidden` for hidden outputs
+   - Verify element classes match actual HTML
+
+### 3. Real Example from 2025-11-19 Session
+
+**Problem**: Form not opening in edit mode, delete button not changing to "Reset"
+
+**First attempts (WASTED TIME)**:
+- ❌ Tried 100ms delay
+- ❌ Tried 300ms delay
+- ❌ Tried 1000ms delay with extensive logging
+- ❌ None worked!
+
+**Root causes found by inspecting DOM**:
+1. ✅ Forms not rendering: `suspendWhenHidden = TRUE` (Shiny default)
+2. ✅ Wrong form ID: Looking for `test-form`, actual is `test-form-form`
+3. ✅ Wrong button selector: Using `.btn-edit` class, actual ID is `test-form-field_edit_btn`
+4. ✅ Wrong function name: Using `toggleEditMode_test_form`, actual is `toggleEditMode_test_form_form`
+
+**Solution**:
+- Set `outputOptions(output, "form_content", suspendWhenHidden = FALSE)`
+- Use correct element IDs from DOM inspection
+- NO delays needed!
+
+### 4. Debug Code Template
+
+Always add this FIRST when JavaScript can't find elements:
+
+```javascript
+// Step 1: List ALL relevant elements
+const allElements = document.querySelectorAll('[id*="keyword"]');
+console.log('Found elements:', Array.from(allElements).map(el => ({
+  id: el.id,
+  classes: el.className,
+  tag: el.tagName
+})));
+
+// Step 2: Try finding your target
+const target = document.getElementById('your-id');
+console.log('Target found:', !!target);
+
+// Step 3: Check window functions
+console.log('Function exists:', typeof window['functionName_here']);
+```
+
+### 5. Lessons Learned
+
+- **Delays mask symptoms, don't fix root causes**
+- **DOM inspection reveals truth immediately**
+- **Shiny modules create double namespaces** (`module-id` + `-element`)
+- **Hidden outputs don't render** unless `suspendWhenHidden = FALSE`
+- **5 minutes of DOM inspection >> 2 hours of delay tweaking**
+
+**REMEMBER**: When JavaScript "can't find elements", the elements either:
+1. Don't exist (check `suspendWhenHidden`)
+2. Have different IDs than you think (inspect DOM)
+3. Have different classes than you think (inspect DOM)
+4. Are in different namespace (check module structure)
+
+---
 
 # Project Conventions & Naming
 

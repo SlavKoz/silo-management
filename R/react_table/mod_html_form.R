@@ -834,7 +834,9 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
 mod_html_form_server <- function(id, schema_config, form_data,
                                   title_field = NULL, show_header = TRUE,
                                   show_delete_button = TRUE,
+                                  initial_mode = c("locked", "edit"),
                                   on_save = NULL, on_delete = NULL) {
+  initial_mode <- match.arg(initial_mode)
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -886,13 +888,23 @@ mod_html_form_server <- function(id, schema_config, form_data,
       current_schema <- compiled_schema()  # Create dependency on schema changes
 
       # Determine if delete button should be disabled
-      # Disable if in "add new" mode (title field is empty/NA)
+      # Disable if in "add new" mode (title field is empty/NA OR PlacementID is missing)
       is_add_new <- if (!is.null(title_field)) {
         title_val <- current_data[[title_field]]
         is.null(title_val) || is.na(title_val) || identical(title_val, "")
       } else {
-        FALSE
+        # No title field - check for PlacementID (or any *ID field)
+        id_field <- names(current_data)[grepl("ID$", names(current_data), ignore.case = TRUE)][1]
+        if (!is.null(id_field) && !is.na(id_field)) {
+          id_val <- current_data[[id_field]]
+          is.null(id_val) || is.na(id_val)
+        } else {
+          FALSE
+        }
       }
+
+      # For new records in edit mode, render form in edit mode from start
+      render_mode <- if (is_add_new && initial_mode == "edit") "edit" else "locked"
 
       form_ui <- render_html_form(
         schema = current_schema$schema,
@@ -903,28 +915,15 @@ mod_html_form_server <- function(id, schema_config, form_data,
         title_field = title_field,
         module_id = ns("form"),
         show_footer = show_delete_button,  # Show footer only if delete button enabled
-        delete_disabled = is_add_new  # Disable if in add new mode
+        delete_disabled = is_add_new,  # Disable if in add new mode
+        initial_mode = render_mode
       )
 
-      # Auto-enter edit mode for new records
-      if (is_add_new) {
-        module_id <- ns("form")
-        module_id_js <- gsub("-", "_", module_id)
-        tagList(
-          form_ui,
-          tags$script(HTML(sprintf("
-            setTimeout(function() {
-              var editBtn = document.querySelector('#%s .btn-edit-toggle');
-              if (editBtn && !editBtn.classList.contains('editing')) {
-                editBtn.click();
-              }
-            }, 100);
-          ", module_id)))
-        )
-      } else {
-        form_ui
-      }
+      form_ui
     })
+
+    # Prevent form from being suspended when hidden (for sliding panels)
+    outputOptions(output, "form_content", suspendWhenHidden = FALSE)
 
     # Observe Save button click
     observeEvent(input$save_clicked, {
