@@ -562,23 +562,6 @@ test_siloplacements_server <- function(id) {
     edit_mode_state <- reactiveVal(FALSE)  # Track edit mode toggle state
     canvas_initialized <- reactiveVal(FALSE)  # Track if canvas has been initially fitted
 
-    # ---- Hard reset cursor to default (centralized function) ----
-    reset_cursor <- function() {
-      cat("[Cursor] HARD RESET to default\n")
-
-      # Clear cursor immediately
-      session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(shapeType = "default"))
-
-      # Blur dropdown, move focus away, reset value, trigger change
-      shinyjs::runjs("
-        $('#test-shape_template_id').blur();
-        $('#test-edit_mode_toggle').focus();
-        setTimeout(function() {
-          $('#test-shape_template_id').val('').trigger('change');
-        }, 50);
-      ")
-    }
-
     # ---- Load layouts ----
     layouts_data <- reactive({
       layouts_refresh()  # Depend on refresh trigger
@@ -1208,8 +1191,7 @@ test_siloplacements_server <- function(id) {
             session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
           }
 
-          # Always clear cursor after saving (new or existing)
-          reset_cursor()
+          # Note: Cursor clearing on save is parked as "not must have"
 
           # Close panel after successful save
           shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
@@ -1439,11 +1421,6 @@ test_siloplacements_server <- function(id) {
       })
     }, ignoreInit = TRUE)
 
-    # Handle ESC key press
-    observeEvent(input$esc_pressed, {
-      reset_cursor()
-    }, ignoreInit = TRUE)
-
     # Handle edit mode toggle button
     observeEvent(input$edit_mode_toggle, {
       # Toggle state
@@ -1456,8 +1433,7 @@ test_siloplacements_server <- function(id) {
       } else {
         shinyjs::removeClass("edit_mode_toggle", "active")
 
-        # Clear cursor when exiting edit mode
-        reset_cursor()
+        # Note: Cursor clearing on edit toggle is parked as "not must have"
       }
 
       # Send to JavaScript

@@ -10,7 +10,9 @@
   // Update cursor based on current state and zoom - ACTUAL SIZE PREVIEW
   function updateShapeCursor(state) {
     if (!state.selectedShapeTemplate) {
+      // Default cursor based on edit mode
       state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
+      console.log('[Cursor] Setting default cursor:', state.editMode ? 'move' : 'grab');
       return;
     }
 
@@ -153,11 +155,20 @@
     $(document).on('keydown', function(e) {
       if (e.key === 'Escape') {
         console.log('[Cursor] ESC pressed - resetting cursor');
-        // Find the shape template selector and reset it
-        $('#test-shape_template_id').val('').trigger('change');
 
-        // Also send cursor reset message directly
-        Shiny.setInputValue('test-esc_pressed', Date.now(), {priority: 'event'});
+        // Clear cursor immediately on all canvases
+        canvases.forEach(state => {
+          state.selectedShapeTemplate = null;
+          updateShapeCursor(state);
+        });
+
+        // Blur dropdown and move focus
+        $('#test-shape_template_id').blur();
+        $('#test-edit_mode_toggle').focus();
+
+        // Clear dropdown and notify Shiny
+        $('#test-shape_template_id').val('');
+        Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
       }
     });
   });
@@ -650,10 +661,20 @@
 
     state.editMode = message.on;
 
-    // Don't override cursor if shape template is selected (cursor shows shape preview)
-    if (!state.selectedShapeTemplate) {
-      state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
+    // When turning OFF edit mode, clear shape template and cursor
+    if (!message.on) {
+      console.log('[Cursor] Edit mode OFF - clearing shape template and cursor');
+      state.selectedShapeTemplate = null;
+
+      // Clear dropdown and notify Shiny
+      $('#test-shape_template_id').blur();
+      $('#test-edit_mode_toggle').focus();
+      $('#test-shape_template_id').val('');
+      Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
     }
+
+    // Update cursor
+    updateShapeCursor(state);
   });
 
   // Custom message handler: set snap grid
