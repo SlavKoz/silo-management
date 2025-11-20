@@ -617,3 +617,72 @@ tags$script(HTML(do.call(sprintf, js_args)))
 ```
 
 **Why:** No manual counting = no sprintf argument mismatch errors!
+
+---
+
+## Shiny selectInput & Selectize.js - Proper Clearing Pattern
+
+**CRITICAL**: `selectInput()` in Shiny uses **Selectize.js** under the hood. You cannot reliably clear it with plain jQuery.
+
+### The Problem
+When clearing a `selectInput` to allow re-selecting the same value:
+
+```javascript
+// WRONG - Does not work reliably with Selectize
+$('#my-select').val('').trigger('change');
+```
+
+**Why it fails:**
+- Selectize maintains its own internal state separate from the DOM
+- jQuery operations don't sync with Selectize's state
+- Observers may not fire when re-selecting "same" value
+- Creates race conditions with delayed operations (`setTimeout`)
+
+### The Solution - Selectize-Aware Clearing
+
+**Create a centralized clearing function:**
+
+```javascript
+function clearShapeTemplateSelection() {
+  const dropdown = $('#test-shape_template_id');
+
+  if (dropdown.length) {
+    const selectize = dropdown[0].selectize;
+    if (selectize) {
+      selectize.clear(true);  // Use Selectize API
+    } else {
+      dropdown.val('').trigger('change');  // Fallback
+    }
+  }
+
+  // Always notify Shiny explicitly
+  Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
+}
+```
+
+**Key points:**
+1. Check if Selectize is initialized: `dropdown[0].selectize`
+2. Use Selectize API: `selectize.clear(true)`
+3. Always notify Shiny: `Shiny.setInputValue(..., {priority: 'event'})`
+4. No `setTimeout` delays - let Shiny reactivity handle flow
+5. Centralize in one function - use everywhere
+
+### Don't Fight Shiny's Reactivity
+
+**WRONG approach:**
+- Multiple JS handlers racing to clear same dropdown
+- `setTimeout` delays trying to coordinate timing
+- Directly manipulating canvas state from JS
+- Trying to force observers to fire with complex triggers
+
+**RIGHT approach:**
+- One centralized clearing function
+- Clear Selectize properly → notify Shiny → R observer fires
+- Let R observer handle cursor/state logic
+- Work WITH Shiny's reactive flow, not against it
+
+### Lesson Learned
+When observers don't fire on re-selecting same value:
+1. **Root cause**: Previous reset didn't properly clear Selectize
+2. **Fix**: Use `selectize.clear(true)`, not jQuery
+3. **Pattern**: Centralize, use Selectize API, notify Shiny explicitly

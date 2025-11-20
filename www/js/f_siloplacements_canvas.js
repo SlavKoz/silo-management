@@ -7,6 +7,22 @@
   // Canvas state
   const canvases = new Map();
 
+  // Centralized function to properly clear shape template selection (Selectize-aware)
+  function clearShapeTemplateSelection() {
+    const dropdown = $('#test-shape_template_id');
+
+    if (dropdown.length) {
+      const selectize = dropdown[0].selectize;
+      if (selectize) {
+        selectize.clear(true);
+      } else {
+        dropdown.val('').trigger('change');
+      }
+    }
+
+    Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
+  }
+
   // Update cursor based on current state and zoom - ACTUAL SIZE PREVIEW
   function updateShapeCursor(state) {
     if (!state.selectedShapeTemplate) {
@@ -154,21 +170,14 @@
     // Global ESC key handler to deselect shape template
     $(document).on('keydown', function(e) {
       if (e.key === 'Escape') {
-        console.log('[Cursor] ESC pressed - resetting cursor');
-
-        // Clear cursor immediately on all canvases
-        canvases.forEach(state => {
-          state.selectedShapeTemplate = null;
-          updateShapeCursor(state);
-        });
+        console.log('[Cursor] ESC pressed - clearing shape selection');
 
         // Blur dropdown and move focus
         $('#test-shape_template_id').blur();
         $('#test-edit_mode_toggle').focus();
 
-        // Clear dropdown and notify Shiny
-        $('#test-shape_template_id').val('');
-        Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
+        // Clear selection using centralized function (Selectize-aware)
+        clearShapeTemplateSelection();
       }
     });
   });
@@ -661,20 +670,22 @@
 
     state.editMode = message.on;
 
-    // When turning OFF edit mode, clear shape template and cursor
+    // When turning OFF edit mode, clear shape template
     if (!message.on) {
-      console.log('[Cursor] Edit mode OFF - clearing shape template and cursor');
-      state.selectedShapeTemplate = null;
+      console.log('[Cursor] Edit mode OFF - clearing shape selection');
 
-      // Clear dropdown and notify Shiny
+      // Blur dropdown and move focus
       $('#test-shape_template_id').blur();
       $('#test-edit_mode_toggle').focus();
-      $('#test-shape_template_id').val('');
-      Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
+
+      // Clear selection using centralized function (Selectize-aware)
+      clearShapeTemplateSelection();
     }
 
-    // Update cursor
-    updateShapeCursor(state);
+    // Update cursor - will be handled by R observer responding to cleared dropdown
+    if (!state.selectedShapeTemplate) {
+      updateShapeCursor(state);
+    }
   });
 
   // Custom message handler: set snap grid

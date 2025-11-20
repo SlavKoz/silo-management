@@ -8,7 +8,7 @@ if (!exists("div", mode = "function")) {
 }
 
 # Helper operator - use f_or if available, otherwise define
-render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_header = TRUE, title_field = NULL, module_id = NULL, show_footer = TRUE, on_delete = NULL, delete_disabled = FALSE, initial_mode = "locked") {
+render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_header = TRUE, title_field = NULL, module_id = NULL, show_footer = TRUE, on_delete = NULL, delete_disabled = FALSE) {
   if (is.null(schema) || is.null(schema$properties)) {
     return(div("No schema provided"))
   }
@@ -48,7 +48,7 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
     field_column <- max(1, min(columns, field_column))  # Clamp to valid range
 
     # Add rendered field to the appropriate column
-    rendered <- render_field(fname, field_schema, field_ui, field_value, ns_prefix, initial_mode)
+    rendered <- render_field(fname, field_schema, field_ui, field_value, ns_prefix)
     column_fields[[field_column]][[length(column_fields[[field_column]]) + 1]] <- rendered
   }
 
@@ -66,28 +66,20 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
             id = title_id,
             class = "form-control form-control-title",
             value = f_or(title_value, "Item"),
-            readonly = "readonly"  # Start in locked mode
+            readonly = "readonly"
           )
         ),
         tags$button(
           type = "button",
-          class = paste("btn btn-edit-toggle", if (initial_mode == "edit") "editing" else ""),
+          class = "btn btn-edit-toggle",
           id = paste0(ns_prefix, "edit_btn"),
           onclick = if (!is.null(module_id)) {
             sprintf("toggleEditMode_%s(this)", gsub("-", "_", module_id))
           } else {
             "toggleEditMode(this)"  # Fallback for legacy usage
           },
-          if (initial_mode == "edit") {
-            tags$i(class = "bi bi-floppy")
-          } else {
-            tags$i(class = "bi bi-pencil-square")
-          },
-          if (initial_mode == "edit") {
-            tags$span(" Save")
-          } else {
-            tags$span(" Edit")
-          }
+          tags$i(class = "bi bi-pencil-square"),
+          tags$span(" Edit")
         )
       )
     )
@@ -120,11 +112,9 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
   }
 
   # Wrap in columns dynamically with frame
-  wrapper_class <- paste("form-wrapper border rounded p-3", if (initial_mode == "edit") "edit-mode" else "")
-
   if (columns == 1) {
     # Single column - no grid needed
-    div(class = wrapper_class,
+    div(class = "form-wrapper border rounded p-3",
       header_html,
       div(column_fields[[1]]),
       footer_html
@@ -149,7 +139,7 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
     })
 
     # Wrap everything in a frame
-    div(class = wrapper_class,
+    div(class = "form-wrapper border rounded p-3",
       header_html,
       div(class = "row flex-nowrap", column_divs),
       footer_html
@@ -157,7 +147,7 @@ render_html_form <- function(schema, uiSchema, formData, ns_prefix = "", show_he
   }
 }
 
-render_field <- function(name, schema, ui, value, ns_prefix, initial_mode = "locked") {
+render_field <- function(name, schema, ui, value, ns_prefix) {
   type <- f_or(schema$type, "string")
   title <- f_or(schema$title, name)
   widget <- f_or(ui[["ui:widget"]], NULL)
@@ -253,7 +243,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
       id = input_id,
       class = "form-control",
       rows = 3,
-      readonly = "readonly",
+      readonly = if (initial_mode == "locked") "readonly" else NULL,
       disabled = "disabled",
       `data-required` = if (is_required) "true" else NULL,
       `data-required-if` = required_if_attr,
@@ -306,7 +296,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
     select_element <- tags$select(
       id = input_id,
       class = select_class,
-      disabled = if (initial_mode == "locked") "disabled" else NULL,
+      disabled = "disabled",
       `data-required` = if (is_required) "true" else NULL,
       `data-required-if` = required_if_attr,
       options_list
@@ -358,7 +348,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
       }
 
       # Return custom dropdown
-      return(div(class = "icon-picker-custom", id = input_id, `data-value` = value, `data-disabled` = "true", `data-required` = if (is_required) "true" else NULL, `data-required-if` = required_if_attr,
+      return(div(class = "icon-picker-custom", id = input_id, `data-value` = value, `data-disabled` = if (initial_mode == "locked") "true" else "false", `data-required` = if (is_required) "true" else NULL, `data-required-if` = required_if_attr,
         # Display (what user sees when closed)
         div(class = "icon-picker-display",
           if (nzchar(selected_thumbnail)) {
@@ -389,7 +379,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
       min = schema$minimum,
       max = schema$maximum,
       step = if (type == "integer") 1 else "any",
-      readonly = "readonly",
+      readonly = if (initial_mode == "locked") "readonly" else NULL,
       disabled = "disabled",
       `data-required` = if (is_required) "true" else NULL,
       `data-required-if` = required_if_attr
@@ -448,8 +438,8 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
     id = input_id,
     class = "form-control",
     value = val_str,
-    readonly = "readonly",
-    disabled = "disabled",
+    readonly = if (initial_mode == "locked") "readonly" else NULL,
+    disabled = if (initial_mode == "locked") "disabled" else NULL,
     `data-required` = if (is_required) "true" else NULL,
     `data-required-if` = required_if_attr
   )

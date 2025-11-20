@@ -834,9 +834,7 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
 mod_html_form_server <- function(id, schema_config, form_data,
                                   title_field = NULL, show_header = TRUE,
                                   show_delete_button = TRUE,
-                                  initial_mode = c("locked", "edit"),
                                   on_save = NULL, on_delete = NULL) {
-  initial_mode <- match.arg(initial_mode)
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -903,9 +901,6 @@ mod_html_form_server <- function(id, schema_config, form_data,
         }
       }
 
-      # For new records in edit mode, render form in edit mode from start
-      render_mode <- if (is_add_new && initial_mode == "edit") "edit" else "locked"
-
       form_ui <- render_html_form(
         schema = current_schema$schema,
         uiSchema = current_schema$uiSchema,
@@ -915,11 +910,26 @@ mod_html_form_server <- function(id, schema_config, form_data,
         title_field = title_field,
         module_id = ns("form"),
         show_footer = show_delete_button,  # Show footer only if delete button enabled
-        delete_disabled = is_add_new,  # Disable if in add new mode
-        initial_mode = render_mode
+        delete_disabled = is_add_new  # Disable if in add new mode
       )
 
-      form_ui
+      # Auto-enter edit mode for new records
+      if (is_add_new) {
+        module_id <- ns("form")
+        tagList(
+          form_ui,
+          tags$script(HTML(sprintf("
+            setTimeout(function() {
+              var editBtn = document.querySelector('#%s .btn-edit-toggle');
+              if (editBtn && !editBtn.classList.contains('editing')) {
+                editBtn.click();
+              }
+            }, 100);
+          ", module_id)))
+        )
+      } else {
+        form_ui
+      }
     })
 
     # Prevent form from being suspended when hidden (for sliding panels)

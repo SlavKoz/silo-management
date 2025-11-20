@@ -16,7 +16,9 @@
 # ---- Silos ---------------------------------------------------------------
 
 # List silos with optional filters + pagination
-list_silos <- function(area = NULL,
+# Queries Silos table with JOINs to get Area and Site information
+list_silos <- function(area_id = NULL,
+                       area_code_like = NULL,
                        code_like = NULL,
                        active = NULL,
                        ids = NULL,
@@ -24,38 +26,194 @@ list_silos <- function(area = NULL,
                        order_dir = "ASC",
                        limit = 200,
                        offset = 0) {
-  
+
   ob <- safe_order_by(order_col, order_dir, .ALLOWED_SILOS_COLS)
-  
+
   where <- c(); params <- list()
-  
-  if (!is.null(area))        { where <- c(where, "Area = ?");        params <- c(params, list(area)) }
-  if (!is.null(active))      { where <- c(where, "IsActive = ?");    params <- c(params, list(as.logical(active))) }
-  if (!is.null(code_like))   { where <- c(where, "SiloCode LIKE ?"); params <- c(params, list(code_like)) } # e.g. "%CG-%"
+
+  if (!is.null(area_id))          { where <- c(where, "s.AreaID = ?");         params <- c(params, list(as.integer(area_id))) }
+  if (!is.null(area_code_like))   { where <- c(where, "a.AreaCode LIKE ?");   params <- c(params, list(area_code_like)) }
+  if (!is.null(active))            { where <- c(where, "s.IsActive = ?");      params <- c(params, list(as.logical(active))) }
+  if (!is.null(code_like))         { where <- c(where, "s.SiloCode LIKE ?");   params <- c(params, list(code_like)) }
   if (!is.null(ids) && length(ids)) {
-    IN <- sql_in(ids); where <- c(where, paste("SiloID", IN$clause)); params <- c(params, IN$params)
+    IN <- sql_in(ids); where <- c(where, paste("s.SiloID", IN$clause)); params <- c(params, IN$params)
   }
   where_sql <- if (length(where)) paste("WHERE", paste(where, collapse = " AND ")) else ""
-  
+
   sql <- sprintf("
-    SELECT SiloID, SiloCode, SiloName, Area, ContainerTypeID,
-           VolumeM3, IsActive, CreatedAt, UpdatedAt
-    FROM SiloOps.dbo.Silos
+    SELECT s.SiloID, s.SiloCode, s.SiloName,
+           s.AreaID, a.AreaCode, a.AreaName,
+           s.SiteID, site.SiteCode, site.SiteName,
+           s.ContainerTypeID, s.VolumeM3, s.IsActive,
+           s.CreatedAt, s.UpdatedAt
+    FROM SiloOps.dbo.Silos s
+    LEFT JOIN SiloOps.dbo.SiteAreas a ON s.AreaID = a.AreaID
+    LEFT JOIN SiloOps.dbo.Sites site ON s.SiteID = site.SiteID
     %s
     %s
     OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
   ", where_sql, ob)
-  
+
   db_query_params(sql, c(params, list(as.integer(offset), as.integer(limit))))
 }
 
 get_silo_by_id <- function(silo_id) {
   db_query_params("
-    SELECT SiloID, SiloCode, SiloName, Area, ContainerTypeID,
-           VolumeM3, AllowMixedVariants, IsActive, CreatedAt, UpdatedAt
-    FROM SiloOps.dbo.Silos
-    WHERE SiloID = ?
+    SELECT s.SiloID, s.SiloCode, s.SiloName,
+           s.AreaID, a.AreaCode, a.AreaName,
+           s.SiteID, site.SiteCode, site.SiteName,
+           s.ContainerTypeID, s.VolumeM3, s.IsActive,
+           s.Notes, s.CreatedAt, s.UpdatedAt
+    FROM SiloOps.dbo.Silos s
+    LEFT JOIN SiloOps.dbo.SiteAreas a ON s.AreaID = a.AreaID
+    LEFT JOIN SiloOps.dbo.Sites site ON s.SiteID = site.SiteID
+    WHERE s.SiloID = ?
   ", list(as.integer(silo_id)))
+}
+
+upsert_silo <- function(data) {
+  pool <- db_pool()
+
+  # Extract and validate required fields
+  silo_code <- f_or(data$SiloCode, "")
+  silo_name <- f_or(data$SiloName, "")
+
+  if (!nzchar(silo_code)) stop("SiloCode is required")
+  if (!nzchar(silo_name)) stop("SiloName is required")
+
+  # Handle VolumeM3 - required, must be positive
+  volume_m3 <- NULL
+  if (!is.null(data$VolumeM3)) {
+    if (is.numeric(data$VolumeM3) && !is.na(data$VolumeM3)) {
+      volume_m3 <- as.numeric(data$VolumeM3)
+    } else if (is.character(data$VolumeM3) && nzchar(data$VolumeM3)) {
+      volume_m3 <- as.numeric(data$VolumeM3)
+    }
+  }
+  if (is.null(volume_m3) || is.na(volume_m3)) stop("VolumeM3 is required")
+  if (volume_m3 <= 0) stop("VolumeM3 must be positive")
+
+  # Handle ContainerTypeID from nested structure or top-level
+  container_type_id <- NULL
+  if (!is.null(data$Type$ContainerTypeID)) {
+    if (is.character(data$Type$ContainerTypeID) && nzchar(data$Type$ContainerTypeID)) {
+      container_type_id <- as.integer(data$Type$ContainerTypeID)
+    } else if (is.numeric(data$Type$ContainerTypeID) && !is.na(data$Type$ContainerTypeID)) {
+      container_type_id <- as.integer(data$Type$ContainerTypeID)
+    }
+  } else if (!is.null(data$ContainerTypeID)) {
+    if (is.character(data$ContainerTypeID) && nzchar(data$ContainerTypeID)) {
+      container_type_id <- as.integer(data$ContainerTypeID)
+    } else if (is.numeric(data$ContainerTypeID) && !is.na(data$ContainerTypeID)) {
+      container_type_id <- as.integer(data$ContainerTypeID)
+    }
+  }
+  if (is.null(container_type_id) || is.na(container_type_id)) stop("ContainerTypeID is required")
+
+  # Handle SiteID from nested structure or top-level (optional)
+  site_id <- NULL
+  if (!is.null(data$Location$SiteID)) {
+    if (is.character(data$Location$SiteID) && nzchar(data$Location$SiteID)) {
+      site_id <- as.integer(data$Location$SiteID)
+    } else if (is.numeric(data$Location$SiteID) && !is.na(data$Location$SiteID)) {
+      site_id <- as.integer(data$Location$SiteID)
+    }
+  } else if (!is.null(data$SiteID)) {
+    if (is.character(data$SiteID) && nzchar(data$SiteID)) {
+      site_id <- as.integer(data$SiteID)
+    } else if (is.numeric(data$SiteID) && !is.na(data$SiteID)) {
+      site_id <- as.integer(data$SiteID)
+    }
+  }
+
+  # Handle AreaID from nested structure or top-level (optional)
+  area_id <- NULL
+  if (!is.null(data$Location$AreaID)) {
+    if (is.character(data$Location$AreaID) && nzchar(data$Location$AreaID)) {
+      area_id <- as.integer(data$Location$AreaID)
+    } else if (is.numeric(data$Location$AreaID) && !is.na(data$Location$AreaID)) {
+      area_id <- as.integer(data$Location$AreaID)
+    }
+  } else if (!is.null(data$AreaID)) {
+    if (is.character(data$AreaID) && nzchar(data$AreaID)) {
+      area_id <- as.integer(data$AreaID)
+    } else if (is.numeric(data$AreaID) && !is.na(data$AreaID)) {
+      area_id <- as.integer(data$AreaID)
+    }
+  }
+
+  # Handle IsActive - checkbox returns TRUE/FALSE or NULL
+  is_active <- TRUE  # Default
+  if (!is.null(data$IsActive)) {
+    if (is.logical(data$IsActive)) {
+      is_active <- data$IsActive
+    } else if (is.character(data$IsActive)) {
+      is_active <- tolower(data$IsActive) %in% c("true", "1", "yes")
+    } else {
+      is_active <- as.logical(data$IsActive)
+    }
+  }
+
+  # Handle Notes from nested structure or top-level
+  notes <- NULL
+  if (!is.null(data$Notes$Notes)) {
+    if (nzchar(data$Notes$Notes)) notes <- data$Notes$Notes
+  } else if (!is.null(data$Notes)) {
+    if (is.character(data$Notes) && nzchar(data$Notes)) notes <- data$Notes
+  }
+
+  # Check if update or insert
+  silo_id <- if (!is.null(data$SiloID) && !is.na(data$SiloID)) as.integer(data$SiloID) else NULL
+
+  if (!is.null(silo_id) && silo_id > 0) {
+    # UPDATE
+    sql <- "UPDATE SiloOps.dbo.Silos
+            SET SiloCode = ?, SiloName = ?, VolumeM3 = ?,
+                ContainerTypeID = ?, SiteID = ?, AreaID = ?,
+                IsActive = ?, Notes = ?, UpdatedAt = SYSUTCDATETIME()
+            WHERE SiloID = ?"
+
+    DBI::dbExecute(pool, sql, params = list(
+      silo_code,
+      silo_name,
+      volume_m3,
+      container_type_id,
+      if (!is.null(site_id)) site_id else NA_integer_,
+      if (!is.null(area_id)) area_id else NA_integer_,
+      is_active,
+      if (!is.null(notes)) notes else NA_character_,
+      silo_id
+    ))
+
+    return(silo_id)
+
+  } else {
+    # INSERT
+    sql <- "INSERT INTO SiloOps.dbo.Silos
+            (SiloCode, SiloName, VolumeM3, ContainerTypeID, SiteID, AreaID, IsActive, Notes, CreatedAt, UpdatedAt)
+            OUTPUT INSERTED.SiloID
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME())"
+
+    result <- DBI::dbGetQuery(pool, sql, params = list(
+      silo_code,
+      silo_name,
+      volume_m3,
+      container_type_id,
+      if (!is.null(site_id)) site_id else NA_integer_,
+      if (!is.null(area_id)) area_id else NA_integer_,
+      is_active,
+      if (!is.null(notes)) notes else NA_character_
+    ))
+
+    return(result$SiloID[1])
+  }
+}
+
+# Delete silo
+delete_silo <- function(silo_id) {
+  pool <- db_pool()
+  sql <- "DELETE FROM SiloOps.dbo.Silos WHERE SiloID = ?"
+  DBI::dbExecute(pool, sql, params = list(as.integer(silo_id)))
 }
 
 # ---- Placements ----------------------------------------------------------

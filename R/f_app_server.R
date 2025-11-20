@@ -163,7 +163,7 @@ f_app_server <- function(input, output, session) {
         else div(class="p-3", h3("Siloes"), p("Placeholder: Siloes overview/list will go here."))
       },
       server = function() {
-        if (exists("f_browser_siloes_server")) f_browser_siloes_server("siloes", pool)
+        if (exists("f_browser_siloes_server")) f_browser_siloes_server("siloes", pool, route = current)
       }
     ),
     
