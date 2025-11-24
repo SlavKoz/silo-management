@@ -17,7 +17,8 @@
 
 # List silos with optional filters + pagination
 # Queries Silos table with JOINs to get Area and Site information
-list_silos <- function(area_id = NULL,
+list_silos <- function(site_id = NULL,
+                       area_id = NULL,
                        area_code_like = NULL,
                        code_like = NULL,
                        active = NULL,
@@ -31,6 +32,7 @@ list_silos <- function(area_id = NULL,
 
   where <- c(); params <- list()
 
+  if (!is.null(site_id))          { where <- c(where, "s.SiteID = ?");         params <- c(params, list(as.integer(site_id))) }
   if (!is.null(area_id))          { where <- c(where, "s.AreaID = ?");         params <- c(params, list(as.integer(area_id))) }
   if (!is.null(area_code_like))   { where <- c(where, "a.AreaCode LIKE ?");   params <- c(params, list(area_code_like)) }
   if (!is.null(active))            { where <- c(where, "s.IsActive = ?");      params <- c(params, list(as.logical(active))) }
@@ -220,30 +222,43 @@ delete_silo <- function(silo_id) {
 
 list_placements <- function(layout_id = NULL,
                             silo_id = NULL,
+                            site_id = NULL,
+                            area_id = NULL,
                             visible = NULL,
                             order_col = "PlacementID",
                             order_dir = "ASC",
                             limit = 200,
                             offset = 0) {
-  
+
   ob <- safe_order_by(order_col, order_dir, .ALLOWED_PLACEMENTS_COLS)
-  
+
   where <- c(); params <- list()
-  if (!is.null(layout_id)) { where <- c(where, "LayoutID = ?");    params <- c(params, list(as.integer(layout_id))) }
-  if (!is.null(silo_id))   { where <- c(where, "SiloID = ?");      params <- c(params, list(as.integer(silo_id))) }
-  if (!is.null(visible))   { where <- c(where, "IsVisible = ?");   params <- c(params, list(as.logical(visible))) }
-  
+  if (!is.null(layout_id)) { where <- c(where, "p.LayoutID = ?");    params <- c(params, list(as.integer(layout_id))) }
+  if (!is.null(silo_id))   { where <- c(where, "p.SiloID = ?");      params <- c(params, list(as.integer(silo_id))) }
+  if (!is.null(visible))   { where <- c(where, "p.IsVisible = ?");   params <- c(params, list(as.logical(visible))) }
+
+  # Filter by site and area through Silos join
+  if (!is.null(site_id) && !is.na(site_id)) {
+    where <- c(where, "s.SiteID = ?")
+    params <- c(params, list(as.integer(site_id)))
+  }
+  if (!is.null(area_id) && !is.na(area_id) && area_id != "") {
+    where <- c(where, "s.AreaID = ?")
+    params <- c(params, list(as.integer(area_id)))
+  }
+
   where_sql <- if (length(where)) paste("WHERE", paste(where, collapse = " AND ")) else ""
-  
+
   sql <- sprintf("
-    SELECT PlacementID, SiloID, LayoutID, ShapeTemplateID, CenterX, CenterY,
-           ZIndex, IsVisible, IsInteractive, CreatedAt
-    FROM SiloOps.dbo.SiloPlacements
+    SELECT p.PlacementID, p.SiloID, p.LayoutID, p.ShapeTemplateID, p.CenterX, p.CenterY,
+           p.ZIndex, p.IsVisible, p.IsInteractive, p.CreatedAt
+    FROM SiloOps.dbo.SiloPlacements p
+    INNER JOIN SiloOps.dbo.Silos s ON p.SiloID = s.SiloID
     %s
     %s
     OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
   ", where_sql, ob)
-  
+
   db_query_params(sql, c(params, list(as.integer(offset), as.integer(limit))))
 }
 
@@ -471,7 +486,7 @@ upsert_shape_template <- function(data) {
 list_canvases <- function(limit = 100) {
   pool <- db_pool()
   sql <- sprintf("
-    SELECT TOP %d id, canvas_name, width_px, height_px, bg_png_b64, created_utc, updated_utc
+    SELECT TOP %d id, canvas_name, width_px, height_px, bg_png_b64, AreaID, created_utc, updated_utc
     FROM SiloOps.dbo.Canvases
     ORDER BY canvas_name
   ", as.integer(limit))
@@ -481,10 +496,21 @@ list_canvases <- function(limit = 100) {
 
 get_canvas_by_id <- function(canvas_id) {
   db_query_params("
-    SELECT id, canvas_name, width_px, height_px, bg_png_b64, created_utc, updated_utc
+    SELECT id, canvas_name, width_px, height_px, bg_png_b64, AreaID, created_utc, updated_utc
     FROM SiloOps.dbo.Canvases
     WHERE id = ?
   ", list(as.integer(canvas_id)))
+}
+
+update_canvas_area <- function(canvas_id, area_id = NULL) {
+  db_execute_params("
+    UPDATE SiloOps.dbo.Canvases
+    SET AreaID = ?, updated_utc = SYSUTCDATETIME()
+    WHERE id = ?
+  ", list(
+    if (is.null(area_id) || area_id == "") NULL else as.integer(area_id),
+    as.integer(canvas_id)
+  ))
 }
 
 # ---- Canvas Layouts -------------------------------------------------------
@@ -493,7 +519,7 @@ list_canvas_layouts <- function(limit = 100, offset = 0) {
   sql <- "
     SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
            CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
-           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY, SiteID,
            CreatedAt, UpdatedAt
     FROM SiloOps.dbo.CanvasLayouts
     ORDER BY LayoutName
@@ -506,7 +532,7 @@ get_layout_by_id <- function(layout_id) {
   db_query_params("
     SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
            CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
-           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY, SiteID,
            CreatedAt, UpdatedAt
     FROM SiloOps.dbo.CanvasLayouts
     WHERE LayoutID = ?
@@ -516,7 +542,7 @@ get_layout_by_id <- function(layout_id) {
 # Update layout background settings
 update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NULL,
                                     pan_x = NULL, pan_y = NULL, zoom = NULL,
-                                    scale_x = NULL, scale_y = NULL) {
+                                    scale_x = NULL, scale_y = NULL, site_id = NULL) {
   pool <- db_pool()
 
   updates <- c()
@@ -549,6 +575,10 @@ update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NUL
   if (!is.null(scale_y)) {
     updates <- c(updates, "BackgroundScaleY = ?")
     params <- c(params, list(as.numeric(scale_y)))
+  }
+  if (!is.null(site_id)) {
+    updates <- c(updates, "SiteID = ?")
+    params <- c(params, list(if (site_id == "") NULL else as.integer(site_id)))
   }
 
   if (length(updates) == 0) return(FALSE)
@@ -596,7 +626,7 @@ list_canvas_layouts <- function(limit = 100, offset = 0) {
   sql <- "
     SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
            CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
-           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY, SiteID,
            CreatedAt, UpdatedAt
     FROM SiloOps.dbo.CanvasLayouts
     ORDER BY LayoutName
@@ -609,7 +639,7 @@ get_layout_by_id <- function(layout_id) {
   db_query_params("
     SELECT LayoutID, LayoutName, WidthUnits, HeightUnits, IsDefault,
            CanvasID, BackgroundRotation, BackgroundPanX, BackgroundPanY,
-           BackgroundZoom, BackgroundScaleX, BackgroundScaleY,
+           BackgroundZoom, BackgroundScaleX, BackgroundScaleY, SiteID,
            CreatedAt, UpdatedAt
     FROM SiloOps.dbo.CanvasLayouts
     WHERE LayoutID = ?
@@ -619,12 +649,12 @@ get_layout_by_id <- function(layout_id) {
 # Update layout background settings
 update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NULL,
                                      pan_x = NULL, pan_y = NULL, zoom = NULL,
-                                     scale_x = NULL, scale_y = NULL) {
+                                     scale_x = NULL, scale_y = NULL, site_id = NULL) {
   pool <- db_pool()
-  
+
   updates <- c()
   params <- list()
-  
+
   if (!is.null(canvas_id)) {
     updates <- c(updates, "CanvasID = ?")
     params <- c(params, list(if (canvas_id == "") NULL else as.integer(canvas_id)))
@@ -653,7 +683,11 @@ update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NUL
     updates <- c(updates, "BackgroundScaleY = ?")
     params <- c(params, list(as.numeric(scale_y)))
   }
-  
+  if (!is.null(site_id)) {
+    updates <- c(updates, "SiteID = ?")
+    params <- c(params, list(if (site_id == "") NULL else as.integer(site_id)))
+  }
+
   if (length(updates) == 0) return(FALSE)
   
   updates <- c(updates, "UpdatedAt = GETDATE()")

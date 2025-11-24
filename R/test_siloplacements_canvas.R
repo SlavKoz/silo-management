@@ -176,7 +176,7 @@ test_siloplacements_ui <- function(id) {
         tags$style(HTML("
           .toolbar-grid {
             display: grid;
-            grid-template-columns: 80px 90px 220px 110px 150px 1fr 100px;
+            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px 1fr 100px;
             gap: 0.3rem;
             align-items: center;
             padding: 0.3rem;
@@ -185,7 +185,7 @@ test_siloplacements_ui <- function(id) {
           }
           .toolbar-grid-bottom {
             display: grid;
-            grid-template-columns: 80px 90px 220px 110px 150px 1fr 1fr 100px;
+            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px 1fr 100px;
             gap: 0.3rem;
             align-items: center;
             padding: 0.3rem;
@@ -303,18 +303,30 @@ test_siloplacements_ui <- function(id) {
             )
           ),
 
-          # Column 4: Save Layout button
+          # Column 4: Site label
+          tags$label(
+            "Site:",
+            style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right;"
+          ),
+
+          # Column 5: Site selector
+          selectInput(
+            ns("layout_site_id"), label = NULL, choices = NULL, width = "100%",
+            selectize = TRUE
+          ),
+
+          # Column 6: Save Layout button
           actionButton(ns("save_bg_settings"), "Save Layout", icon = icon("save"), class = "btn-sm btn-success",
                       style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
 
-          # Column 5: Backgrounds button
+          # Column 7: Backgrounds button
           actionButton(ns("toggle_bg_controls"), "Backgrounds", icon = icon("chevron-up"), class = "btn-sm btn-secondary",
                       style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
 
-          # Column 6: Empty spacer
+          # Column 8: Empty spacer
           div(),
 
-          # Column 7: Delete button (far right)
+          # Column 9: Delete button (far right)
           actionButton(
             ns("delete_layout_btn"), "Delete", class = "btn-sm btn-danger",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
@@ -365,33 +377,41 @@ test_siloplacements_ui <- function(id) {
           # Column 3: Background selector
           selectInput(ns("canvas_id"), label = NULL, choices = NULL, width = "100%", selectize = TRUE),
 
-          # Column 4: Display BG toggle button
+          # Column 4: Area label
+          tags$label(
+            "Area:",
+            style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right;"
+          ),
+
+          # Column 5: Area selector
+          selectInput(
+            ns("bg_area_id"), label = NULL, choices = NULL, width = "100%",
+            selectize = TRUE
+          ),
+
+          # Column 6: Display BG toggle button
           actionButton(
             ns("display_bg_toggle"), "Display BG", class = "btn-sm toggle-btn active",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
-          # Column 5: Move BG toggle button
+          # Column 7: Move BG toggle button
           actionButton(
             ns("move_bg_toggle"), "Move BG", class = "btn-sm toggle-btn",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
-          # Column 6: Rotation controls group
+          # Column 8: Rotation and Zoom controls group
           div(
             class = "control-group",
+            style = "justify-content: flex-start;",
             tags$label("Rotate:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
             actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°",
                         style = "height: 26px; padding: 0.2rem 0.4rem;"),
             numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "65px"),
             actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°",
-                        style = "height: 26px; padding: 0.2rem 0.4rem;")
-          ),
-
-          # Column 7: Zoom controls group
-          div(
-            class = "control-group",
-            tags$label("Zoom:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
+            tags$label("Zoom:", style = "margin: 0 0 0 0.5rem; font-size: 13px; font-weight: normal;"),
             actionButton(ns("bg_scale_down"), "", icon = icon("search-minus"), class = "btn-sm", title = "Shrink BG",
                         style = "height: 26px; padding: 0.2rem 0.4rem;"),
             numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "65px"),
@@ -399,7 +419,7 @@ test_siloplacements_ui <- function(id) {
                         style = "height: 26px; padding: 0.2rem 0.4rem;")
           ),
 
-          # Column 8: Empty spacer (matches Delete button position)
+          # Column 9: Empty spacer (matches Delete button position)
           div()
         ),
 
@@ -566,6 +586,7 @@ test_siloplacements_server <- function(id) {
     canvas_initialized <- reactiveVal(FALSE)  # Track if canvas has been initially fitted
     panel_mode <- reactiveVal("placement")  # Track panel mode: "placement" or "silo"
     silos_refresh <- reactiveVal(0)  # Trigger to refresh silos list after creating new silo
+    canvases_refresh <- reactiveVal(0)  # Trigger to refresh canvases list after updating area
     show_silo_warning <- reactiveVal(FALSE)  # Track whether to show "no silos" warning
 
     # ---- Load layouts ----
@@ -712,6 +733,7 @@ test_siloplacements_server <- function(id) {
 
     # ---- Load canvases ----
     canvases_data <- reactive({
+      canvases_refresh()  # Depend on refresh trigger
       df <- try(list_canvases(limit = 100), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) return(data.frame())
       df
@@ -720,12 +742,75 @@ test_siloplacements_server <- function(id) {
     # Populate canvas dropdown
     observe({
       canvases <- canvases_data()
+      areas <- areas_data()
+
       choices <- c("(None)" = "")
       if (nrow(canvases) > 0) {
-        choices <- c(choices, setNames(canvases$id, canvases$canvas_name))
+        # Build display names with area info
+        display_names <- vapply(seq_len(nrow(canvases)), function(i) {
+          canvas_name <- canvases$canvas_name[i]
+          area_id <- canvases$AreaID[i]
+
+          # If AreaID is NULL/NA, show (ALL)
+          if (is.null(area_id) || is.na(area_id)) {
+            return(paste0(canvas_name, " (ALL)"))
+          }
+
+          # Otherwise, find the area code
+          if (nrow(areas) > 0) {
+            area_row <- areas[areas$AreaID == area_id, ]
+            if (nrow(area_row) > 0) {
+              area_code <- area_row$AreaCode[1]
+              return(paste0(canvas_name, " (", area_code, ")"))
+            }
+          }
+
+          # Fallback if area not found
+          return(paste0(canvas_name, " (Area:", area_id, ")"))
+        }, character(1))
+
+        choices <- c(choices, setNames(canvases$id, display_names))
       }
       updateSelectInput(session, "canvas_id", choices = choices)
     })
+
+    # Populate sites dropdown
+    observe({
+      sites <- sites_data()
+      choices <- c("(None)" = "")
+      if (nrow(sites) > 0) {
+        choices <- c(choices, setNames(sites$SiteID, paste0(sites$SiteCode, " - ", sites$SiteName)))
+      }
+      updateSelectInput(session, "layout_site_id", choices = choices)
+    })
+
+    # Populate areas dropdown for background selector
+    observe({
+      areas <- areas_data()
+      choices <- c("(All Areas)" = "")
+      if (nrow(areas) > 0) {
+        choices <- c(choices, setNames(areas$AreaID, paste0(areas$AreaCode, " - ", areas$AreaName)))
+      }
+      updateSelectInput(session, "bg_area_id", choices = choices)
+    })
+
+    # Save canvas area when changed
+    observeEvent(input$bg_area_id, {
+      canvas_id <- input$canvas_id
+      if (is.null(canvas_id) || canvas_id == "") return()
+
+      area_id <- input$bg_area_id
+
+      # Update canvas area in database
+      tryCatch({
+        update_canvas_area(as.integer(canvas_id), area_id)
+        canvases_refresh(canvases_refresh() + 1)  # Trigger canvas list refresh
+        showNotification("Canvas area updated", type = "message", duration = 2)
+      }, error = function(e) {
+        showNotification(paste("Error updating canvas area:", conditionMessage(e)),
+                        type = "error", duration = NULL)
+      })
+    }, ignoreInit = TRUE)
 
     # ---- Load current layout settings ----
     current_layout <- reactive({
@@ -735,6 +820,7 @@ test_siloplacements_server <- function(id) {
         return(list(
           LayoutID = layout_id,
           CanvasID = NA,
+          SiteID = NA,
           BackgroundRotation = 0,
           BackgroundPanX = 0,
           BackgroundPanY = 0,
@@ -753,6 +839,10 @@ test_siloplacements_server <- function(id) {
       # Update canvas selection
       canvas_id <- if (is.na(layout$CanvasID)) "" else as.character(layout$CanvasID)
       updateSelectInput(session, "canvas_id", selected = canvas_id)
+
+      # Update site selection
+      site_id <- if (is.null(layout$SiteID) || is.na(layout$SiteID)) "" else as.character(layout$SiteID)
+      updateSelectInput(session, "layout_site_id", selected = site_id)
 
       # Update background rotation control
       bg_rot <- f_or(layout$BackgroundRotation, 0)
@@ -779,14 +869,20 @@ test_siloplacements_server <- function(id) {
       if (is.null(canvas_id) || canvas_id == "") {
         background_image(NULL)
         session$sendCustomMessage(paste0(ns("root"), ":setBackground"), list(image = NULL))
+        updateSelectInput(session, "bg_area_id", selected = "")
         return()
       }
 
       df <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df) || nrow(df) == 0) {
         background_image(NULL)
+        updateSelectInput(session, "bg_area_id", selected = "")
         return()
       }
+
+      # Update area selector based on canvas's AreaID
+      area_id <- if (is.null(df$AreaID) || is.na(df$AreaID[1])) "" else as.character(df$AreaID[1])
+      updateSelectInput(session, "bg_area_id", selected = area_id)
 
       # Send base64 image to JavaScript
       bg_data <- paste0("data:image/png;base64,", df$bg_png_b64[1])
@@ -794,12 +890,26 @@ test_siloplacements_server <- function(id) {
       session$sendCustomMessage(paste0(ns("root"), ":setBackground"), list(image = bg_data))
     })
 
-    # ---- Load placements from DB (filtered by current layout) ----
+    # ---- Load placements from DB (filtered by current layout, site, and area) ----
     raw_placements <- reactive({
       trigger_refresh()
       layout_id <- current_layout_id()
+      layout <- current_layout()
 
-      df <- try(list_placements(layout_id = layout_id, limit = 500), silent = TRUE)
+      # Get site_id from layout
+      site_id <- if (!is.null(layout$SiteID) && !is.na(layout$SiteID)) layout$SiteID else NULL
+
+      # Get area_id from currently selected canvas
+      area_id <- NULL
+      canvas_id <- input$canvas_id
+      if (!is.null(canvas_id) && canvas_id != "") {
+        canvas_df <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
+        if (!inherits(canvas_df, "try-error") && !is.null(canvas_df) && nrow(canvas_df) > 0) {
+          area_id <- canvas_df$AreaID[1]
+        }
+      }
+
+      df <- try(list_placements(layout_id = layout_id, site_id = site_id, area_id = area_id, limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) {
         return(data.frame())
       }
@@ -810,7 +920,22 @@ test_siloplacements_server <- function(id) {
     # ---- Load related data (Silos, ShapeTemplates, ContainerTypes) ----
     silos_data <- reactive({
       silos_refresh()  # Depend on refresh trigger
-      df <- try(list_silos(limit = 1000), silent = TRUE)
+      layout <- current_layout()
+
+      # Get site_id from layout
+      site_id <- if (!is.null(layout$SiteID) && !is.na(layout$SiteID)) layout$SiteID else NULL
+
+      # Get area_id from currently selected canvas (NULL means show all areas for the site)
+      area_id <- NULL
+      canvas_id <- input$canvas_id
+      if (!is.null(canvas_id) && canvas_id != "") {
+        canvas_df <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
+        if (!inherits(canvas_df, "try-error") && !is.null(canvas_df) && nrow(canvas_df) > 0) {
+          area_id <- canvas_df$AreaID[1]
+        }
+      }
+
+      df <- try(list_silos(site_id = site_id, area_id = area_id, limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) return(data.frame())
       df
     })
@@ -831,7 +956,11 @@ test_siloplacements_server <- function(id) {
     })
 
     areas_data <- reactive({
-      df <- try(list_areas(site_id = NULL, limit = 1000), silent = TRUE)
+      # Filter areas by current layout's site
+      layout <- current_layout()
+      site_id <- if (!is.null(layout$SiteID) && !is.na(layout$SiteID)) layout$SiteID else NULL
+
+      df <- try(list_areas(site_id = site_id, limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
 
@@ -1772,6 +1901,7 @@ test_siloplacements_server <- function(id) {
     observeEvent(input$save_bg_settings, {
       layout_id <- current_layout_id()
       canvas_id <- input$canvas_id
+      site_id <- input$layout_site_id
       rotation <- input$bg_rotation
       scale <- input$bg_scale
 
@@ -1781,6 +1911,7 @@ test_siloplacements_server <- function(id) {
       result <- try(update_layout_background(
         layout_id = layout_id,
         canvas_id = if (canvas_id == "") NA else canvas_id,
+        site_id = if (site_id == "") NA else site_id,
         rotation = rotation,
         pan_x = offset$x,
         pan_y = offset$y,

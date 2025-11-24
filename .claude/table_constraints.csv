@@ -2,6 +2,7 @@
 "dbo","Canvases","PK__Canvases__3213E83F95C65537","PRIMARY KEY","id",1,NA,NA,NA,NA
 "dbo","CanvasLayouts","CK_Layout_Positive","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","CanvasLayouts","FK_CanvasLayouts_Canvases","FOREIGN KEY","CanvasID",1,"PK__Canvases__3213E83F95C65537","dbo","Canvases","id"
+"dbo","CanvasLayouts","FK_CanvasLayouts_Sites","FOREIGN KEY","SiteID",1,"PK__Sites__B9DCB9034E614C4C","dbo","Sites","SiteID"
 "dbo","CanvasLayouts","PK__CanvasLa__203586F5DD18DD84","PRIMARY KEY","LayoutID",1,NA,NA,NA,NA
 "dbo","CanvasLayouts","UQ__CanvasLa__81CBB024A8C64EE5","UNIQUE","LayoutName",1,NA,NA,NA,NA
 "dbo","ContainerTypeOperations","FK__Container__Conta__398D8EEE","FOREIGN KEY","ContainerTypeID",1,"PK__Containe__46FA6FF9E285AB8F","dbo","ContainerTypes","ContainerTypeID"

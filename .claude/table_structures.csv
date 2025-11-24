@@ -20,6 +20,7 @@
 "dbo","CanvasLayouts",12,"BackgroundZoom","decimal",NA,6,4,"YES"
 "dbo","CanvasLayouts",13,"BackgroundScaleX","decimal",NA,6,4,"YES"
 "dbo","CanvasLayouts",14,"BackgroundScaleY","decimal",NA,6,4,"YES"
+"dbo","CanvasLayouts",15,"SiteID","int",NA,10,0,"YES"
 "dbo","ContainerTypeOperations",1,"ContainerTypeID","int",NA,10,0,"NO"
 "dbo","ContainerTypeOperations",2,"OperationID","int",NA,10,0,"NO"
 "dbo","ContainerTypes",1,"ContainerTypeID","int",NA,10,0,"NO"
