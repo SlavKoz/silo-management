@@ -243,7 +243,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
       id = input_id,
       class = "form-control",
       rows = 3,
-      readonly = if (initial_mode == "locked") "readonly" else NULL,
+      readonly = "readonly",
       disabled = "disabled",
       `data-required` = if (is_required) "true" else NULL,
       `data-required-if` = required_if_attr,
@@ -348,7 +348,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
       }
 
       # Return custom dropdown
-      return(div(class = "icon-picker-custom", id = input_id, `data-value` = value, `data-disabled` = if (initial_mode == "locked") "true" else "false", `data-required` = if (is_required) "true" else NULL, `data-required-if` = required_if_attr,
+      return(div(class = "icon-picker-custom", id = input_id, `data-value` = value, `data-disabled` = "true", `data-required` = if (is_required) "true" else NULL, `data-required-if` = required_if_attr,
         # Display (what user sees when closed)
         div(class = "icon-picker-display",
           if (nzchar(selected_thumbnail)) {
@@ -379,7 +379,7 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
       min = schema$minimum,
       max = schema$maximum,
       step = if (type == "integer") 1 else "any",
-      readonly = if (initial_mode == "locked") "readonly" else NULL,
+      readonly = "readonly",
       disabled = "disabled",
       `data-required` = if (is_required) "true" else NULL,
       `data-required-if` = required_if_attr
@@ -438,8 +438,8 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
     id = input_id,
     class = "form-control",
     value = val_str,
-    readonly = if (initial_mode == "locked") "readonly" else NULL,
-    disabled = if (initial_mode == "locked") "disabled" else NULL,
+    readonly = "readonly",
+    disabled = "disabled",
     `data-required` = if (is_required) "true" else NULL,
     `data-required-if` = required_if_attr
   )

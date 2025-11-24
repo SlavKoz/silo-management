@@ -7,7 +7,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(awk:*)",
-      "Bash(\"C:\\Users\\slawomirkozielec\\AppData\\Local\\Programs\\R\\R-4.5.1\\bin\\Rscript.exe\" run_canvas_test.R)"
+      "Bash(\"C:\\Users\\slawomirkozielec\\AppData\\Local\\Programs\\R\\R-4.5.1\\bin\\Rscript.exe\" run_canvas_test.R)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

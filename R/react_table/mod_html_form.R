@@ -895,7 +895,7 @@ mod_html_form_server <- function(id, schema_config, form_data,
         id_field <- names(current_data)[grepl("ID$", names(current_data), ignore.case = TRUE)][1]
         if (!is.null(id_field) && !is.na(id_field)) {
           id_val <- current_data[[id_field]]
-          is.null(id_val) || is.na(id_val)
+          is.null(id_val) || is.na(id_val) || identical(id_val, "")
         } else {
           FALSE
         }
