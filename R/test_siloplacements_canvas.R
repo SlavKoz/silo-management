@@ -460,6 +460,9 @@ test_siloplacements_ui <- function(id) {
           )
         ),
 
+        # Warning banner (hidden by default, shown when no silos available)
+        uiOutput(ns("no_silo_warning")),
+
         # Canvas viewport
         div(
           class = "canvas-viewport",
@@ -477,12 +480,12 @@ test_siloplacements_ui <- function(id) {
     # Sliding panel (slides in from right)
     div(id = ns("sliding_panel"), class = "sliding-panel",
       div(class = "panel-header",
-        h3(class = "ui header", style = "margin: 0;", "Placement Details"),
+        uiOutput(ns("panel_header_ui")),
         actionButton(ns("close_panel_btn"), "", icon = icon("times"),
                      class = "ui icon button", style = "margin: 0;")
       ),
       div(class = "panel-content",
-        mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
+        uiOutput(ns("panel_content_ui"))
       )
     ),
 
@@ -561,6 +564,9 @@ test_siloplacements_server <- function(id) {
     bg_move_state <- reactiveVal(FALSE)  # Track background move toggle state
     edit_mode_state <- reactiveVal(FALSE)  # Track edit mode toggle state
     canvas_initialized <- reactiveVal(FALSE)  # Track if canvas has been initially fitted
+    panel_mode <- reactiveVal("placement")  # Track panel mode: "placement" or "silo"
+    silos_refresh <- reactiveVal(0)  # Trigger to refresh silos list after creating new silo
+    show_silo_warning <- reactiveVal(FALSE)  # Track whether to show "no silos" warning
 
     # ---- Load layouts ----
     layouts_data <- reactive({
@@ -803,6 +809,7 @@ test_siloplacements_server <- function(id) {
 
     # ---- Load related data (Silos, ShapeTemplates, ContainerTypes) ----
     silos_data <- reactive({
+      silos_refresh()  # Depend on refresh trigger
       df <- try(list_silos(limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) return(data.frame())
       df
@@ -815,6 +822,16 @@ test_siloplacements_server <- function(id) {
 
     container_types_data <- reactive({
       df <- try(list_container_types(limit = 500), silent = TRUE)
+      if (inherits(df, "try-error") || is.null(df)) data.frame() else df
+    })
+
+    sites_data <- reactive({
+      df <- try(list_sites(limit = 1000), silent = TRUE)
+      if (inherits(df, "try-error") || is.null(df)) data.frame() else df
+    })
+
+    areas_data <- reactive({
+      df <- try(list_areas(site_id = NULL, limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
 
@@ -1047,6 +1064,59 @@ test_siloplacements_server <- function(id) {
       )
     })
 
+    # ---- Silo schema configuration (for creating new silos) ----
+    silo_schema_config <- reactive({
+      sites <- sites_data()
+      site_choices <- c("(select site)" = "")
+      if (nrow(sites) > 0) {
+        site_choices <- c(site_choices, setNames(
+          as.character(sites$SiteID),
+          paste0(sites$SiteCode, " - ", sites$SiteName)
+        ))
+      }
+
+      areas <- areas_data()
+      area_choices <- c("(select area)" = "")
+      if (nrow(areas) > 0) {
+        area_choices <- c(area_choices, setNames(
+          as.character(areas$AreaID),
+          paste0(areas$AreaCode, " - ", areas$AreaName, " (", areas$SiteCode, ")")
+        ))
+      }
+
+      types <- container_types_data()
+      type_choices <- c("(select type)" = "")
+      if (nrow(types) > 0) {
+        type_choices <- c(type_choices, setNames(
+          as.character(types$ContainerTypeID),
+          paste0(types$TypeCode, " - ", types$TypeName)
+        ))
+      }
+
+      list(
+        fields = list(
+          field("SiloCode", "text", title="Code", column = 1, required = TRUE),
+          field("SiloName", "text", title="Name", column = 1, required = TRUE),
+          field("VolumeM3", "number", title="Volume (m³)", min=0, column = 1, required = TRUE),
+          field("IsActive", "checkbox", title="Active", column = 1, default = TRUE),
+          field("SiteID", "select", title="Site", enum=site_choices, column = 1, required = TRUE),
+          field("AreaID", "select", title="Area", enum=area_choices, column = 1),
+          field("ContainerTypeID", "select", title="Container Type", enum=type_choices, column = 1, required = TRUE)
+        ),
+        columns = 1
+      )
+    })
+
+    silo_form_data <- reactiveVal(list(
+      SiloCode = "",
+      SiloName = "",
+      VolumeM3 = 100,
+      IsActive = TRUE,
+      SiteID = "",
+      AreaID = "",
+      ContainerTypeID = ""
+    ))
+
     # ---- Form data based on selection ----
     form_data <- reactive({
       trigger_refresh()
@@ -1058,7 +1128,7 @@ test_siloplacements_server <- function(id) {
         pending <- pending_placement()
         if (!is.null(pending)) {
           return(list(
-            SiloID = "",  # User needs to select
+            SiloID = if (!is.null(pending$SiloID)) as.character(pending$SiloID) else "",
             ShapeTemplateID = as.character(pending$ShapeTemplateID),
             LayoutID = pending$LayoutID,
             CenterX = pending$CenterX,
@@ -1235,6 +1305,121 @@ test_siloplacements_server <- function(id) {
       }
     )
 
+    # ---- Silo form module (for creating new silos) ----
+    silo_form_module <- mod_html_form_server(
+      id = "silo_form",
+      schema_config = silo_schema_config,
+      form_data = silo_form_data,
+      title_field = "SiloName",
+      show_header = TRUE,
+      show_delete_button = TRUE,  # Acts as Cancel button
+      on_save = function(data) {
+        tryCatch({
+          # Save new silo
+          saved_id <- upsert_silo(data)
+
+          # Refresh silos list first
+          silos_refresh(silos_refresh() + 1)
+
+          # Get pending placement data (shape/location from canvas)
+          pending <- pending_placement()
+          if (!is.null(pending)) {
+            # Update pending placement with newly created silo
+            pending$SiloID <- as.character(saved_id)
+            pending_placement(pending)
+          }
+
+          # Set to "add new" mode to show populated placement form
+          selected_placement_id(NA)
+
+          # Force form to reload AFTER updating pending data
+          trigger_refresh(trigger_refresh() + 1)
+
+          # Switch back to placement mode
+          panel_mode("placement")
+
+          showNotification("Silo created successfully", type = "message", duration = 2)
+          return(TRUE)
+        }, error = function(e) {
+          showNotification(paste("Error creating silo:", conditionMessage(e)), type = "error", duration = NULL)
+          return(FALSE)
+        })
+      },
+      on_delete = function() {
+        # Cancel silo creation - clear pending data and return to normal state
+        pending_placement(NULL)
+        panel_mode("placement")
+        session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+
+        # Close panel
+        shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
+        return(TRUE)
+      }
+    )
+
+    # ---- Panel header UI (conditional based on mode) ----
+    output$panel_header_ui <- renderUI({
+      mode <- panel_mode()
+      title <- if (mode == "silo") "Create New Silo" else "Placement Details"
+      h3(class = "ui header", style = "margin: 0;", title)
+    })
+
+    # ---- Panel content UI (conditional based on mode) ----
+    output$panel_content_ui <- renderUI({
+      mode <- panel_mode()
+      if (mode == "silo") {
+        # Show both silo form (edit mode) and placement form (read-only preview)
+        tagList(
+          div(class = "ui info message", style = "margin-bottom: 1rem;",
+            tags$p(style = "margin: 0;",
+              strong("No silos available."),
+              " Create a new silo to place on the canvas."
+            )
+          ),
+          # Silo creation form (edit mode)
+          mod_html_form_ui(ns("silo_form"), max_width = "100%", margin = "0"),
+
+          # Divider
+          tags$hr(style = "margin: 1.5rem 0; border-top: 2px solid #dee2e6;"),
+
+          # Placement preview (read-only, shows stored shape/location)
+          div(style = "opacity: 0.6; pointer-events: none;",
+            tags$h4("Placement Preview", style = "margin-bottom: 0.75rem; color: #6c757d;"),
+            mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
+          )
+        )
+      } else {
+        mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
+      }
+    })
+
+    # ---- Warning banner UI (shown when no silos available) ----
+    output$no_silo_warning <- renderUI({
+      if (!show_silo_warning()) return(NULL)
+
+      div(
+        style = "background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 4px; display: flex; align-items: center; justify-content: space-between;",
+        div(
+          style = "display: flex; align-items: center; gap: 0.5rem;",
+          tags$i(class = "fas fa-exclamation-triangle", style = "font-size: 18px;"),
+          tags$span(
+            style = "font-weight: 500;",
+            "No silos available to create placement."
+          )
+        ),
+        div(
+          style = "display: flex; gap: 0.5rem;",
+          actionButton(ns("create_silo_btn"), "Create New Silo",
+                      class = "btn-sm btn-primary",
+                      style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
+          actionButton(ns("cancel_warning_btn"), "Cancel",
+                      class = "btn-sm btn-secondary",
+                      style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+        )
+      )
+    })
+
     # ---- Toolbar button handlers ----
 
     # Handle panel close - clear temp shape if not saved
@@ -1244,6 +1429,30 @@ test_siloplacements_server <- function(id) {
         pending_placement(NULL)
         session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
       }
+      # Reset to placement mode if in silo mode
+      if (panel_mode() == "silo") {
+        panel_mode("placement")
+      }
+    }, ignoreInit = TRUE)
+
+    # Handle warning banner "Create New Silo" button
+    observeEvent(input$create_silo_btn, {
+      show_silo_warning(FALSE)  # Hide warning
+      panel_mode("silo")  # Switch to silo mode
+
+      # Set to "add new" mode so placement preview shows pending data
+      selected_placement_id(NA)
+
+      # Open panel
+      shinyjs::runjs(sprintf("window.togglePanel_%s(true);", gsub("-", "_", ns("root"))))
+    }, ignoreInit = TRUE)
+
+    # Handle warning banner "Cancel" button
+    observeEvent(input$cancel_warning_btn, {
+      show_silo_warning(FALSE)  # Hide warning
+      # Clear any pending placement
+      pending_placement(NULL)
+      session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
     }, ignoreInit = TRUE)
 
     # Handle canvas click to add placement (namespace is auto-applied, so listen for canvas_add_at not test_canvas_add_at)
@@ -1273,7 +1482,23 @@ test_siloplacements_server <- function(id) {
 
       shape_type <- template$ShapeType[1]
 
-      # Store pending placement data (NOT inserted to DB yet)
+      # Check if silos are available
+      all_silos <- silos_data()
+      placements <- raw_placements()
+
+      cat("[Canvas] Total silos:", nrow(all_silos), "\n")
+      cat("[Canvas] Total placements:", nrow(placements), "\n")
+
+      # Filter out already-placed silos
+      available_silos <- all_silos
+      if (nrow(available_silos) > 0 && nrow(placements) > 0) {
+        placed_silo_ids <- placements$SiloID
+        available_silos <- available_silos[!available_silos$SiloID %in% placed_silo_ids, ]
+      }
+
+      cat("[Canvas] Available silos after filtering:", nrow(available_silos), "\n")
+
+      # Store pending placement data (shape and location from canvas click)
       pending_placement(list(
         LayoutID = layout_id,
         ShapeTemplateID = as.integer(click_data$templateId),
@@ -1283,6 +1508,17 @@ test_siloplacements_server <- function(id) {
         IsVisible = TRUE,
         IsInteractive = TRUE
       ))
+
+      # If no silos available, show warning banner and keep pending data
+      if (nrow(available_silos) == 0) {
+        cat("[Canvas] No silos available - showing warning banner\n")
+
+        # Set to "add new" mode immediately so placement form shows pending data
+        selected_placement_id(NA)
+
+        show_silo_warning(TRUE)
+        return()
+      }
 
       # Build temp shape for canvas
       temp_shape <- if (shape_type == "CIRCLE") {
