@@ -652,6 +652,81 @@ test_siloplacements_server <- function(id) {
     move_mode_state <- reactiveVal(FALSE)  # Track whether move mode is active
     move_original_position <- reactiveVal(NULL)  # Store original position before moving (list with x, y, id)
     move_current_position <- reactiveVal(NULL)  # Track current position during move (list with x, y)
+    move_is_duplicate <- reactiveVal(FALSE)  # Track if current move is for a duplicate operation
+
+    # ---- Reusable Move Mode Functions ----
+
+    # Enter move mode for a placement (works for existing or temp placements)
+    enter_move_mode <- function(placement_id, center_x, center_y, is_duplicate = FALSE) {
+      # Store original position
+      move_original_position(list(
+        id = placement_id,
+        x = as.numeric(center_x),
+        y = as.numeric(center_y)
+      ))
+
+      # Set current position (initially same as original)
+      move_current_position(list(
+        x = as.numeric(center_x),
+        y = as.numeric(center_y)
+      ))
+
+      # Track if this is a duplicate operation
+      move_is_duplicate(is_duplicate)
+
+      # Enable edit mode if not already enabled
+      if (!edit_mode_state()) {
+        edit_mode_state(TRUE)
+        shinyjs::addClass("edit_mode_toggle", "active")
+        session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
+      }
+
+      # Enable move mode
+      move_mode_state(TRUE)
+
+      # Send message to JavaScript to apply dotted border to shape
+      session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
+        shapeId = as.character(placement_id),
+        enabled = TRUE
+      ))
+    }
+
+    # Exit move mode (reset or cancel)
+    exit_move_mode <- function(reset_position = TRUE) {
+      original <- move_original_position()
+      if (is.null(original)) return()
+
+      if (reset_position) {
+        # Reset to original position
+        session$sendCustomMessage(paste0(ns("root"), ":updateMovePosition"), list(
+          shapeId = as.character(original$id),
+          x = original$x,
+          y = original$y
+        ))
+      }
+
+      # Remove dotted border
+      session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
+        shapeId = as.character(original$id),
+        enabled = FALSE
+      ))
+
+      # If this was a duplicate operation, remove temp shape
+      if (move_is_duplicate()) {
+        session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+      }
+
+      # Exit move mode
+      move_mode_state(FALSE)
+      move_original_position(NULL)
+      move_current_position(NULL)
+      move_is_duplicate(FALSE)
+
+      # Exit edit mode
+      edit_mode_state(FALSE)
+      shinyjs::removeClass("edit_mode_toggle", "active")
+      session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = FALSE))
+    }
 
     # ---- Load layouts ----
     layouts_data <- reactive({
@@ -1671,7 +1746,15 @@ test_siloplacements_server <- function(id) {
           )
         )
       } else {
-        mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
+        tagList(
+          mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
+          # Move button at bottom left
+          div(style = "margin-top: 1rem; padding: 0 1rem;",
+            actionButton(ns("panel_move"), "Move", icon = icon("arrows-alt"),
+                        class = "btn-sm btn-info",
+                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+          )
+        )
       }
     })
 
@@ -2013,7 +2096,7 @@ test_siloplacements_server <- function(id) {
       )
     }, ignoreInit = TRUE)
 
-    # Handle Move button
+    # Handle Move button (toolbar)
     observeEvent(input$move, {
       pid <- selected_placement_id()
       if (is.null(pid) || is.na(pid)) {
@@ -2025,34 +2108,27 @@ test_siloplacements_server <- function(id) {
       df <- try(get_placement_by_id(pid), silent = TRUE)
       if (inherits(df, "try-error") || !nrow(df)) return()
 
-      # Store original position
-      move_original_position(list(
-        id = pid,
-        x = as.numeric(df$CenterX),
-        y = as.numeric(df$CenterY)
-      ))
+      # Enter move mode using reusable function
+      enter_move_mode(pid, df$CenterX, df$CenterY, is_duplicate = FALSE)
+    })
 
-      # Set current position (initially same as original)
-      move_current_position(list(
-        x = as.numeric(df$CenterX),
-        y = as.numeric(df$CenterY)
-      ))
-
-      # Enable edit mode if not already enabled
-      if (!edit_mode_state()) {
-        edit_mode_state(TRUE)
-        shinyjs::addClass("edit_mode_toggle", "active")
-        session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
+    # Handle Move button (right panel)
+    observeEvent(input$panel_move, {
+      pid <- selected_placement_id()
+      if (is.null(pid) || is.na(pid)) {
+        showNotification("Select a placement to move", type = "warning", duration = 2)
+        return()
       }
 
-      # Enable move mode
-      move_mode_state(TRUE)
+      # Get current placement data
+      df <- try(get_placement_by_id(pid), silent = TRUE)
+      if (inherits(df, "try-error") || !nrow(df)) return()
 
-      # Send message to JavaScript to apply dotted border to shape
-      session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
-        shapeId = as.character(pid),
-        enabled = TRUE
-      ))
+      # Close right panel
+      shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
+      # Enter move mode using reusable function
+      enter_move_mode(pid, df$CenterX, df$CenterY, is_duplicate = FALSE)
     })
 
     # Handle Enter key press to apply coordinate changes
@@ -2085,68 +2161,91 @@ test_siloplacements_server <- function(id) {
 
     # Handle Reset button - exits move mode completely
     observeEvent(input$move_reset, {
-      original <- move_original_position()
-      if (is.null(original)) return()
-
-      # Reset to original position
-      session$sendCustomMessage(paste0(ns("root"), ":updateMovePosition"), list(
-        shapeId = as.character(original$id),
-        x = original$x,
-        y = original$y
-      ))
-
-      # Remove dotted border
-      session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
-        shapeId = as.character(original$id),
-        enabled = FALSE
-      ))
-
-      # Exit move mode
-      move_mode_state(FALSE)
-      move_original_position(NULL)
-      move_current_position(NULL)
-
-      # Exit edit mode
-      edit_mode_state(FALSE)
-      shinyjs::removeClass("edit_mode_toggle", "active")
-      session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = FALSE))
+      exit_move_mode(reset_position = TRUE)
     })
 
     # Handle Confirm Placement button
     observeEvent(input$move_confirm, {
       original <- move_original_position()
       current <- move_current_position()
+      is_dup <- move_is_duplicate()
 
       if (is.null(original) || is.null(current)) return()
 
-      # Get placement data and update position
+      # Get placement data
       df <- try(get_placement_by_id(original$id), silent = TRUE)
       if (inherits(df, "try-error") || !nrow(df)) return()
 
-      df$CenterX <- current$x
-      df$CenterY <- current$y
+      if (is_dup) {
+        # DUPLICATE OPERATION: Create new placement with new coordinates
+        new_data <- list(
+          SiloID = df$SiloID,
+          LayoutID = df$LayoutID,
+          ShapeTemplateID = df$ShapeTemplateID,
+          CenterX = current$x,
+          CenterY = current$y,
+          ZIndex = df$ZIndex,
+          IsVisible = df$IsVisible,
+          IsInteractive = df$IsInteractive,
+          Name = ""  # Empty name to force user input
+        )
 
-      tryCatch({
-        upsert_placement(as.list(df))
+        tryCatch({
+          new_id <- upsert_placement(new_data)
 
-        # Exit move mode
-        move_mode_state(FALSE)
-        move_original_position(NULL)
-        move_current_position(NULL)
+          # Clear temp shape
+          session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
 
-        # Remove dotted border from shape
-        session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
-          shapeId = as.character(original$id),
-          enabled = FALSE
-        ))
+          # Select new placement
+          selected_placement_id(as.integer(new_id))
 
-        # Refresh canvas to show final position
-        trigger_refresh(trigger_refresh() + 1)
+          # Exit move mode but keep edit mode enabled
+          move_mode_state(FALSE)
+          move_original_position(NULL)
+          move_current_position(NULL)
+          move_is_duplicate(FALSE)
 
-        showNotification("Placement moved successfully", type = "message", duration = 2)
-      }, error = function(e) {
-        showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
-      })
+          # Refresh canvas
+          trigger_refresh(trigger_refresh() + 1)
+
+          # Open panel in edit mode
+          shinyjs::runjs(sprintf("window.togglePanel_%s(true);", gsub("-", "_", ns("root"))))
+
+          showNotification("Duplicate created - enter name and save", type = "message", duration = 3)
+        }, error = function(e) {
+          showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
+        })
+      } else {
+        # NORMAL MOVE: Update existing placement position
+        df$CenterX <- current$x
+        df$CenterY <- current$y
+
+        tryCatch({
+          upsert_placement(as.list(df))
+
+          # Remove dotted border
+          session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
+            shapeId = as.character(original$id),
+            enabled = FALSE
+          ))
+
+          # Exit move mode and edit mode
+          move_mode_state(FALSE)
+          move_original_position(NULL)
+          move_current_position(NULL)
+
+          edit_mode_state(FALSE)
+          shinyjs::removeClass("edit_mode_toggle", "active")
+          session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = FALSE))
+
+          # Refresh canvas
+          trigger_refresh(trigger_refresh() + 1)
+
+          showNotification("Placement moved successfully", type = "message", duration = 2)
+        }, error = function(e) {
+          showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
+        })
+      }
     })
 
     observeEvent(input$duplicate, {
@@ -2160,26 +2259,74 @@ test_siloplacements_server <- function(id) {
       df <- try(get_placement_by_id(pid), silent = TRUE)
       if (inherits(df, "try-error") || !nrow(df)) return()
 
-      # Create duplicate with offset position
-      new_data <- list(
-        SiloID = df$SiloID,
-        LayoutID = df$LayoutID,
-        ShapeTemplateID = df$ShapeTemplateID,
-        CenterX = as.numeric(df$CenterX) + 50,
-        CenterY = as.numeric(df$CenterY) + 50,
-        ZIndex = df$ZIndex,
-        IsVisible = df$IsVisible,
-        IsInteractive = df$IsInteractive
-      )
+      # Check if spare silos are available
+      all_silos <- silos_data()
+      placements <- raw_placements()
 
-      tryCatch({
-        new_id <- upsert_placement(new_data)
-        selected_placement_id(as.integer(new_id))
-        trigger_refresh(trigger_refresh() + 1)
-        showNotification("Placement duplicated", type = "message", duration = 2)
-      }, error = function(e) {
-        showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
-      })
+      # Filter out already-placed silos
+      available_silos <- all_silos
+      if (nrow(available_silos) > 0 && nrow(placements) > 0) {
+        placed_silo_ids <- placements$SiloID
+        # Allow the current silo since we're duplicating from it
+        available_silos <- available_silos[!available_silos$SiloID %in% placed_silo_ids | all_silos$SiloID == df$SiloID, ]
+      }
+
+      # If no silos available, show warning banner
+      if (nrow(available_silos) == 0) {
+        show_silo_warning(TRUE)
+        showNotification("No spare silos available for duplicate", type = "warning", duration = 3)
+        return()
+      }
+
+      # Get shape template to build temp shape
+      template <- try(get_shape_template_by_id(df$ShapeTemplateID), silent = TRUE)
+      if (inherits(template, "try-error") || !nrow(template)) return()
+
+      shape_type <- template$ShapeType[1]
+
+      # Calculate offset position (minimal offset of 20px)
+      offset_x <- as.numeric(df$CenterX) + 20
+      offset_y <- as.numeric(df$CenterY) + 20
+
+      # Build temp shape for canvas
+      temp_shape <- if (shape_type == "CIRCLE") {
+        radius <- as.numeric(f_or(template$Radius[1], 20))
+        list(
+          type = "circle",
+          x = offset_x,
+          y = offset_y,
+          r = radius,
+          label = "DUPL"
+        )
+      } else if (shape_type == "RECTANGLE") {
+        width <- as.numeric(f_or(template$Width[1], 40))
+        height <- as.numeric(f_or(template$Height[1], 40))
+        list(
+          type = "rect",
+          x = offset_x - width / 2,
+          y = offset_y - height / 2,
+          w = width,
+          h = height,
+          label = "DUPL"
+        )
+      } else if (shape_type == "TRIANGLE") {
+        radius <- as.numeric(f_or(template$Radius[1], 20))
+        list(
+          type = "triangle",
+          x = offset_x,
+          y = offset_y,
+          r = radius,
+          label = "DUPL"
+        )
+      }
+
+      # Show temp shape on canvas
+      session$sendCustomMessage(paste0(ns("root"), ":setTempShape"), list(shape = temp_shape))
+
+      # Enter move mode with duplicate flag
+      enter_move_mode(pid, offset_x, offset_y, is_duplicate = TRUE)
+
+      showNotification("Position the duplicate, then confirm", type = "message", duration = 3)
     })
 
     observeEvent(input$delete, {
