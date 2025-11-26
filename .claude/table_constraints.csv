@@ -1,4 +1,5 @@
 "TABLE_SCHEMA","TABLE_NAME","CONSTRAINT_NAME","CONSTRAINT_TYPE","COLUMN_NAME","ColumnOrder","ReferencedConstraint","ReferencedSchema","ReferencedTable","ReferencedColumn"
+"dbo","Canvases","FK_Canvases_SiteAreas","FOREIGN KEY","AreaID",1,"PK__SiteArea__70B82028F6181180","dbo","SiteAreas","AreaID"
 "dbo","Canvases","PK__Canvases__3213E83F95C65537","PRIMARY KEY","id",1,NA,NA,NA,NA
 "dbo","CanvasLayouts","CK_Layout_Positive","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","CanvasLayouts","FK_CanvasLayouts_Canvases","FOREIGN KEY","CanvasID",1,"PK__Canvases__3213E83F95C65537","dbo","Canvases","id"

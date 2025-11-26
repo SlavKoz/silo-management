@@ -32,8 +32,8 @@ list_silos <- function(site_id = NULL,
 
   where <- c(); params <- list()
 
-  if (!is.null(site_id))          { where <- c(where, "s.SiteID = ?");         params <- c(params, list(as.integer(site_id))) }
-  if (!is.null(area_id))          { where <- c(where, "s.AreaID = ?");         params <- c(params, list(as.integer(area_id))) }
+  if (!is.null(site_id) && !is.na(site_id))          { where <- c(where, "s.SiteID = ?");         params <- c(params, list(as.integer(site_id))) }
+  if (!is.null(area_id) && !is.na(area_id))          { where <- c(where, "s.AreaID = ?");         params <- c(params, list(as.integer(area_id))) }
   if (!is.null(area_code_like))   { where <- c(where, "a.AreaCode LIKE ?");   params <- c(params, list(area_code_like)) }
   if (!is.null(active))            { where <- c(where, "s.IsActive = ?");      params <- c(params, list(as.logical(active))) }
   if (!is.null(code_like))         { where <- c(where, "s.SiloCode LIKE ?");   params <- c(params, list(code_like)) }
@@ -496,9 +496,12 @@ list_canvases <- function(limit = 100) {
 
 get_canvas_by_id <- function(canvas_id) {
   db_query_params("
-    SELECT id, canvas_name, width_px, height_px, bg_png_b64, AreaID, created_utc, updated_utc
-    FROM SiloOps.dbo.Canvases
-    WHERE id = ?
+    SELECT c.id, c.canvas_name, c.width_px, c.height_px, c.bg_png_b64,
+           c.AreaID, a.AreaCode, a.AreaName,
+           c.created_utc, c.updated_utc
+    FROM SiloOps.dbo.Canvases c
+    LEFT JOIN SiloOps.dbo.SiteAreas a ON c.AreaID = a.AreaID
+    WHERE c.id = ?
   ", list(as.integer(canvas_id)))
 }
 

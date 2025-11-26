@@ -6,6 +6,7 @@
 "dbo","Canvases",5,"bg_png_b64","nvarchar",-1,NA,NA,"NO"
 "dbo","Canvases",6,"created_utc","datetime2",NA,NA,NA,"NO"
 "dbo","Canvases",7,"updated_utc","datetime2",NA,NA,NA,"NO"
+"dbo","Canvases",8,"AreaID","int",NA,10,0,"YES"
 "dbo","CanvasLayouts",1,"LayoutID","int",NA,10,0,"NO"
 "dbo","CanvasLayouts",2,"LayoutName","nvarchar",60,NA,NA,"NO"
 "dbo","CanvasLayouts",3,"WidthUnits","int",NA,10,0,"NO"

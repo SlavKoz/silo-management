@@ -460,8 +460,14 @@
     // Draw shapes (shapes don't rotate)
     state.shapes.forEach(shape => {
       const isSelected = shape.id === state.selectedId;
+      const inMoveMode = shape.moveMode === true;
 
       ctx.save();
+
+      // Apply dotted border if in move mode
+      if (inMoveMode) {
+        ctx.setLineDash([5, 5]);
+      }
 
       // Draw shape
       if (shape.type === 'circle') {
@@ -475,6 +481,7 @@
 
         // Draw label
         if (shape.label) {
+          ctx.setLineDash([]);  // Solid for text
           ctx.font = '12px sans-serif';
           ctx.fillStyle = '#333';
           ctx.textAlign = 'center';
@@ -490,6 +497,7 @@
 
         // Draw label
         if (shape.label) {
+          ctx.setLineDash([]);  // Solid for text
           ctx.font = '12px sans-serif';
           ctx.fillStyle = '#333';
           ctx.textAlign = 'center';
@@ -520,6 +528,7 @@
 
         // Draw label
         if (shape.label) {
+          ctx.setLineDash([]);  // Solid for text
           ctx.font = '12px sans-serif';
           ctx.fillStyle = '#333';
           ctx.textAlign = 'center';
@@ -1036,6 +1045,66 @@
     state.shapes[shapeIndex] = updatedShape;
 
     // Re-render canvas
+    render(state);
+  });
+
+  // Set move mode for a shape (applies dotted border)
+  Shiny.addCustomMessageHandler('test-root:setMoveMode', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+
+    if (!state) {
+      console.warn('[Canvas] State not found for:', canvasId);
+      return;
+    }
+
+    const shapeId = message.shapeId;
+    const enabled = message.enabled;
+
+    // Find the shape
+    const shape = state.shapes.find(s => s.id === shapeId);
+    if (!shape) {
+      console.warn('[Canvas] Shape not found with ID:', shapeId);
+      return;
+    }
+
+    // Mark shape as being in move mode
+    shape.moveMode = enabled;
+
+    render(state);
+  });
+
+  // Update move position for a shape during move mode
+  Shiny.addCustomMessageHandler('test-root:updateMovePosition', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+
+    if (!state) {
+      console.warn('[Canvas] State not found for:', canvasId);
+      return;
+    }
+
+    const shapeId = message.shapeId;
+    const x = message.x;
+    const y = message.y;
+
+    // Find the shape
+    const shape = state.shapes.find(s => s.id === shapeId);
+    if (!shape) {
+      console.warn('[Canvas] Shape not found with ID:', shapeId);
+      return;
+    }
+
+    // Update position based on shape type
+    if (shape.type === 'circle' || shape.type === 'triangle') {
+      shape.x = x;
+      shape.y = y;
+    } else if (shape.type === 'rect') {
+      // For rectangles, x,y is top-left, but we store center in DB
+      shape.x = x - shape.w / 2;
+      shape.y = y - shape.h / 2;
+    }
+
     render(state);
   });
 

@@ -185,7 +185,7 @@ test_siloplacements_ui <- function(id) {
           }
           .toolbar-grid-bottom {
             display: grid;
-            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px 1fr 100px;
+            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px auto 80px auto 1fr 80px auto 1fr 100px;
             gap: 0.3rem;
             align-items: center;
             padding: 0.3rem;
@@ -194,7 +194,7 @@ test_siloplacements_ui <- function(id) {
           }
           .toolbar-grid-placement {
             display: grid;
-            grid-template-columns: 80px 90px 220px auto;
+            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px auto 80px auto 1fr 80px auto 1fr 100px;
             gap: 0.3rem;
             align-items: center;
             padding: 0.3rem;
@@ -401,25 +401,42 @@ test_siloplacements_ui <- function(id) {
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
-          # Column 8: Rotation and Zoom controls group
+          # Column 8: Empty
+          div(),
+
+          # Column 9: Rotate label (right-aligned)
+          tags$label("Rotate:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 10: Rotate controls (centered)
           div(
-            class = "control-group",
-            style = "justify-content: flex-start;",
-            tags$label("Rotate:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
             actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°",
-                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
-            numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "65px"),
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;"),
+            numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "32px"),
             actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°",
-                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
-            tags$label("Zoom:", style = "margin: 0 0 0 0.5rem; font-size: 13px; font-weight: normal;"),
-            actionButton(ns("bg_scale_down"), "", icon = icon("search-minus"), class = "btn-sm", title = "Shrink BG",
-                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
-            numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "65px"),
-            actionButton(ns("bg_scale_up"), "", icon = icon("search-plus"), class = "btn-sm", title = "Enlarge BG",
-                        style = "height: 26px; padding: 0.2rem 0.4rem;")
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;")
           ),
 
-          # Column 9: Empty spacer (matches Delete button position)
+          # Column 11: Space
+          div(),
+
+          # Column 12: BG Size label (right-aligned)
+          tags$label("BG Size:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 13: BG Size controls (centered)
+          div(
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
+            actionButton(ns("bg_scale_down"), "-", class = "btn-sm", title = "Shrink BG",
+                        style = "height: 26px; width: 26px; padding: 0;"),
+            numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "32px"),
+            actionButton(ns("bg_scale_up"), "+", class = "btn-sm", title = "Enlarge BG",
+                        style = "height: 26px; width: 26px; padding: 0;")
+          ),
+
+          # Column 14: Space
+          div(),
+
+          # Column 15: Empty spacer
           div()
         ),
 
@@ -461,27 +478,70 @@ test_siloplacements_ui <- function(id) {
           # Column 3: Shape template selector
           selectInput(ns("shape_template_id"), label = NULL, choices = NULL, width = "100%", selectize = TRUE),
 
-          # Column 4: Rest of controls
+          # Column 4: Empty spacer (aligns with Area: label above)
+          div(),
+
+          # Column 5: Move and Duplicate buttons (180px split 50/50)
           div(
             style = "display: flex; gap: 0.3rem; align-items: center;",
+            actionButton(ns("move"), "Move", icon = icon("arrows-alt"), class = "btn-sm btn-info",
+                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
             actionButton(ns("duplicate"), "Duplicate", icon = icon("copy"), class = "btn-sm btn-secondary",
-                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
-            actionButton(ns("delete"), "Delete", icon = icon("trash"), class = "btn-sm btn-danger",
-                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"),
-            div(style = "flex: 1;"),
-            tags$label("Grid Snap:", style = "margin: 0; font-size: 13px; font-weight: normal;"),
-            numericInput(ns("snap_grid"), label = NULL, value = 0, min = 0, step = 10, width = "70px"),
-            actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm",
-                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
+                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;")
+          ),
+
+          # Column 6: Fit View button (110px - matches Display BG above)
+          actionButton(ns("fit_view"), "Fit View", icon = icon("expand"), class = "btn-sm btn-secondary",
+                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
+
+          # Column 7: Empty (skip Move BG position)
+          div(),
+
+          # Column 8: Empty
+          div(),
+
+          # Column 9: Grid Snap label (right-aligned)
+          tags$label("Grid Snap:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 10: Grid Snap controls (centered)
+          div(
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
+            actionButton(ns("snap_down"), "-", class = "btn-sm", title = "Decrease Snap",
+                        style = "height: 26px; width: 26px; padding: 0;"),
+            numericInput(ns("snap_grid"), label = NULL, value = 0, min = 0, step = 10, width = "32px"),
+            actionButton(ns("snap_up"), "+", class = "btn-sm", title = "Increase Snap",
+                        style = "height: 26px; width: 26px; padding: 0;")
+          ),
+
+          # Column 11: Space
+          div(),
+
+          # Column 12: Zoom label (right-aligned)
+          tags$label("Zoom:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 13: Zoom controls with input (centered)
+          div(
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
             actionButton(ns("zoom_out"), "", icon = icon("magnifying-glass-minus"), class = "btn-sm",
-                        style = "height: 26px; padding: 0.2rem 0.4rem;"),
-            actionButton(ns("fit_view"), "Fit View", icon = icon("expand"), class = "btn-sm",
-                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;")
-          )
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;"),
+            numericInput(ns("zoom_level"), label = NULL, value = 100, min = 10, max = 500, step = 10, width = "32px"),
+            actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm",
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;")
+          ),
+
+          # Column 14: Space
+          div(),
+
+          # Column 15: Delete button (100px)
+          actionButton(ns("delete"), "Delete", icon = icon("trash"), class = "btn-sm btn-danger",
+                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;")
         ),
 
         # Warning banner (hidden by default, shown when no silos available)
         uiOutput(ns("no_silo_warning")),
+
+        # Move operation bar (hidden by default, shown when moving an object)
+        uiOutput(ns("move_operation_bar")),
 
         # Canvas viewport
         div(
@@ -588,6 +648,10 @@ test_siloplacements_server <- function(id) {
     silos_refresh <- reactiveVal(0)  # Trigger to refresh silos list after creating new silo
     canvases_refresh <- reactiveVal(0)  # Trigger to refresh canvases list after updating area
     show_silo_warning <- reactiveVal(FALSE)  # Track whether to show "no silos" warning
+    initial_load_complete <- reactiveVal(FALSE)  # Track whether initial layout load is complete
+    move_mode_state <- reactiveVal(FALSE)  # Track whether move mode is active
+    move_original_position <- reactiveVal(NULL)  # Store original position before moving (list with x, y, id)
+    move_current_position <- reactiveVal(NULL)  # Track current position during move (list with x, y)
 
     # ---- Load layouts ----
     layouts_data <- reactive({
@@ -728,7 +792,39 @@ test_siloplacements_server <- function(id) {
 
       if (!is.null(selected_value) && selected_value != "") {
         current_layout_id(as.integer(selected_value))
+        # Reset initial load flag so new layout's area is populated
+        initial_load_complete(FALSE)
+        cat("[Layout Change] Reset initial_load_complete flag\n")
       }
+    }, ignoreInit = TRUE)
+
+    # Handle site selection - update layout in database
+    # Note: Placements/silos/areas will auto-refresh via reactive dependencies on input$layout_site_id
+    observeEvent(input$layout_site_id, {
+      layout_id <- current_layout_id()
+      if (is.null(layout_id) || is.na(layout_id)) return()
+
+      site_id <- input$layout_site_id
+      site_id_value <- if (is.null(site_id) || site_id == "") NA else as.integer(site_id)
+
+      # Update layout's site in database
+      tryCatch({
+        layout <- current_layout()
+        update_layout_background(
+          layout_id = layout_id,
+          canvas_id = if (is.null(layout$CanvasID) || is.na(layout$CanvasID)) NA else layout$CanvasID,
+          site_id = site_id_value,
+          rotation = f_or(layout$BackgroundRotation, 0),
+          pan_x = f_or(layout$BackgroundPanX, 0),
+          pan_y = f_or(layout$BackgroundPanY, 0),
+          scale_x = f_or(layout$BackgroundScaleX, 1),
+          scale_y = f_or(layout$BackgroundScaleY, 1)
+        )
+        # No need to trigger_refresh - reactives depend on input$layout_site_id directly
+      }, error = function(e) {
+        showNotification(paste("Error updating site:", conditionMessage(e)),
+                        type = "error", duration = NULL)
+      })
     }, ignoreInit = TRUE)
 
     # ---- Load canvases ----
@@ -742,36 +838,18 @@ test_siloplacements_server <- function(id) {
     # Populate canvas dropdown
     observe({
       canvases <- canvases_data()
-      areas <- areas_data()
+
+      # Preserve current selection
+      current_canvas_id <- input$canvas_id
 
       choices <- c("(None)" = "")
       if (nrow(canvases) > 0) {
-        # Build display names with area info
-        display_names <- vapply(seq_len(nrow(canvases)), function(i) {
-          canvas_name <- canvases$canvas_name[i]
-          area_id <- canvases$AreaID[i]
-
-          # If AreaID is NULL/NA, show (ALL)
-          if (is.null(area_id) || is.na(area_id)) {
-            return(paste0(canvas_name, " (ALL)"))
-          }
-
-          # Otherwise, find the area code
-          if (nrow(areas) > 0) {
-            area_row <- areas[areas$AreaID == area_id, ]
-            if (nrow(area_row) > 0) {
-              area_code <- area_row$AreaCode[1]
-              return(paste0(canvas_name, " (", area_code, ")"))
-            }
-          }
-
-          # Fallback if area not found
-          return(paste0(canvas_name, " (Area:", area_id, ")"))
-        }, character(1))
-
-        choices <- c(choices, setNames(canvases$id, display_names))
+        # Show only canvas names (area is in separate dropdown)
+        choices <- c(choices, setNames(canvases$id, canvases$canvas_name))
       }
-      updateSelectInput(session, "canvas_id", choices = choices)
+
+      # Update choices and restore selection
+      updateSelectInput(session, "canvas_id", choices = choices, selected = current_canvas_id)
     })
 
     # Populate sites dropdown
@@ -787,9 +865,19 @@ test_siloplacements_server <- function(id) {
     # Populate areas dropdown for background selector
     observe({
       areas <- areas_data()
-      choices <- c("(All Areas)" = "")
+      choices <- c()
       if (nrow(areas) > 0) {
-        choices <- c(choices, setNames(areas$AreaID, paste0(areas$AreaCode, " - ", areas$AreaName)))
+        # Show all areas including "ALL" areas from database
+        # Put "ALL" areas first for convenience
+        all_areas <- areas[areas$AreaCode == "ALL", ]
+        other_areas <- areas[areas$AreaCode != "ALL", ]
+
+        if (nrow(all_areas) > 0) {
+          choices <- c(choices, setNames(all_areas$AreaID, paste0(all_areas$AreaCode, " - ", all_areas$AreaName)))
+        }
+        if (nrow(other_areas) > 0) {
+          choices <- c(choices, setNames(other_areas$AreaID, paste0(other_areas$AreaCode, " - ", other_areas$AreaName)))
+        }
       }
       updateSelectInput(session, "bg_area_id", choices = choices)
     })
@@ -833,15 +921,18 @@ test_siloplacements_server <- function(id) {
     })
 
     # Update UI when layout changes
-    observe({
+    # Priority = -1 to ensure dropdown choices are populated first (default priority = 0)
+    observe(priority = -1, {
       layout <- current_layout()
 
       # Update canvas selection
-      canvas_id <- if (is.na(layout$CanvasID)) "" else as.character(layout$CanvasID)
+      canvas_id <- if (is.null(layout$CanvasID) || is.na(layout$CanvasID)) "" else as.character(layout$CanvasID)
+      cat("[Layout Update] Setting canvas_id to:", canvas_id, "\n")
       updateSelectInput(session, "canvas_id", selected = canvas_id)
 
       # Update site selection
       site_id <- if (is.null(layout$SiteID) || is.na(layout$SiteID)) "" else as.character(layout$SiteID)
+      cat("[Layout Update] Setting site_id to:", site_id, "\n")
       updateSelectInput(session, "layout_site_id", selected = site_id)
 
       # Update background rotation control
@@ -861,6 +952,13 @@ test_siloplacements_server <- function(id) {
       session$sendCustomMessage(paste0(ns("root"), ":setRotation"), list(angle = bg_rot))
       session$sendCustomMessage(paste0(ns("root"), ":setBackgroundScale"), list(scale = bg_scale))
       session$sendCustomMessage(paste0(ns("root"), ":setBackgroundOffset"), list(x = bg_offset_x, y = bg_offset_y))
+
+      # Mark initial load as complete after a short delay (to ensure area is populated)
+      if (!initial_load_complete()) {
+        shiny::invalidateLater(100)
+        initial_load_complete(TRUE)
+        cat("[Layout Update] Initial load complete\n")
+      }
     })
 
     # ---- Load background image when canvas selected ----
@@ -869,20 +967,23 @@ test_siloplacements_server <- function(id) {
       if (is.null(canvas_id) || canvas_id == "") {
         background_image(NULL)
         session$sendCustomMessage(paste0(ns("root"), ":setBackground"), list(image = NULL))
-        updateSelectInput(session, "bg_area_id", selected = "")
         return()
       }
 
       df <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df) || nrow(df) == 0) {
         background_image(NULL)
-        updateSelectInput(session, "bg_area_id", selected = "")
         return()
       }
 
-      # Update area selector based on canvas's AreaID
-      area_id <- if (is.null(df$AreaID) || is.na(df$AreaID[1])) "" else as.character(df$AreaID[1])
-      updateSelectInput(session, "bg_area_id", selected = area_id)
+      # Only update area selector during initial load (not when user manually changes background)
+      if (!initial_load_complete()) {
+        area_id <- if (is.null(df$AreaID) || is.na(df$AreaID[1])) "" else as.character(df$AreaID[1])
+        cat("[Canvas Load] Initial load - setting area to:", area_id, "\n")
+        updateSelectInput(session, "bg_area_id", selected = area_id)
+      } else {
+        cat("[Canvas Load] User action - keeping current area selection\n")
+      }
 
       # Send base64 image to JavaScript
       bg_data <- paste0("data:image/png;base64,", df$bg_png_b64[1])
@@ -894,22 +995,35 @@ test_siloplacements_server <- function(id) {
     raw_placements <- reactive({
       trigger_refresh()
       layout_id <- current_layout_id()
-      layout <- current_layout()
 
-      # Get site_id from layout
-      site_id <- if (!is.null(layout$SiteID) && !is.na(layout$SiteID)) layout$SiteID else NULL
+      # Get site_id directly from input selector (not from database)
+      # This ensures immediate filtering when site selector changes
+      site_id <- input$layout_site_id
+      site_id <- if (is.null(site_id) || site_id == "") NULL else as.integer(site_id)
 
       # Get area_id from currently selected canvas
-      area_id <- NULL
+      # If area has AreaCode = "ALL", pass NULL to show all silos for site
+      # Read input$bg_area_id to create reactive dependency on area selector changes
+      area_selector_value <- input$bg_area_id
+
+      area_id_to_filter <- NULL
       canvas_id <- input$canvas_id
+      area_code <- NA
+      canvas_area_id <- NA
       if (!is.null(canvas_id) && canvas_id != "") {
         canvas_df <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
         if (!inherits(canvas_df, "try-error") && !is.null(canvas_df) && nrow(canvas_df) > 0) {
-          area_id <- canvas_df$AreaID[1]
+          area_code <- canvas_df$AreaCode[1]
+          canvas_area_id <- canvas_df$AreaID[1]
+          # Only filter by area if it's NOT an "ALL" area type
+          if (!is.null(canvas_area_id) && !is.na(canvas_area_id) &&
+              !is.null(area_code) && !is.na(area_code) && area_code != "ALL") {
+            area_id_to_filter <- canvas_area_id
+          }
         }
       }
 
-      df <- try(list_placements(layout_id = layout_id, site_id = site_id, area_id = area_id, limit = 500), silent = TRUE)
+      df <- try(list_placements(layout_id = layout_id, site_id = site_id, area_id = area_id_to_filter, limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) {
         return(data.frame())
       }
@@ -920,22 +1034,35 @@ test_siloplacements_server <- function(id) {
     # ---- Load related data (Silos, ShapeTemplates, ContainerTypes) ----
     silos_data <- reactive({
       silos_refresh()  # Depend on refresh trigger
-      layout <- current_layout()
 
-      # Get site_id from layout
-      site_id <- if (!is.null(layout$SiteID) && !is.na(layout$SiteID)) layout$SiteID else NULL
+      # Get site_id directly from input selector (not from database)
+      # This ensures immediate filtering when site selector changes
+      site_id <- input$layout_site_id
+      site_id <- if (is.null(site_id) || site_id == "") NULL else as.integer(site_id)
 
-      # Get area_id from currently selected canvas (NULL means show all areas for the site)
-      area_id <- NULL
+      # Get area_id from currently selected canvas
+      # If area has AreaCode = "ALL", pass NULL to show all silos for site
+      # Read input$bg_area_id to create reactive dependency on area selector changes
+      area_selector_value <- input$bg_area_id
+
+      area_id_to_filter <- NULL
       canvas_id <- input$canvas_id
+      area_code <- NA
+      canvas_area_id <- NA
       if (!is.null(canvas_id) && canvas_id != "") {
         canvas_df <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
         if (!inherits(canvas_df, "try-error") && !is.null(canvas_df) && nrow(canvas_df) > 0) {
-          area_id <- canvas_df$AreaID[1]
+          area_code <- canvas_df$AreaCode[1]
+          canvas_area_id <- canvas_df$AreaID[1]
+          # Only filter by area if it's NOT an "ALL" area type
+          if (!is.null(canvas_area_id) && !is.na(canvas_area_id) &&
+              !is.null(area_code) && !is.na(area_code) && area_code != "ALL") {
+            area_id_to_filter <- canvas_area_id
+          }
         }
       }
 
-      df <- try(list_silos(site_id = site_id, area_id = area_id, limit = 1000), silent = TRUE)
+      df <- try(list_silos(site_id = site_id, area_id = area_id_to_filter, limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) return(data.frame())
       df
     })
@@ -956,9 +1083,10 @@ test_siloplacements_server <- function(id) {
     })
 
     areas_data <- reactive({
-      # Filter areas by current layout's site
-      layout <- current_layout()
-      site_id <- if (!is.null(layout$SiteID) && !is.na(layout$SiteID)) layout$SiteID else NULL
+      # Get site_id directly from input selector (not from database)
+      # This ensures immediate filtering when site selector changes
+      site_id <- input$layout_site_id
+      site_id <- if (is.null(site_id) || site_id == "") NULL else as.integer(site_id)
 
       df <- try(list_areas(site_id = site_id, limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
@@ -1236,15 +1364,39 @@ test_siloplacements_server <- function(id) {
       )
     })
 
-    silo_form_data <- reactiveVal(list(
-      SiloCode = "",
-      SiloName = "",
-      VolumeM3 = 100,
-      IsActive = TRUE,
-      SiteID = "",
-      AreaID = "",
-      ContainerTypeID = ""
-    ))
+    silo_form_data <- reactive({
+      # Pre-populate Site and Area from main UI when creating new silo
+      site_id <- input$layout_site_id
+      area_id <- input$bg_area_id
+
+      # Get area info to check if it's "ALL" category
+      area_code <- NA
+      if (!is.null(area_id) && area_id != "") {
+        canvas_id <- input$canvas_id
+        if (!is.null(canvas_id) && canvas_id != "") {
+          canvas_df <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
+          if (!inherits(canvas_df, "try-error") && !is.null(canvas_df) && nrow(canvas_df) > 0) {
+            area_code <- canvas_df$AreaCode[1]
+          }
+        }
+      }
+
+      # Only pre-populate area if it's NOT an "ALL" category
+      prepopulated_area <- ""
+      if (!is.null(area_id) && area_id != "" && !is.na(area_code) && area_code != "ALL") {
+        prepopulated_area <- area_id
+      }
+
+      list(
+        SiloCode = "",
+        SiloName = "",
+        VolumeM3 = 100,
+        IsActive = TRUE,
+        SiteID = if (is.null(site_id) || site_id == "") "" else site_id,
+        AreaID = prepopulated_area,
+        ContainerTypeID = ""
+      )
+    })
 
     # ---- Form data based on selection ----
     form_data <- reactive({
@@ -1549,6 +1701,170 @@ test_siloplacements_server <- function(id) {
       )
     })
 
+    # ---- Move operation bar UI (shown when moving an object) ----
+    output$move_operation_bar <- renderUI({
+      if (!move_mode_state()) return(NULL)
+
+      current_pos <- move_current_position()
+      if (is.null(current_pos)) return(NULL)
+
+      tagList(
+        # CSS for move bar styling
+        tags$style(HTML("
+          .move-bar {
+            background: #cfe2ff;
+            border: 1px solid #b6d4fe;
+            color: #084298;
+            padding: 0.3rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .move-bar .move-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+          }
+          .move-bar .move-coords {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+          }
+          .move-bar .move-coord-group {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+          }
+          .move-bar .move-coord-group label {
+            margin: 0;
+            font-weight: 500;
+            line-height: 28px;
+          }
+          .move-bar .move-coord-group .form-group {
+            margin-bottom: 0;
+          }
+          .move-bar .move-buttons {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+          }
+        ")),
+        div(
+          class = "move-bar",
+          # Title on left
+          div(
+            class = "move-title",
+            tags$i(class = "fas fa-arrows-alt", style = "font-size: 18px;"),
+            tags$span(style = "font-weight: 500;", "Move Mode")
+          ),
+          # Coordinates in center
+          div(
+            class = "move-coords",
+            div(
+              class = "move-coord-group",
+              tags$label("X:"),
+              numericInput(ns("move_x"), label = NULL, value = round(current_pos$x, 2),
+                          width = "80px", step = 1)
+            ),
+            div(
+              class = "move-coord-group",
+              tags$label("Y:"),
+              numericInput(ns("move_y"), label = NULL, value = round(current_pos$y, 2),
+                          width = "80px", step = 1)
+            )
+          ),
+          # Buttons on right
+          div(
+            class = "move-buttons",
+            actionButton(ns("move_reset"), "Reset (Esc)",
+                        class = "btn-sm btn-secondary",
+                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
+            actionButton(ns("move_confirm"), "Confirm Placement",
+                        class = "btn-sm btn-primary",
+                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+          )
+        ),
+        # JavaScript for Enter key handling and Escape key
+        tags$script(HTML(sprintf("
+          $(document).ready(function() {
+            var typingTimeout;
+            var isTyping = false;
+
+            // Track when user is typing (not using arrows)
+            $('#%s, #%s').on('keydown', function(e) {
+              // Arrow keys, Home, End, Page Up/Down don't set typing flag
+              if (e.which >= 37 && e.which <= 40) {
+                isTyping = false;
+              } else if (e.which === 13) {
+                // Enter key
+                isTyping = false;
+              } else {
+                // Any other key = typing
+                isTyping = true;
+              }
+            });
+
+            // Handle Enter key for move_x and move_y
+            $('#%s, #%s').on('keypress', function(e) {
+              if (e.which === 13) {
+                e.preventDefault();
+                isTyping = false;
+                $(this).trigger('change');
+                Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+              }
+            });
+
+            // Handle change events (from arrows or blur)
+            $('#%s, #%s').on('change', function(e) {
+              if (!isTyping) {
+                // Change from arrows, Enter, or blur after typing elsewhere
+                Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+              }
+              isTyping = false;
+            });
+
+            // Prevent change on blur when typing (wait for Enter)
+            $('#%s, #%s').on('blur', function(e) {
+              if (isTyping) {
+                // User was typing and clicked away - don't trigger update
+                e.preventDefault();
+                e.stopPropagation();
+                isTyping = false;
+                return false;
+              }
+            });
+
+            // Handle Escape key to reset/cancel move mode
+            $(document).on('keydown.movemode', function(e) {
+              if (e.key === 'Escape') {
+                var moveResetBtn = $('#%s');
+                if (moveResetBtn.length && moveResetBtn.is(':visible')) {
+                  e.preventDefault();
+                  moveResetBtn.click();
+                }
+              }
+            });
+          });
+
+          // Clean up when move bar is removed
+          $(document).on('shiny:visualchange', function() {
+            if (!$('#%s').is(':visible')) {
+              $(document).off('keydown.movemode');
+            }
+          });
+        ", ns("move_x"), ns("move_y"),
+           ns("move_x"), ns("move_y"), ns("move_enter_pressed"),
+           ns("move_x"), ns("move_y"), ns("move_enter_pressed"),
+           ns("move_x"), ns("move_y"),
+           ns("move_reset"), ns("move_reset"))))
+      )
+    })
+
     # ---- Toolbar button handlers ----
 
     # Handle panel close - clear temp shape if not saved
@@ -1611,11 +1927,11 @@ test_siloplacements_server <- function(id) {
 
       shape_type <- template$ShapeType[1]
 
-      # Check if silos are available
+      # Check if silos are available (filtered by site and area from silos_data())
       all_silos <- silos_data()
       placements <- raw_placements()
 
-      cat("[Canvas] Total silos:", nrow(all_silos), "\n")
+      cat("[Canvas] Silos (filtered by site/area):", nrow(all_silos), "\n")
       cat("[Canvas] Total placements:", nrow(placements), "\n")
 
       # Filter out already-placed silos
@@ -1625,7 +1941,7 @@ test_siloplacements_server <- function(id) {
         available_silos <- available_silos[!available_silos$SiloID %in% placed_silo_ids, ]
       }
 
-      cat("[Canvas] Available silos after filtering:", nrow(available_silos), "\n")
+      cat("[Canvas] Available silos (after removing placed):", nrow(available_silos), "\n")
 
       # Store pending placement data (shape and location from canvas click)
       pending_placement(list(
@@ -1697,6 +2013,142 @@ test_siloplacements_server <- function(id) {
       )
     }, ignoreInit = TRUE)
 
+    # Handle Move button
+    observeEvent(input$move, {
+      pid <- selected_placement_id()
+      if (is.null(pid) || is.na(pid)) {
+        showNotification("Select a placement to move", type = "warning", duration = 2)
+        return()
+      }
+
+      # Get current placement data
+      df <- try(get_placement_by_id(pid), silent = TRUE)
+      if (inherits(df, "try-error") || !nrow(df)) return()
+
+      # Store original position
+      move_original_position(list(
+        id = pid,
+        x = as.numeric(df$CenterX),
+        y = as.numeric(df$CenterY)
+      ))
+
+      # Set current position (initially same as original)
+      move_current_position(list(
+        x = as.numeric(df$CenterX),
+        y = as.numeric(df$CenterY)
+      ))
+
+      # Enable edit mode if not already enabled
+      if (!edit_mode_state()) {
+        edit_mode_state(TRUE)
+        shinyjs::addClass("edit_mode_toggle", "active")
+        session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
+      }
+
+      # Enable move mode
+      move_mode_state(TRUE)
+
+      # Send message to JavaScript to apply dotted border to shape
+      session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
+        shapeId = as.character(pid),
+        enabled = TRUE
+      ))
+    })
+
+    # Handle Enter key press to apply coordinate changes
+    observeEvent(input$move_enter_pressed, {
+      if (!move_mode_state()) return()
+
+      current <- move_current_position()
+      original <- move_original_position()
+
+      if (!is.null(current) && !is.null(original)) {
+        # Get current values from inputs
+        new_x <- input$move_x
+        new_y <- input$move_y
+
+        if (is.null(new_x) || is.null(new_y)) return()
+
+        # Update current position
+        current$x <- new_x
+        current$y <- new_y
+        move_current_position(current)
+
+        # Update shape position on canvas
+        session$sendCustomMessage(paste0(ns("root"), ":updateMovePosition"), list(
+          shapeId = as.character(original$id),
+          x = new_x,
+          y = new_y
+        ))
+      }
+    }, ignoreInit = TRUE)
+
+    # Handle Reset button - exits move mode completely
+    observeEvent(input$move_reset, {
+      original <- move_original_position()
+      if (is.null(original)) return()
+
+      # Reset to original position
+      session$sendCustomMessage(paste0(ns("root"), ":updateMovePosition"), list(
+        shapeId = as.character(original$id),
+        x = original$x,
+        y = original$y
+      ))
+
+      # Remove dotted border
+      session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
+        shapeId = as.character(original$id),
+        enabled = FALSE
+      ))
+
+      # Exit move mode
+      move_mode_state(FALSE)
+      move_original_position(NULL)
+      move_current_position(NULL)
+
+      # Exit edit mode
+      edit_mode_state(FALSE)
+      shinyjs::removeClass("edit_mode_toggle", "active")
+      session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = FALSE))
+    })
+
+    # Handle Confirm Placement button
+    observeEvent(input$move_confirm, {
+      original <- move_original_position()
+      current <- move_current_position()
+
+      if (is.null(original) || is.null(current)) return()
+
+      # Get placement data and update position
+      df <- try(get_placement_by_id(original$id), silent = TRUE)
+      if (inherits(df, "try-error") || !nrow(df)) return()
+
+      df$CenterX <- current$x
+      df$CenterY <- current$y
+
+      tryCatch({
+        upsert_placement(as.list(df))
+
+        # Exit move mode
+        move_mode_state(FALSE)
+        move_original_position(NULL)
+        move_current_position(NULL)
+
+        # Remove dotted border from shape
+        session$sendCustomMessage(paste0(ns("root"), ":setMoveMode"), list(
+          shapeId = as.character(original$id),
+          enabled = FALSE
+        ))
+
+        # Refresh canvas to show final position
+        trigger_refresh(trigger_refresh() + 1)
+
+        showNotification("Placement moved successfully", type = "message", duration = 2)
+      }, error = function(e) {
+        showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
+      })
+    })
+
     observeEvent(input$duplicate, {
       pid <- selected_placement_id()
       if (is.null(pid) || is.na(pid)) {
@@ -1749,6 +2201,11 @@ test_siloplacements_server <- function(id) {
       if (!is.null(sel_id) && nzchar(sel_id)) {
         selected_placement_id(as.integer(sel_id))
 
+        # Don't open panel if in move mode
+        if (move_mode_state()) {
+          return()
+        }
+
         # Open panel to show placement details
         shinyjs::runjs(sprintf("window.togglePanel_%s(true);", gsub("-", "_", ns("root"))))
 
@@ -1771,7 +2228,24 @@ test_siloplacements_server <- function(id) {
       moved <- input$canvas_moved
       if (is.null(moved)) return()
 
-      # Update placement position in DB
+      # If in move mode, update current position but don't save to DB
+      if (move_mode_state()) {
+        original <- move_original_position()
+        if (!is.null(original) && as.character(moved$id) == as.character(original$id)) {
+          # Update current position for the move bar
+          move_current_position(list(
+            x = moved$x,
+            y = moved$y
+          ))
+
+          # Update the numeric inputs
+          updateNumericInput(session, "move_x", value = round(moved$x, 2))
+          updateNumericInput(session, "move_y", value = round(moved$y, 2))
+        }
+        return()  # Don't save to DB or do anything else during move mode
+      }
+
+      # Normal edit mode: Update placement position in DB
       tryCatch({
         df <- get_placement_by_id(as.integer(moved$id))
         if (nrow(df) > 0) {
@@ -1811,6 +2285,19 @@ test_siloplacements_server <- function(id) {
       if (!is.null(snap)) {
         session$sendCustomMessage(paste0(ns("root"), ":setSnap"), list(units = as.numeric(snap)))
       }
+    })
+
+    # Handle snap grid increment/decrement buttons
+    observeEvent(input$snap_up, {
+      current <- f_or(input$snap_grid, 0)
+      new_snap <- current + 10
+      updateNumericInput(session, "snap_grid", value = new_snap)
+    })
+
+    observeEvent(input$snap_down, {
+      current <- f_or(input$snap_grid, 0)
+      new_snap <- max(current - 10, 0)
+      updateNumericInput(session, "snap_grid", value = new_snap)
     })
 
     # Layout selection is handled by the observeEvent at line 187-221 (includes Add New functionality)
@@ -1902,16 +2389,18 @@ test_siloplacements_server <- function(id) {
       layout_id <- current_layout_id()
       canvas_id <- input$canvas_id
       site_id <- input$layout_site_id
+      area_id <- input$bg_area_id
       rotation <- input$bg_rotation
       scale <- input$bg_scale
 
       # Get current offset from reactiveVal (tracked via pan mode)
       offset <- bg_offset()
 
+      # Save layout background settings (site is part of layout)
       result <- try(update_layout_background(
         layout_id = layout_id,
-        canvas_id = if (canvas_id == "") NA else canvas_id,
-        site_id = if (site_id == "") NA else site_id,
+        canvas_id = if (is.null(canvas_id) || canvas_id == "") NULL else as.integer(canvas_id),
+        site_id = if (is.null(site_id) || site_id == "") NULL else as.integer(site_id),
         rotation = rotation,
         pan_x = offset$x,
         pan_y = offset$y,
@@ -1919,10 +2408,18 @@ test_siloplacements_server <- function(id) {
         scale_y = scale   # Same for both axes
       ), silent = TRUE)
 
+      # Save canvas area (area is part of canvas, not layout)
+      if (!is.null(canvas_id) && canvas_id != "") {
+        area_result <- try(update_canvas_area(
+          as.integer(canvas_id),
+          if (is.null(area_id) || area_id == "") NULL else as.integer(area_id)
+        ), silent = TRUE)
+      }
+
       if (inherits(result, "try-error")) {
         showNotification("Error saving layout settings", type = "error", duration = 3)
       } else {
-        showNotification("Layout settings saved", type = "message", duration = 2)
+        showNotification("Layout settings saved (site + area)", type = "message", duration = 2)
       }
     })
 
@@ -1930,12 +2427,24 @@ test_siloplacements_server <- function(id) {
     observeEvent(input$zoom_in, {
       cat("[Canvas] Zoom in button clicked\n")
       session$sendCustomMessage(paste0(ns("root"), ":setZoom"), list(direction = "in"))
+      # Update zoom level input (approximate percentage)
+      current <- f_or(input$zoom_level, 100)
+      updateNumericInput(session, "zoom_level", value = round(current * 1.2))
     })
 
     observeEvent(input$zoom_out, {
       cat("[Canvas] Zoom out button clicked\n")
       session$sendCustomMessage(paste0(ns("root"), ":setZoom"), list(direction = "out"))
+      # Update zoom level input (approximate percentage)
+      current <- f_or(input$zoom_level, 100)
+      updateNumericInput(session, "zoom_level", value = round(current * 0.8))
     })
+
+    # Handle zoom level input changes
+    observeEvent(input$zoom_level, {
+      # This is for future integration - currently zoom is controlled by buttons
+      # Could be used to set exact zoom percentage
+    }, ignoreInit = TRUE)
 
     # Handle fit view
     observeEvent(input$fit_view, {
