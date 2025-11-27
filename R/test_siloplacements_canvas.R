@@ -1767,19 +1767,283 @@ test_siloplacements_server <- function(id) {
           }
         )
       } else {
+        # Placement mode - show both but hide based on edit mode
         tagList(
-          mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
-          # Move and Duplicate buttons at bottom left
-          div(style = "margin-top: 1rem; padding: 0 1rem; display: flex; gap: 0.5rem;",
-            actionButton(ns("panel_move"), "Move", icon = icon("arrows-alt"),
-                        class = "btn-sm btn-info",
-                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
-            actionButton(ns("panel_duplicate"), "Duplicate", icon = icon("copy"),
-                        class = "btn-sm btn-secondary",
-                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+          # Editable form (hidden when edit mode OFF)
+          div(
+            style = if (edit_mode_state()) "" else "display: none;",
+            mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
+            # Move and Duplicate buttons at bottom left
+            div(style = "margin-top: 1rem; padding: 0 1rem; display: flex; gap: 0.5rem;",
+              actionButton(ns("panel_move"), "Move", icon = icon("arrows-alt"),
+                          class = "btn-sm btn-info",
+                          style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
+              actionButton(ns("panel_duplicate"), "Duplicate", icon = icon("copy"),
+                          class = "btn-sm btn-secondary",
+                          style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+            )
+          ),
+          # Read-only view (hidden when edit mode ON)
+          div(
+            style = if (!edit_mode_state()) "" else "display: none;",
+            # Object selector
+            div(style = "padding: 1rem;",
+              # Checkboxes
+              checkboxInput(ns("show_inactive"), "Show inactive silos", value = FALSE),
+              checkboxInput(ns("search_all_sites"), "Search other sites and areas", value = FALSE),
+
+              # Searchable dropdown
+              selectInput(
+                ns("object_selector"),
+                "Select placement:",
+                choices = NULL,
+                width = "100%",
+                selectize = TRUE
+              )
+            ),
+
+            # Banner for different layout
+            uiOutput(ns("layout_warning_banner")),
+
+            # Details sections (collapsible)
+            div(style = "padding: 0 1rem 1rem 1rem;",
+              uiOutput(ns("object_details"))
+            )
           )
         )
       }
+    })
+
+    # ---- Object selector (non-edit mode) ----
+
+    # Populate object selector dropdown based on filters
+    observe({
+      # Only update when in non-edit mode
+      if (edit_mode_state()) return()
+
+      show_inactive <- input$show_inactive
+      search_all <- input$search_all_sites
+      current_layout <- current_layout_id()
+
+      if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) return()
+
+      # Get all placements with silo and layout info
+      query <- "
+        SELECT
+          p.PlacementID,
+          p.LayoutID,
+          l.LayoutName,
+          p.CenterX,
+          p.CenterY,
+          s.SiloID,
+          s.SiloCode,
+          s.SiloName,
+          s.IsActive,
+          s.VolumeM3,
+          s.Notes AS SiloNotes,
+          ct.ContainerTypeID,
+          ct.TypeCode,
+          ct.TypeName,
+          ct.Description AS ContainerDescription,
+          st.ShapeTemplateID,
+          st.TemplateCode,
+          st.ShapeType,
+          sa.AreaID,
+          sa.AreaCode,
+          sa.AreaName,
+          si.SiteID,
+          si.SiteCode,
+          si.SiteName
+        FROM SiloPlacements p
+        INNER JOIN Silos s ON p.SiloID = s.SiloID
+        INNER JOIN ContainerTypes ct ON s.ContainerTypeID = ct.ContainerTypeID
+        INNER JOIN ShapeTemplates st ON p.ShapeTemplateID = st.ShapeTemplateID
+        INNER JOIN CanvasLayouts l ON p.LayoutID = l.LayoutID
+        LEFT JOIN SiteAreas sa ON s.AreaID = sa.AreaID
+        LEFT JOIN Sites si ON s.SiteID = si.SiteID
+      "
+
+      # Add filter conditions
+      where_clauses <- c()
+
+      if (!show_inactive) {
+        where_clauses <- c(where_clauses, "s.IsActive = 1")
+      }
+
+      if (!search_all) {
+        # Filter by current layout's site and area
+        current_layout_data <- try(get_layout_by_id(current_layout), silent = TRUE)
+        if (!inherits(current_layout_data, "try-error") && nrow(current_layout_data) > 0) {
+          site_id <- current_layout_data$SiteID[1]
+          if (!is.null(site_id) && !is.na(site_id)) {
+            where_clauses <- c(where_clauses, paste0("s.SiteID = ", site_id))
+          }
+        }
+      }
+
+      if (length(where_clauses) > 0) {
+        query <- paste0(query, " WHERE ", paste(where_clauses, collapse = " AND "))
+      }
+
+      query <- paste0(query, " ORDER BY l.LayoutName, s.SiloCode")
+
+      all_placements <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+
+      if (inherits(all_placements, "try-error") || nrow(all_placements) == 0) {
+        updateSelectInput(session, "object_selector", choices = c("No placements found" = ""))
+        return()
+      }
+
+      # Build choices: "LayoutName / SiloCode - SiloName"
+      choices <- setNames(
+        as.character(all_placements$PlacementID),
+        paste0(all_placements$LayoutName, " / ", all_placements$SiloCode, " - ", all_placements$SiloName)
+      )
+
+      updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
+    })
+
+    # Handle object selector selection
+    observeEvent(input$object_selector, {
+      placement_id <- input$object_selector
+
+      if (is.null(placement_id) || placement_id == "") {
+        return()
+      }
+
+      # Get placement layout
+      query <- sprintf("SELECT LayoutID FROM SiloPlacements WHERE PlacementID = %s", placement_id)
+      layout_data <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+
+      if (inherits(layout_data, "try-error") || nrow(layout_data) == 0) return()
+
+      placement_layout_id <- layout_data$LayoutID[1]
+      current_layout <- current_layout_id()
+
+      # Only select on canvas if same layout
+      if (placement_layout_id == current_layout) {
+        selected_placement_id(as.integer(placement_id))
+        trigger_refresh(trigger_refresh() + 1)
+      }
+    }, ignoreInit = TRUE)
+
+    # Render layout warning banner
+    output$layout_warning_banner <- renderUI({
+      placement_id <- input$object_selector
+
+      if (is.null(placement_id) || placement_id == "") return(NULL)
+
+      # Get layout info
+      query <- sprintf("
+        SELECT l.LayoutName, p.LayoutID
+        FROM SiloPlacements p
+        INNER JOIN CanvasLayouts l ON p.LayoutID = l.LayoutID
+        WHERE p.PlacementID = %s
+      ", placement_id)
+
+      placement_data <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+
+      if (inherits(placement_data, "try-error") || nrow(placement_data) == 0) return(NULL)
+
+      current_layout <- current_layout_id()
+      layout_name <- placement_data$LayoutName[1]
+      placement_layout_id <- placement_data$LayoutID[1]
+
+      if (placement_layout_id != current_layout) {
+        div(
+          style = "background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 0.75rem; margin: 0.5rem 1rem; border-radius: 4px;",
+          tags$i(class = "fas fa-info-circle", style = "margin-right: 0.5rem;"),
+          sprintf("Use %s layout to see this placement on canvas", layout_name)
+        )
+      }
+    })
+
+    # Render object details
+    output$object_details <- renderUI({
+      placement_id <- input$object_selector
+
+      if (is.null(placement_id) || placement_id == "") {
+        return(div(style = "padding: 2rem; text-align: center; color: #999;", "Select a placement to view details"))
+      }
+
+      # Get full details
+      query <- sprintf("
+        SELECT
+          p.CenterX,
+          p.CenterY,
+          s.SiloCode,
+          s.SiloName,
+          s.VolumeM3,
+          s.Notes AS SiloNotes,
+          ct.TypeCode AS ContainerTypeCode,
+          ct.TypeName AS ContainerTypeName,
+          ct.Description AS ContainerDescription,
+          st.TemplateCode,
+          sa.AreaCode,
+          sa.AreaName,
+          si.SiteCode,
+          si.SiteName
+        FROM SiloPlacements p
+        INNER JOIN Silos s ON p.SiloID = s.SiloID
+        INNER JOIN ContainerTypes ct ON s.ContainerTypeID = ct.ContainerTypeID
+        INNER JOIN ShapeTemplates st ON p.ShapeTemplateID = st.ShapeTemplateID
+        LEFT JOIN SiteAreas sa ON s.AreaID = sa.AreaID
+        LEFT JOIN Sites si ON s.SiteID = si.SiteID
+        WHERE p.PlacementID = %s
+      ", placement_id)
+
+      data <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+
+      if (inherits(data, "try-error") || nrow(data) == 0) {
+        return(div("Error loading placement details"))
+      }
+
+      tagList(
+        # Placement section (collapsed)
+        tags$details(
+          tags$summary(style = "font-weight: bold; cursor: pointer; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; margin-bottom: 0.5rem;",
+            "Placement"
+          ),
+          div(style = "padding: 0.5rem 1rem; border-left: 3px solid #dee2e6; margin-bottom: 1rem;",
+            tags$p(tags$strong("Shape: "), data$TemplateCode),
+            tags$p(tags$strong("Center X: "), round(data$CenterX, 2)),
+            tags$p(tags$strong("Center Y: "), round(data$CenterY, 2))
+          )
+        ),
+
+        # Silo section (expanded by default)
+        tags$details(
+          open = "open",
+          tags$summary(style = "font-weight: bold; cursor: pointer; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; margin-bottom: 0.5rem;",
+            "Silo"
+          ),
+          div(style = "padding: 0.5rem 1rem; border-left: 3px solid #dee2e6; margin-bottom: 1rem;",
+            tags$p(tags$strong("Code: "), data$SiloCode),
+            tags$p(tags$strong("Name: "), data$SiloName),
+            tags$p(tags$strong("Container Type: "), data$ContainerTypeName),
+            tags$p(tags$strong("Volume (m³): "), data$VolumeM3),
+            if (!is.na(data$SiloNotes) && nchar(data$SiloNotes) > 0) {
+              tags$p(tags$strong("Description: "), data$SiloNotes)
+            },
+            tags$p(tags$strong("Area: "), paste0(data$AreaCode, " - ", data$AreaName)),
+            tags$p(tags$strong("Site: "), paste0(data$SiteCode, " - ", data$SiteName))
+          )
+        ),
+
+        # Container Type section (collapsed)
+        tags$details(
+          tags$summary(style = "font-weight: bold; cursor: pointer; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; margin-bottom: 0.5rem;",
+            "Container Type"
+          ),
+          div(style = "padding: 0.5rem 1rem; border-left: 3px solid #dee2e6; margin-bottom: 1rem;",
+            tags$p(tags$strong("Type Code: "), data$ContainerTypeCode),
+            tags$p(tags$strong("Type Name: "), data$ContainerTypeName),
+            if (!is.na(data$ContainerDescription) && nchar(data$ContainerDescription) > 0) {
+              tags$p(tags$strong("Description: "), data$ContainerDescription)
+            }
+          )
+        )
+      )
     })
 
     # ---- Warning banner UI (shown when no silos available) ----
@@ -2178,6 +2442,13 @@ test_siloplacements_server <- function(id) {
       df <- try(get_placement_by_id(pid), silent = TRUE)
       if (inherits(df, "try-error") || !nrow(df)) return()
 
+      # Auto-enable edit mode if not already on
+      if (!edit_mode_state()) {
+        edit_mode_state(TRUE)
+        shinyjs::addClass("edit_mode_toggle", "active")
+        session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
+      }
+
       # Close right panel if open
       shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
 
@@ -2197,6 +2468,13 @@ test_siloplacements_server <- function(id) {
       df <- try(get_placement_by_id(pid), silent = TRUE)
       if (inherits(df, "try-error") || !nrow(df)) return()
 
+      # Auto-enable edit mode if not already on
+      if (!edit_mode_state()) {
+        edit_mode_state(TRUE)
+        shinyjs::addClass("edit_mode_toggle", "active")
+        session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
+      }
+
       # Close right panel
       shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
 
@@ -2210,6 +2488,13 @@ test_siloplacements_server <- function(id) {
       if (is.null(pid) || is.na(pid)) {
         showNotification("Select a placement to duplicate", type = "warning", duration = 2)
         return()
+      }
+
+      # Auto-enable edit mode if not already on
+      if (!edit_mode_state()) {
+        edit_mode_state(TRUE)
+        shinyjs::addClass("edit_mode_toggle", "active")
+        session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
       }
 
       # Check if spare silos are available before proceeding
@@ -2387,6 +2672,13 @@ test_siloplacements_server <- function(id) {
       df <- try(get_placement_by_id(pid), silent = TRUE)
       if (inherits(df, "try-error") || !nrow(df)) return()
 
+      # Auto-enable edit mode if not already on
+      if (!edit_mode_state()) {
+        edit_mode_state(TRUE)
+        shinyjs::addClass("edit_mode_toggle", "active")
+        session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = TRUE))
+      }
+
       # Check if spare silos are available
       all_silos <- silos_data()
       placements <- raw_placements()
@@ -2510,12 +2802,13 @@ test_siloplacements_server <- function(id) {
       }
     }, ignoreInit = TRUE)
 
-    # Handle canvas move (drag in edit mode)
+    # Handle canvas move (only in move mode)
     observeEvent(input$canvas_moved, {
       moved <- input$canvas_moved
       if (is.null(moved)) return()
 
-      # If in move mode, update current position but don't save to DB
+      # Only handle if in move mode - edit mode no longer allows drag-to-move
+      # Use Move button to enter move mode instead
       if (move_mode_state()) {
         original <- move_original_position()
         if (!is.null(original) && as.character(moved$id) == as.character(original$id)) {
@@ -2529,22 +2822,7 @@ test_siloplacements_server <- function(id) {
           updateNumericInput(session, "move_x", value = round(moved$x, 2))
           updateNumericInput(session, "move_y", value = round(moved$y, 2))
         }
-        return()  # Don't save to DB or do anything else during move mode
       }
-
-      # Normal edit mode: Update placement position in DB
-      tryCatch({
-        df <- get_placement_by_id(as.integer(moved$id))
-        if (nrow(df) > 0) {
-          df$CenterX <- moved$x
-          df$CenterY <- moved$y
-
-          upsert_placement(as.list(df))
-          # Don't refresh - just updated visually
-        }
-      }, error = function(e) {
-        cat("Error updating position:", conditionMessage(e), "\n")
-      })
     }, ignoreInit = TRUE)
 
     # Handle edit mode toggle button

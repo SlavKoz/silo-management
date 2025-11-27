@@ -27,8 +27,8 @@
   function updateShapeCursor(state) {
     if (!state.selectedShapeTemplate) {
       // Default cursor based on edit mode
-      state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
-      console.log('[Cursor] Setting default cursor:', state.editMode ? 'move' : 'grab');
+      state.canvas.style.cursor = 'grab';
+      console.log('[Cursor] Setting default cursor: grab');
       return;
     }
 
@@ -109,7 +109,7 @@
       </svg>`;
 
     } else {
-      state.canvas.style.cursor = state.editMode ? 'move' : 'grab';
+      state.canvas.style.cursor = 'grab';
       return;
     }
 
@@ -260,23 +260,24 @@
           offsetY: state.backgroundOffsetY
         };
         canvas.style.cursor = 'grabbing';
-      } else if (state.editMode) {
-        // Edit mode: drag shapes (no rotation transform needed)
+      } else {
+        // Check if clicking on a shape
         const worldX = (canvasX - state.panX) / state.zoom;
         const worldY = (canvasY - state.panY) / state.zoom;
         const clickedShape = findShapeAtPoint(state.shapes, worldX, worldY);
 
-        if (clickedShape) {
+        // If clicking on a shape in move mode, enable dragging
+        if (clickedShape && clickedShape.moveMode) {
           state.isDragging = true;
           state.selectedId = clickedShape.id;
           state.dragStart = { x: worldX, y: worldY, shapeX: clickedShape.x, shapeY: clickedShape.y };
           canvas.style.cursor = 'grabbing';
+        } else if (!clickedShape && !state.selectedShapeTemplate) {
+          // Only pan if NOT clicking on a shape and NOT in add mode
+          state.isPanning = true;
+          state.panStart = { x: canvasX, y: canvasY, panX: state.panX, panY: state.panY };
+          canvas.style.cursor = 'grabbing';
         }
-      } else {
-        // View mode: pan canvas
-        state.isPanning = true;
-        state.panStart = { x: canvasX, y: canvasY, panX: state.panX, panY: state.panY };
-        canvas.style.cursor = 'grabbing';
       }
     });
 
@@ -351,7 +352,7 @@
 
       if (state.isDragging) {
         state.isDragging = false;
-        canvas.style.cursor = state.editMode ? 'move' : 'grab';
+        canvas.style.cursor = 'grab';
 
         // Send updated position to Shiny
         const shape = state.shapes.find(s => s.id === state.selectedId);
@@ -370,7 +371,7 @@
 
       if (state.isPanning) {
         state.isPanning = false;
-        canvas.style.cursor = state.editMode ? 'move' : 'grab';
+        canvas.style.cursor = 'grab';
       }
     });
   }
