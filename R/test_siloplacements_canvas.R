@@ -1900,10 +1900,43 @@ test_siloplacements_server <- function(id) {
         paste0(all_placements$LayoutName, " / ", all_placements$SiloCode, " - ", all_placements$SiloName)
       )
 
-      updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
+      # Preserve current selection if it exists in new choices (use isolate to avoid triggering on canvas clicks)
+      current_selection <- isolate(input$object_selector)
+      canvas_pid <- isolate(selected_placement_id())
+
+      if (!is.null(current_selection) && current_selection != "" && current_selection %in% choices) {
+        # Keep current dropdown selection if it's still valid
+        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = current_selection)
+      } else if (!is.null(canvas_pid) && !is.na(canvas_pid) && as.character(canvas_pid) %in% choices) {
+        # Use canvas selection if dropdown selection is invalid
+        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = as.character(canvas_pid))
+      } else {
+        # No valid selection
+        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
+      }
     })
 
-    # Handle object selector selection
+    # Sync canvas selection to dropdown (when shape clicked on canvas)
+    observe({
+      # Only sync when in non-edit mode
+      if (edit_mode_state()) return()
+
+      pid <- selected_placement_id()
+
+      if (is.null(pid) || is.na(pid)) {
+        # Clear dropdown selection
+        updateSelectInput(session, "object_selector", selected = "")
+        return()
+      }
+
+      # Update dropdown to match canvas selection (only if different from current)
+      current_sel <- isolate(input$object_selector)
+      if (is.null(current_sel) || current_sel != as.character(pid)) {
+        updateSelectInput(session, "object_selector", selected = as.character(pid))
+      }
+    })
+
+    # Handle object selector selection (when dropdown changed)
     observeEvent(input$object_selector, {
       placement_id <- input$object_selector
 
