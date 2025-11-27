@@ -537,11 +537,11 @@ test_siloplacements_ui <- function(id) {
                       style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;")
         ),
 
-        # Warning banner (hidden by default, shown when no silos available)
-        uiOutput(ns("no_silo_warning")),
-
         # Move operation bar (hidden by default, shown when moving an object)
         uiOutput(ns("move_operation_bar")),
+
+        # Warning banner (hidden by default, shown when no silos available)
+        uiOutput(ns("no_silo_warning")),
 
         # Canvas viewport
         div(
@@ -653,6 +653,7 @@ test_siloplacements_server <- function(id) {
     move_original_position <- reactiveVal(NULL)  # Store original position before moving (list with x, y, id)
     move_current_position <- reactiveVal(NULL)  # Track current position during move (list with x, y)
     move_is_duplicate <- reactiveVal(FALSE)  # Track if current move is for a duplicate operation
+    pending_duplicate_data <- reactiveVal(NULL)  # Store duplicate data (temp shape, coords) when waiting for silo creation
 
     # ---- Reusable Move Mode Functions ----
 
@@ -714,6 +715,9 @@ test_siloplacements_server <- function(id) {
       # If this was a duplicate operation, remove temp shape
       if (move_is_duplicate()) {
         session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+        # Also clear pending duplicate data
+        pending_duplicate_data(NULL)
+        pending_placement(NULL)
       }
 
       # Exit move mode
@@ -1683,18 +1687,25 @@ test_siloplacements_server <- function(id) {
             # Update pending placement with newly created silo
             pending$SiloID <- as.character(saved_id)
             pending_placement(pending)
+
+            # Set to "add new" mode to show populated placement form
+            selected_placement_id(NA)
+
+            # Force form to reload AFTER updating pending data
+            trigger_refresh(trigger_refresh() + 1)
+
+            # Switch back to placement mode (resume placement process)
+            panel_mode("placement")
+
+            showNotification("Silo created successfully", type = "message", duration = 2)
+          } else {
+            # No pending placement - process was abandoned
+            # Just close the panel, don't switch to placement mode
+            shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
+            showNotification("Silo created successfully", type = "message", duration = 2)
           }
 
-          # Set to "add new" mode to show populated placement form
-          selected_placement_id(NA)
-
-          # Force form to reload AFTER updating pending data
-          trigger_refresh(trigger_refresh() + 1)
-
-          # Switch back to placement mode
-          panel_mode("placement")
-
-          showNotification("Silo created successfully", type = "message", duration = 2)
           return(TRUE)
         }, error = function(e) {
           showNotification(paste("Error creating silo:", conditionMessage(e)), type = "error", duration = NULL)
@@ -1725,33 +1736,46 @@ test_siloplacements_server <- function(id) {
     output$panel_content_ui <- renderUI({
       mode <- panel_mode()
       if (mode == "silo") {
-        # Show both silo form (edit mode) and placement form (read-only preview)
+        # Check if there's pending placement data
+        has_pending <- !is.null(pending_placement())
+
+        # Show silo form, and placement preview only if there's pending data
         tagList(
-          div(class = "ui info message", style = "margin-bottom: 1rem;",
-            tags$p(style = "margin: 0;",
-              strong("No silos available."),
-              " Create a new silo to place on the canvas."
+          if (has_pending) {
+            div(class = "ui info message", style = "margin-bottom: 1rem;",
+              tags$p(style = "margin: 0;",
+                strong("No silos available."),
+                " Create a new silo to place on the canvas."
+              )
             )
-          ),
+          },
           # Silo creation form (edit mode)
           mod_html_form_ui(ns("silo_form"), max_width = "100%", margin = "0"),
 
-          # Divider
-          tags$hr(style = "margin: 1.5rem 0; border-top: 2px solid #dee2e6;"),
+          # Only show placement preview if there's pending data
+          if (has_pending) {
+            tagList(
+              # Divider
+              tags$hr(style = "margin: 1.5rem 0; border-top: 2px solid #dee2e6;"),
 
-          # Placement preview (read-only, shows stored shape/location)
-          div(style = "opacity: 0.6; pointer-events: none;",
-            tags$h4("Placement Preview", style = "margin-bottom: 0.75rem; color: #6c757d;"),
-            mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
-          )
+              # Placement preview (read-only, shows stored shape/location)
+              div(style = "opacity: 0.6; pointer-events: none;",
+                tags$h4("Placement Preview", style = "margin-bottom: 0.75rem; color: #6c757d;"),
+                mod_html_form_ui(ns("form"), max_width = "100%", margin = "0")
+              )
+            )
+          }
         )
       } else {
         tagList(
           mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
-          # Move button at bottom left
-          div(style = "margin-top: 1rem; padding: 0 1rem;",
+          # Move and Duplicate buttons at bottom left
+          div(style = "margin-top: 1rem; padding: 0 1rem; display: flex; gap: 0.5rem;",
             actionButton(ns("panel_move"), "Move", icon = icon("arrows-alt"),
                         class = "btn-sm btn-info",
+                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
+            actionButton(ns("panel_duplicate"), "Duplicate", icon = icon("copy"),
+                        class = "btn-sm btn-secondary",
                         style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
           )
         )
@@ -1769,7 +1793,7 @@ test_siloplacements_server <- function(id) {
           tags$i(class = "fas fa-exclamation-triangle", style = "font-size: 18px;"),
           tags$span(
             style = "font-weight: 500;",
-            "No silos available to create placement."
+            "No unallocated siloes available at this site. Please create one and try again."
           )
         ),
         div(
@@ -1952,8 +1976,8 @@ test_siloplacements_server <- function(id) {
 
     # Handle panel close - clear temp shape if not saved
     observeEvent(input$panel_closed, {
-      # If there's pending placement, clear it and temp shape
-      if (!is.null(pending_placement())) {
+      # If there's pending placement BUT no pending duplicate, clear it
+      if (!is.null(pending_placement()) && is.null(pending_duplicate_data())) {
         pending_placement(NULL)
         session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
       }
@@ -1963,24 +1987,51 @@ test_siloplacements_server <- function(id) {
       }
     }, ignoreInit = TRUE)
 
+    # Watch for panel mode changes - restore duplicate move mode after silo creation
+    observeEvent(panel_mode(), {
+      # If switching back to placement mode and there's pending duplicate data
+      if (panel_mode() == "placement" && !is.null(pending_duplicate_data())) {
+        dup_data <- pending_duplicate_data()
+
+        # Restore temp shape on canvas
+        session$sendCustomMessage(paste0(ns("root"), ":setTempShape"), list(shape = dup_data$temp_shape))
+
+        # Re-enter move mode
+        enter_move_mode(dup_data$placement_id, dup_data$offset_x, dup_data$offset_y, is_duplicate = TRUE)
+
+        # Keep pending placement for form population
+        # Don't clear it yet - user still needs to complete the duplicate
+
+        showNotification("Position the duplicate, then confirm", type = "message", duration = 4)
+      }
+    }, ignoreInit = TRUE)
+
     # Handle warning banner "Create New Silo" button
     observeEvent(input$create_silo_btn, {
       show_silo_warning(FALSE)  # Hide warning
-      panel_mode("silo")  # Switch to silo mode
 
-      # Set to "add new" mode so placement preview shows pending data
+      # Ensure all pending data is cleared - user starts from scratch
+      pending_placement(NULL)
+      pending_duplicate_data(NULL)
       selected_placement_id(NA)
+      panel_mode("silo")
 
-      # Open panel
+      # Open panel in silo mode (panel is already closed when warning is shown)
       shinyjs::runjs(sprintf("window.togglePanel_%s(true);", gsub("-", "_", ns("root"))))
     }, ignoreInit = TRUE)
 
     # Handle warning banner "Cancel" button
     observeEvent(input$cancel_warning_btn, {
       show_silo_warning(FALSE)  # Hide warning
-      # Clear any pending placement
+      # Clear any pending placement and duplicate data
       pending_placement(NULL)
+      pending_duplicate_data(NULL)
       session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+
+      # Exit move mode if active
+      if (move_mode_state()) {
+        exit_move_mode(reset_position = TRUE)
+      }
     }, ignoreInit = TRUE)
 
     # Handle canvas click to add placement (namespace is auto-applied, so listen for canvas_add_at not test_canvas_add_at)
@@ -2026,6 +2077,36 @@ test_siloplacements_server <- function(id) {
 
       cat("[Canvas] Available silos (after removing placed):", nrow(available_silos), "\n")
 
+      # If no silos available, ABORT the process - show warning and do NOT create placement
+      if (nrow(available_silos) == 0) {
+        cat("[Canvas] No silos available - aborting add placement process\n")
+
+        # Clear any temp shapes on canvas
+        session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+
+        # Reset cursor to default (user is no longer in add mode)
+        session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(
+          shapeType = "default"
+        ))
+
+        # Turn off edit mode
+        if (edit_mode_state()) {
+          edit_mode_state(FALSE)
+          shinyjs::removeClass("edit_mode_toggle", "active")
+          session$sendCustomMessage(paste0(ns("root"), ":setEditMode"), list(on = FALSE))
+        }
+
+        # Clear all pending data - user must restart after creating silo
+        pending_placement(NULL)
+        pending_duplicate_data(NULL)
+        selected_placement_id(NA)
+        panel_mode("silo")
+
+        # Show warning banner
+        show_silo_warning(TRUE)
+        return()
+      }
+
       # Store pending placement data (shape and location from canvas click)
       pending_placement(list(
         LayoutID = layout_id,
@@ -2036,17 +2117,6 @@ test_siloplacements_server <- function(id) {
         IsVisible = TRUE,
         IsInteractive = TRUE
       ))
-
-      # If no silos available, show warning banner and keep pending data
-      if (nrow(available_silos) == 0) {
-        cat("[Canvas] No silos available - showing warning banner\n")
-
-        # Set to "add new" mode immediately so placement form shows pending data
-        selected_placement_id(NA)
-
-        show_silo_warning(TRUE)
-        return()
-      }
 
       # Build temp shape for canvas
       temp_shape <- if (shape_type == "CIRCLE") {
@@ -2108,6 +2178,9 @@ test_siloplacements_server <- function(id) {
       df <- try(get_placement_by_id(pid), silent = TRUE)
       if (inherits(df, "try-error") || !nrow(df)) return()
 
+      # Close right panel if open
+      shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
       # Enter move mode using reusable function
       enter_move_mode(pid, df$CenterX, df$CenterY, is_duplicate = FALSE)
     })
@@ -2129,6 +2202,52 @@ test_siloplacements_server <- function(id) {
 
       # Enter move mode using reusable function
       enter_move_mode(pid, df$CenterX, df$CenterY, is_duplicate = FALSE)
+    })
+
+    # Handle Duplicate button (right panel)
+    observeEvent(input$panel_duplicate, {
+      pid <- selected_placement_id()
+      if (is.null(pid) || is.na(pid)) {
+        showNotification("Select a placement to duplicate", type = "warning", duration = 2)
+        return()
+      }
+
+      # Check if spare silos are available before proceeding
+      all_silos <- silos_data()
+      placements <- raw_placements()
+
+      # Filter out already-placed silos (need a DIFFERENT silo for duplicate)
+      available_silos <- all_silos
+      if (nrow(available_silos) > 0 && nrow(placements) > 0) {
+        placed_silo_ids <- placements$SiloID
+        available_silos <- available_silos[!available_silos$SiloID %in% placed_silo_ids, ]
+      }
+
+      # If no silos available, close panel and show error
+      if (nrow(available_silos) == 0) {
+        # Close right panel
+        shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
+        # Clear any temp shapes on canvas
+        session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+
+        # Clear all pending data - abort the duplicate process completely
+        pending_placement(NULL)
+        pending_duplicate_data(NULL)
+        selected_placement_id(NA)
+        panel_mode("silo")
+
+        # Show warning on the banner
+        show_silo_warning(TRUE)
+        return()
+      }
+
+      # Close right panel
+      shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
+      # Trigger the main duplicate handler (reuse existing logic)
+      # This is equivalent to clicking the toolbar duplicate button
+      shinyjs::click("duplicate")
     })
 
     # Handle Enter key press to apply coordinate changes
@@ -2177,44 +2296,53 @@ test_siloplacements_server <- function(id) {
       if (inherits(df, "try-error") || !nrow(df)) return()
 
       if (is_dup) {
-        # DUPLICATE OPERATION: Create new placement with new coordinates
-        new_data <- list(
-          SiloID = df$SiloID,
+        # DUPLICATE OPERATION: Prepare pending data (don't save yet - user must select silo and enter name)
+        pending_data <- list(
           LayoutID = df$LayoutID,
           ShapeTemplateID = df$ShapeTemplateID,
           CenterX = current$x,
           CenterY = current$y,
           ZIndex = df$ZIndex,
           IsVisible = df$IsVisible,
-          IsInteractive = df$IsInteractive,
-          Name = ""  # Empty name to force user input
+          IsInteractive = df$IsInteractive
+          # Note: No SiloID - user must select a different silo
+          # Note: No Name - user must enter name
         )
 
-        tryCatch({
-          new_id <- upsert_placement(new_data)
+        # Store as pending placement
+        pending_placement(pending_data)
 
-          # Clear temp shape
-          session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+        # Clear temp shape
+        session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
 
-          # Select new placement
-          selected_placement_id(as.integer(new_id))
+        # Set to "add new" mode (NA means creating new placement)
+        selected_placement_id(NA)
 
-          # Exit move mode but keep edit mode enabled
-          move_mode_state(FALSE)
-          move_original_position(NULL)
-          move_current_position(NULL)
-          move_is_duplicate(FALSE)
+        # Exit move mode but keep edit mode enabled
+        move_mode_state(FALSE)
+        move_original_position(NULL)
+        move_current_position(NULL)
+        move_is_duplicate(FALSE)
 
-          # Refresh canvas
-          trigger_refresh(trigger_refresh() + 1)
+        # Clear pending duplicate data (duplicate is now confirmed)
+        pending_duplicate_data(NULL)
 
-          # Open panel in edit mode
+        # Clear canvas selection
+        session$sendCustomMessage(paste0(ns("root"), ":setData"), list(
+          data = list(),
+          autoFit = FALSE
+        ))
+
+        # Refresh to show placements without temp shape
+        trigger_refresh(trigger_refresh() + 1)
+
+        # Open panel in edit mode with pending data (only if silo warning is not showing)
+        if (!show_silo_warning()) {
           shinyjs::runjs(sprintf("window.togglePanel_%s(true);", gsub("-", "_", ns("root"))))
-
-          showNotification("Duplicate created - enter name and save", type = "message", duration = 3)
-        }, error = function(e) {
-          showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
-        })
+          showNotification("Select silo, enter name, and save", type = "message", duration = 3)
+        } else {
+          showNotification("Create silo first, then complete the duplicate", type = "warning", duration = 4)
+        }
       } else {
         # NORMAL MOVE: Update existing placement position
         df$CenterX <- current$x
@@ -2263,18 +2391,30 @@ test_siloplacements_server <- function(id) {
       all_silos <- silos_data()
       placements <- raw_placements()
 
-      # Filter out already-placed silos
+      # Filter out already-placed silos (need a DIFFERENT silo for duplicate)
       available_silos <- all_silos
       if (nrow(available_silos) > 0 && nrow(placements) > 0) {
         placed_silo_ids <- placements$SiloID
-        # Allow the current silo since we're duplicating from it
-        available_silos <- available_silos[!available_silos$SiloID %in% placed_silo_ids | all_silos$SiloID == df$SiloID, ]
+        # MUST be a different silo (don't allow reusing same silo due to UNIQUE constraint)
+        available_silos <- available_silos[!available_silos$SiloID %in% placed_silo_ids, ]
       }
 
-      # If no silos available, show warning banner
+      # If no silos available, show warning banner and DO NOT initiate duplicate
       if (nrow(available_silos) == 0) {
+        # Close right panel if open (so warning bar is not obstructed)
+        shinyjs::runjs(sprintf("window.togglePanel_%s(false);", gsub("-", "_", ns("root"))))
+
+        # Clear any temp shapes on canvas
+        session$sendCustomMessage(paste0(ns("root"), ":clearTempShape"), list())
+
+        # Clear all pending data - abort the duplicate process completely
+        pending_placement(NULL)
+        pending_duplicate_data(NULL)
+        selected_placement_id(NA)
+        panel_mode("silo")
+
+        # Show warning banner - do not enter move mode, do not show temp shape
         show_silo_warning(TRUE)
-        showNotification("No spare silos available for duplicate", type = "warning", duration = 3)
         return()
       }
 
@@ -2348,8 +2488,8 @@ test_siloplacements_server <- function(id) {
       if (!is.null(sel_id) && nzchar(sel_id)) {
         selected_placement_id(as.integer(sel_id))
 
-        # Don't open panel if in move mode
-        if (move_mode_state()) {
+        # Don't open panel if in move mode or if silo warning is showing
+        if (move_mode_state() || show_silo_warning()) {
           return()
         }
 

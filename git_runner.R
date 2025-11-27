@@ -35,3 +35,4 @@ run(paste("git commit -m", shQuote(msg)))
 run(paste("git push -u origin", shQuote(branch)))
 
 message("Done.")
+

@@ -356,8 +356,9 @@
         // Send updated position to Shiny
         const shape = state.shapes.find(s => s.id === state.selectedId);
         if (shape) {
-          const centerX = shape.type === 'circle' ? shape.x : shape.x + shape.w / 2;
-          const centerY = shape.type === 'circle' ? shape.y : shape.y + shape.h / 2;
+          // Circles and triangles use x,y as center; rectangles use top-left corner
+          const centerX = (shape.type === 'circle' || shape.type === 'triangle') ? shape.x : shape.x + shape.w / 2;
+          const centerY = (shape.type === 'circle' || shape.type === 'triangle') ? shape.y : shape.y + shape.h / 2;
 
           Shiny.setInputValue(state.ns + '-canvas_moved', {
             id: shape.id,
