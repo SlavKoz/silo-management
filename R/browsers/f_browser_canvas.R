@@ -360,24 +360,39 @@ f_browser_canvas_server <- function(id, pool = NULL) {
 
       # Read image and convert to PNG base64
       tryCatch({
-        if (!requireNamespace("magick", quietly = TRUE)) {
-          showNotification("magick package required. Install with: install.packages('magick')",
+        # Detect file type
+        ext <- tolower(tools::file_ext(file$name))
+
+        # Read image and get dimensions
+        if (ext == "png") {
+          img <- png::readPNG(file$datapath, native = FALSE)
+          width <- ncol(img)
+          height <- nrow(img)
+
+          # Already PNG, just read raw bytes for base64
+          png_raw <- readBin(file$datapath, "raw", file.info(file$datapath)$size)
+        } else if (ext %in% c("jpg", "jpeg")) {
+          img <- jpeg::readJPEG(file$datapath, native = FALSE)
+          width <- ncol(img)
+          height <- nrow(img)
+
+          # Convert JPEG to PNG
+          tmp <- tempfile(fileext = ".png")
+          on.exit(unlink(tmp), add = TRUE)
+          png::writePNG(img, tmp)
+          png_raw <- readBin(tmp, "raw", file.info(tmp)$size)
+        } else {
+          showNotification(paste("Unsupported file type:", ext, "- Please use PNG or JPEG"),
                          type = "error")
           return()
         }
 
-        # Read image
-        img <- magick::image_read(file$datapath)
-        info <- magick::image_info(img)
-
-        # Convert to PNG and get base64
-        png_raw <- magick::image_write(img, format = "PNG")
         png_b64 <- base64enc::base64encode(png_raw)
 
         # Store in reactive values
         rv$current_image <- png_b64
-        rv$width_px <- info$width
-        rv$height_px <- info$height
+        rv$width_px <- width
+        rv$height_px <- height
         rv$file_size_kb <- round(length(png_raw) / 1024, 1)
 
         # Update preview by replacing container content via JavaScript

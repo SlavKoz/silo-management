@@ -255,17 +255,18 @@ sanitize_svg <- function(svg_txt) {
 # Source: Silo/R/utils/helper_icons.R
 svg_to_png_raw <- function(svg_txt, size = 64) {
   if (is.null(svg_txt) || !nzchar(svg_txt)) stop("Empty SVG")
-  if (!requireNamespace("magick", quietly = TRUE) && !requireNamespace("rsvg", quietly = TRUE)) {
-    stop("Need magick or rsvg installed to rasterize SVG")
+  if (!requireNamespace("rsvg", quietly = TRUE) && !requireNamespace("magick", quietly = TRUE)) {
+    stop("Need rsvg or magick installed to rasterize SVG")
   }
-  if (requireNamespace("magick", quietly = TRUE)) {
-    img <- magick::image_read_svg(svg_txt, width = size, height = size)
-    return(magick::image_write(img, format = "PNG"))
-  } else {
+  # Prefer rsvg over magick for faster performance
+  if (requireNamespace("rsvg", quietly = TRUE)) {
     tmp <- tempfile(fileext = ".svg")
     on.exit(unlink(tmp), add = TRUE)
     writeLines(svg_txt, tmp, useBytes = TRUE)
     return(rsvg::rsvg_png(tmp, width = size, height = size))
+  } else {
+    img <- magick::image_read_svg(svg_txt, width = size, height = size)
+    return(magick::image_write(img, format = "PNG"))
   }
 }
 

@@ -758,6 +758,23 @@
     }
   });
 
+  // Custom message handler: center on shape
+  Shiny.addCustomMessageHandler('test-root:centerOnShape', function(message) {
+    const canvasId = 'test-canvas';
+    const state = canvases.get(canvasId);
+    if (!state) return;
+
+    const centerX = message.x;
+    const centerY = message.y;
+
+    // Center the view on the specified coordinates
+    state.panX = state.canvas.width / 2 - centerX * state.zoom;
+    state.panY = state.canvas.height / 2 - centerY * state.zoom;
+
+    render(state);
+    updateShapeCursor(state);
+  });
+
   // Custom message handler: set background image
   Shiny.addCustomMessageHandler('test-root:setBackground', function(message) {
     const canvasId = 'test-canvas';

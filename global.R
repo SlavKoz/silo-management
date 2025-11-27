@@ -1,17 +1,18 @@
 ## global.R — Silo app bootstrap (with f_-override support)
 
 suppressPackageStartupMessages({
-  library(shiny); 
-  library(bs4Dash); 
-  library(shinyWidgets); 
+  library(shiny);
+  library(bs4Dash);
+  library(shinyWidgets);
   library(shinyjs)
   library(shiny.semantic)
-  library(jsonlite); 
-  library(httr); 
-  library(xml2); 
+  library(jsonlite);
+  library(httr);
+  library(xml2);
   library(base64enc)
-  library(magick)
   library(rsvg)
+  library(png)
+  library(jpeg)
 })
 
 options(shiny.fullstacktrace = TRUE)

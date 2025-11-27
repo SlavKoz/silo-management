@@ -654,6 +654,7 @@ test_siloplacements_server <- function(id) {
     move_current_position <- reactiveVal(NULL)  # Track current position during move (list with x, y)
     move_is_duplicate <- reactiveVal(FALSE)  # Track if current move is for a duplicate operation
     pending_duplicate_data <- reactiveVal(NULL)  # Store duplicate data (temp shape, coords) when waiting for silo creation
+    selection_source <- reactiveVal("dropdown")  # Track if selection came from "canvas" or "dropdown" (default is dropdown)
 
     # ---- Reusable Move Mode Functions ----
 
@@ -873,7 +874,6 @@ test_siloplacements_server <- function(id) {
         current_layout_id(as.integer(selected_value))
         # Reset initial load flag so new layout's area is populated
         initial_load_complete(FALSE)
-        cat("[Layout Change] Reset initial_load_complete flag\n")
       }
     }, ignoreInit = TRUE)
 
@@ -1006,12 +1006,10 @@ test_siloplacements_server <- function(id) {
 
       # Update canvas selection
       canvas_id <- if (is.null(layout$CanvasID) || is.na(layout$CanvasID)) "" else as.character(layout$CanvasID)
-      cat("[Layout Update] Setting canvas_id to:", canvas_id, "\n")
       updateSelectInput(session, "canvas_id", selected = canvas_id)
 
       # Update site selection
       site_id <- if (is.null(layout$SiteID) || is.na(layout$SiteID)) "" else as.character(layout$SiteID)
-      cat("[Layout Update] Setting site_id to:", site_id, "\n")
       updateSelectInput(session, "layout_site_id", selected = site_id)
 
       # Update background rotation control
@@ -1036,7 +1034,6 @@ test_siloplacements_server <- function(id) {
       if (!initial_load_complete()) {
         shiny::invalidateLater(100)
         initial_load_complete(TRUE)
-        cat("[Layout Update] Initial load complete\n")
       }
     })
 
@@ -1058,10 +1055,7 @@ test_siloplacements_server <- function(id) {
       # Only update area selector during initial load (not when user manually changes background)
       if (!initial_load_complete()) {
         area_id <- if (is.null(df$AreaID) || is.na(df$AreaID[1])) "" else as.character(df$AreaID[1])
-        cat("[Canvas Load] Initial load - setting area to:", area_id, "\n")
         updateSelectInput(session, "bg_area_id", selected = area_id)
-      } else {
-        cat("[Canvas Load] User action - keeping current area selection\n")
       }
 
       # Send base64 image to JavaScript
@@ -1771,7 +1765,7 @@ test_siloplacements_server <- function(id) {
         tagList(
           # Editable form (hidden when edit mode OFF)
           div(
-            style = if (edit_mode_state()) "" else "display: none;",
+            style = if (edit_mode_state()) "" else "visibility: hidden; position: absolute; z-index: -1;",
             mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
             # Move and Duplicate buttons at bottom left
             div(style = "margin-top: 1rem; padding: 0 1rem; display: flex; gap: 0.5rem;",
@@ -1785,7 +1779,7 @@ test_siloplacements_server <- function(id) {
           ),
           # Read-only view (hidden when edit mode ON)
           div(
-            style = if (!edit_mode_state()) "" else "display: none;",
+            style = if (!edit_mode_state()) "" else "visibility: hidden; position: absolute; z-index: -1;",
             # Object selector
             div(style = "padding: 1rem;",
               # Checkboxes
@@ -1818,12 +1812,23 @@ test_siloplacements_server <- function(id) {
 
     # Populate object selector dropdown based on filters
     observe({
+      # Depend on canvas selection so the dropdown refreshes after clicks
+      canvas_pid <- selected_placement_id()
+
       # Only update when in non-edit mode
       if (edit_mode_state()) return()
 
       show_inactive <- input$show_inactive
       search_all <- input$search_all_sites
       current_layout <- current_layout_id()
+      source <- selection_source()
+
+      cat(sprintf("[Object Selector] Observer triggered - canvas_pid: %s, show_inactive: %s, search_all: %s, layout: %s, source: %s\n",
+                  ifelse(is.null(canvas_pid) || is.na(canvas_pid), "NULL", canvas_pid),
+                  ifelse(is.null(show_inactive), "NULL", show_inactive),
+                  ifelse(is.null(search_all), "NULL", search_all),
+                  ifelse(is.null(current_layout), "NULL", current_layout),
+                  source))
 
       if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) return()
 
@@ -1887,12 +1892,22 @@ test_siloplacements_server <- function(id) {
 
       query <- paste0(query, " ORDER BY l.LayoutName, s.SiloCode")
 
-      all_placements <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+      all_placements <- try(DBI::dbGetQuery(db_pool(), query), silent = FALSE)
 
-      if (inherits(all_placements, "try-error") || nrow(all_placements) == 0) {
+      if (inherits(all_placements, "try-error")) {
+        cat("[Object Selector] Query error:", as.character(all_placements), "\n")
         updateSelectInput(session, "object_selector", choices = c("No placements found" = ""))
         return()
       }
+
+      if (nrow(all_placements) == 0) {
+        cat("[Object Selector] Query succeeded but returned 0 rows\n")
+        cat("[Object Selector] Query was:\n", query, "\n")
+        updateSelectInput(session, "object_selector", choices = c("No placements found" = ""))
+        return()
+      }
+
+      cat(sprintf("[Object Selector] Found %d placements\n", nrow(all_placements)))
 
       # Build choices: "LayoutName / SiloCode - SiloName"
       choices <- setNames(
@@ -1900,39 +1915,25 @@ test_siloplacements_server <- function(id) {
         paste0(all_placements$LayoutName, " / ", all_placements$SiloCode, " - ", all_placements$SiloName)
       )
 
-      # Preserve current selection if it exists in new choices (use isolate to avoid triggering on canvas clicks)
+      # Determine which selection to use (isolate dropdown to avoid circular updates)
       current_selection <- isolate(input$object_selector)
-      canvas_pid <- isolate(selected_placement_id())
 
-      if (!is.null(current_selection) && current_selection != "" && current_selection %in% choices) {
-        # Keep current dropdown selection if it's still valid
-        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = current_selection)
-      } else if (!is.null(canvas_pid) && !is.na(canvas_pid) && as.character(canvas_pid) %in% choices) {
-        # Use canvas selection if dropdown selection is invalid
+      cat(sprintf("[Object Selector] Current dropdown selection: %s, Canvas PID: %s\n",
+                  ifelse(is.null(current_selection) || current_selection == "", "NONE", current_selection),
+                  ifelse(is.null(canvas_pid) || is.na(canvas_pid), "NONE", canvas_pid)))
+
+      if (!is.null(canvas_pid) && !is.na(canvas_pid) && as.character(canvas_pid) %in% choices) {
+        # Use canvas selection if available
+        cat(sprintf("[Object Selector] Setting to canvas selection: %s\n", canvas_pid))
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = as.character(canvas_pid))
+      } else if (!is.null(current_selection) && current_selection != "" && current_selection %in% choices) {
+        # Keep current dropdown selection if canvas selection is not available
+        cat(sprintf("[Object Selector] Keeping current selection: %s\n", current_selection))
+        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = current_selection)
       } else {
         # No valid selection
+        cat("[Object Selector] No valid selection, clearing\n")
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
-      }
-    })
-
-    # Sync canvas selection to dropdown (when shape clicked on canvas)
-    observe({
-      # Only sync when in non-edit mode
-      if (edit_mode_state()) return()
-
-      pid <- selected_placement_id()
-
-      if (is.null(pid) || is.na(pid)) {
-        # Clear dropdown selection
-        updateSelectInput(session, "object_selector", selected = "")
-        return()
-      }
-
-      # Update dropdown to match canvas selection (only if different from current)
-      current_sel <- isolate(input$object_selector)
-      if (is.null(current_sel) || current_sel != as.character(pid)) {
-        updateSelectInput(session, "object_selector", selected = as.character(pid))
       }
     })
 
@@ -1944,9 +1945,12 @@ test_siloplacements_server <- function(id) {
         return()
       }
 
-      # Get placement layout
-      query <- sprintf("SELECT LayoutID FROM SiloPlacements WHERE PlacementID = %s", placement_id)
-      layout_data <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+      # Check if this selection was triggered by canvas click (don't center in that case)
+      source <- isolate(selection_source())
+
+      # Get placement layout and coordinates
+      query <- sprintf("SELECT LayoutID, CenterX, CenterY FROM SiloPlacements WHERE PlacementID = %s", placement_id)
+      layout_data <- try(DBI::dbGetQuery(db_pool(), query), silent = TRUE)
 
       if (inherits(layout_data, "try-error") || nrow(layout_data) == 0) return()
 
@@ -1957,7 +1961,17 @@ test_siloplacements_server <- function(id) {
       if (placement_layout_id == current_layout) {
         selected_placement_id(as.integer(placement_id))
         trigger_refresh(trigger_refresh() + 1)
+
+        # Center canvas on the selected shape (only if selection did NOT come from canvas click)
+        if (source != "canvas") {
+          center_x <- as.numeric(layout_data$CenterX[1])
+          center_y <- as.numeric(layout_data$CenterY[1])
+          session$sendCustomMessage(paste0(ns("root"), ":centerOnShape"), list(x = center_x, y = center_y))
+        }
       }
+
+      # Reset source to dropdown for next time
+      selection_source("dropdown")
     }, ignoreInit = TRUE)
 
     # Render layout warning banner
@@ -1974,7 +1988,7 @@ test_siloplacements_server <- function(id) {
         WHERE p.PlacementID = %s
       ", placement_id)
 
-      placement_data <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+      placement_data <- try(DBI::dbGetQuery(db_pool(), query), silent = TRUE)
 
       if (inherits(placement_data, "try-error") || nrow(placement_data) == 0) return(NULL)
 
@@ -2025,7 +2039,7 @@ test_siloplacements_server <- function(id) {
         WHERE p.PlacementID = %s
       ", placement_id)
 
-      data <- try(DBI::dbGetQuery(con, query), silent = TRUE)
+      data <- try(DBI::dbGetQuery(db_pool(), query), silent = TRUE)
 
       if (inherits(data, "try-error") || nrow(data) == 0) {
         return(div("Error loading placement details"))
@@ -2811,6 +2825,8 @@ test_siloplacements_server <- function(id) {
     observeEvent(input$canvas_selection, {
       sel_id <- input$canvas_selection
       if (!is.null(sel_id) && nzchar(sel_id)) {
+        # Mark that this selection came from canvas
+        selection_source("canvas")
         selected_placement_id(as.integer(sel_id))
 
         # Don't open panel if in move mode or if silo warning is showing
@@ -3057,11 +3073,8 @@ test_siloplacements_server <- function(id) {
       pid <- selected_placement_id()
       template_id <- input[["form-field_ShapeTemplateID"]]
 
-      cat("[Canvas] ShapeTemplateID changed to:", template_id, "for placement:", pid, "\n")
-
       # Skip if no template selected
       if (is.null(template_id) || template_id == "") {
-        cat("[Canvas] Skipping - no template selected\n")
         return()
       }
 
@@ -3183,14 +3196,8 @@ test_siloplacements_server <- function(id) {
       }
 
       # Send message to update this specific shape on canvas (visual only, not committed)
-      cat("[Canvas] Sending updateShape message for shape", pid, "type:", shape_type, "\n")
       session$sendCustomMessage(paste0(ns("root"), ":updateShape"), list(shape = updated_shape))
     }, ignoreInit = TRUE)
-
-    # Debug: print all inputs starting with field_
-    observe({
-      cat("[Canvas] form-field_ShapeTemplateID value:", input[["form-field_ShapeTemplateID"]], "\n")
-    })
 
     # Initial load - trigger first refresh (run once only)
     observeEvent(session$clientData$url_hostname, once = TRUE, {
