@@ -53,7 +53,7 @@ browser_siloplacements_ui <- function(id) {
             div(
               id = ns("select_container"),
               style = "display: block;",
-              selectInput(
+              shiny::selectInput(
                 ns("layout_id"), label = NULL, choices = c(), width = "100%",
                 selectize = TRUE
               )
@@ -83,7 +83,7 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 5: Site selector
-          selectInput(
+          shiny::selectInput(
             ns("layout_site_id"), label = NULL, choices = c(), width = "100%",
             selectize = TRUE
           ),
@@ -148,7 +148,7 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 3: Background selector
-          selectInput(ns("canvas_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
+          shiny::selectInput(ns("canvas_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
 
           # Column 4: Area label
           tags$label(
@@ -157,7 +157,7 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 5: Area selector
-          selectInput(
+          shiny::selectInput(
             ns("bg_area_id"), label = NULL, choices = c(), width = "100%",
             selectize = TRUE
           ),
@@ -249,7 +249,7 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 3: Shape template selector
-          selectInput(ns("shape_template_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
+          shiny::selectInput(ns("shape_template_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
 
           # Column 4: Empty spacer (aligns with Area: label above)
           div(),
@@ -1504,7 +1504,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
               checkboxInput(ns("search_all_sites"), "Search other sites and areas", value = FALSE),
 
               # Searchable dropdown
-              selectInput(
+              shiny::selectInput(
                 ns("object_selector"),
                 "Select placement:",
                 choices = c(),
