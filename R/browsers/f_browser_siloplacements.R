@@ -54,7 +54,7 @@ browser_siloplacements_ui <- function(id) {
               id = ns("select_container"),
               style = "display: block;",
               selectInput(
-                ns("layout_id"), label = NULL, choices = NULL, width = "100%",
+                ns("layout_id"), label = NULL, choices = c(), width = "100%",
                 selectize = TRUE
               )
             ),
@@ -84,7 +84,7 @@ browser_siloplacements_ui <- function(id) {
 
           # Column 5: Site selector
           selectInput(
-            ns("layout_site_id"), label = NULL, choices = NULL, width = "100%",
+            ns("layout_site_id"), label = NULL, choices = c(), width = "100%",
             selectize = TRUE
           ),
 
@@ -148,7 +148,7 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 3: Background selector
-          selectInput(ns("canvas_id"), label = NULL, choices = NULL, width = "100%", selectize = TRUE),
+          selectInput(ns("canvas_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
 
           # Column 4: Area label
           tags$label(
@@ -158,7 +158,7 @@ browser_siloplacements_ui <- function(id) {
 
           # Column 5: Area selector
           selectInput(
-            ns("bg_area_id"), label = NULL, choices = NULL, width = "100%",
+            ns("bg_area_id"), label = NULL, choices = c(), width = "100%",
             selectize = TRUE
           ),
 
@@ -249,7 +249,7 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 3: Shape template selector
-          selectInput(ns("shape_template_id"), label = NULL, choices = NULL, width = "100%", selectize = TRUE),
+          selectInput(ns("shape_template_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
 
           # Column 4: Empty spacer (aligns with Area: label above)
           div(),
@@ -1507,7 +1507,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
               selectInput(
                 ns("object_selector"),
                 "Select placement:",
-                choices = NULL,
+                choices = c(),
                 width = "100%",
                 selectize = TRUE
               )

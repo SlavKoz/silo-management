@@ -5,6 +5,7 @@ suppressPackageStartupMessages({
   library(bs4Dash);
   library(shinyWidgets);
   library(shinyjs)
+  library(shinyalert)
   library(shiny.semantic)
   library(jsonlite);
   library(httr);

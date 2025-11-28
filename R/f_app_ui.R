@@ -8,8 +8,10 @@ f_app_ui <- function() {
       tags$link(rel = "stylesheet", href = "css/admin.css?v=20251021"),
       tags$link(rel = "stylesheet", href = "css/silo-canvas.css?v=20251021"),
       tags$link(rel = "stylesheet", href = "css/admin-grid.css"),
+      tags$link(rel = "stylesheet", href = "css/f_siloplacements.css"),
       tags$script(src = "js/icon-browser.js"),
       tags$script(src = "js/admin-grid.js"),
+      tags$script(src = "js/f_siloplacements_canvas.js"),
       tags$style(HTML("
   :root { --sbw: 240px; --sbw-collapsed: 56px; }
   body { --sbw-current: var(--sbw); }

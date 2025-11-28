@@ -229,9 +229,12 @@ f_app_server <- function(input, output, session) {
     "placements" = list(
       title = "Placements",
       ui    = function() {
-        div(class="p-3", h3("Placements"), p("Placeholder: this section is not ready yet."))
+        if (exists("browser_siloplacements_ui")) browser_siloplacements_ui("placements")
+        else div(class="p-3", h3("Placements"), p("Placeholder: this section is not ready yet."))
       },
-      server = function() { }
+      server = function() {
+        if (exists("browser_siloplacements_server")) browser_siloplacements_server("placements", pool, route = current)
+      }
     ),
     "canvases" = list(
       title = "Canvases",
