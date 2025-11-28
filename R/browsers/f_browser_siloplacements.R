@@ -1,168 +1,26 @@
-# R/test_siloplacements_canvas.R
-# Test file for SiloPlacements canvas + table browser
+# R/browsers/f_browser_siloplacements.R
+# SiloPlacements Canvas Browser
 
-# UI - Canvas on top, React Table below
-test_siloplacements_ui <- function(id) {
+# Source helpers
+source("R/utils/f_siloplacements_helpers.R", local = TRUE)
+
+# =========================== UI ===============================================
+browser_siloplacements_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
     shinyjs::useShinyjs(),
+
+    # External CSS
+    tags$link(rel = "stylesheet", href = "css/f_siloplacements.css"),
+
+    # Canvas-specific inline styles (canvas ID needs namespace)
     tags$style(HTML(sprintf("
-      body {
-        overflow: hidden !important;
-      }
-
-      .main-content {
-        margin-left: 0 !important;
-        transition: margin-left 0.5s ease;
-      }
-
-      .main-content.panel-open {
-        margin-left: 400px;
-      }
-
-      .sliding-panel {
-        position: fixed;
-        top: 0;
-        left: -400px;
-        width: 400px;
-        height: 100vh;
-        background: white;
-        box-shadow: 2px 0 8px rgba(0,0,0,0.15);
-        transition: left 0.5s ease;
-        z-index: 1000;
-        overflow-y: auto;
-      }
-
-      .sliding-panel.open {
-        left: 0;
-      }
-
-      .panel-toggle {
-        position: fixed;
-        top: 50%%;
-        left: 0;
-        transform: translateY(-50%%);
-        width: 30px;
-        height: 80px;
-        background: #2185d0;
-        color: white;
-        border: none;
-        border-radius: 0 4px 4px 0;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 999;
-        transition: left 0.5s ease;
-        font-size: 18px;
-      }
-
-      .panel-toggle.panel-open {
-        left: 400px;
-      }
-
-      .panel-toggle:hover {
-        background: #1678c2;
-      }
-
-      .panel-header {
-        padding: 1rem;
-        background: #f8f9fa;
-        border-bottom: 1px solid #ddd;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .panel-content {
-        padding: 1rem;
-      }
-
-      .canvas-container {
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        background: #f8f9fa;
-        padding: 0.5rem;
-      }
-      .canvas-toolbar {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-        margin-bottom: 0.5rem;
-        padding: 0.5rem;
-        background: white;
-        border-radius: 4px;
-      }
-      .canvas-toolbar .form-group {
-        margin-bottom: 0;
-        display: inline-block;
-        /* display: flex;
-        align-items: center;
-        gap: 0.3rem;*/
-      }
-      .canvas-toolbar select.form-control {
-        padding: 0.15rem 1.5rem 0.15rem 0.5rem;
-        height: 28px;
-        font-size: 12px;
-        line-height: 1.2;
-        background-position: right 0.3rem center;
-        background-size: 12px;
-      }
-      .canvas-toolbar input[type='text'].form-control {
-        padding: 0.15rem 0.5rem;
-        height: 28px;
-        font-size: 12px;
-        line-height: 1.2;
-      }
-      .canvas-toolbar input[type='number'].form-control {
-        padding: 0.15rem 0.5rem;
-        height: 28px;
-        font-size: 12px;
-        line-height: 1.2;
-      }
-      .text-container-class {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.2rem;
-      }
-      .canvas-toolbar label {
-        margin: 0;
-        font-size: 13px;
-        font-weight: normal;
-      }
-      .canvas-toolbar .btn-sm {
-        height: 28px;
-        padding: 0.25rem 0.4rem;
-        font-size: 14px;
-        line-height: 1.2;
-      }
-      .canvas-viewport {
-        position: relative;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        overflow: hidden;
-      }
       #%s {
         display: block;
         width: 100%%;
         height: auto;
         cursor: crosshair;
-      }
-      .shape-label {
-        position: absolute;
-        font-size: 10px;
-        color: #333;
-        pointer-events: none;
-        white-space: nowrap;
-      }
-      /* Ensure modal appears on top of canvas */
-      .modal {
-        z-index: 10000 !important;
-      }
-      .modal-backdrop {
-        z-index: 9999 !important;
       }
     ", ns("canvas")))),
 
@@ -171,91 +29,6 @@ test_siloplacements_ui <- function(id) {
       # Canvas area
       div(
         class = "canvas-container",
-
-        # Grid-based toolbar for perfect alignment
-        tags$style(HTML("
-          .toolbar-grid {
-            display: grid;
-            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px 1fr 100px;
-            gap: 0.3rem;
-            align-items: center;
-            padding: 0.3rem;
-            background: #e9ecef;
-            border-radius: 4px;
-          }
-          .toolbar-grid-bottom {
-            display: grid;
-            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px auto 80px auto 1fr 80px auto 1fr 100px;
-            gap: 0.3rem;
-            align-items: center;
-            padding: 0.3rem;
-            background: #e9ecef;
-            border-radius: 4px;
-          }
-          .toolbar-grid-placement {
-            display: grid;
-            grid-template-columns: 80px 90px 220px 50px 180px 110px 150px auto 80px auto 1fr 80px auto 1fr 100px;
-            gap: 0.3rem;
-            align-items: center;
-            padding: 0.3rem;
-            background: #e9ecef;
-            border-radius: 4px;
-          }
-          .toolbar-grid .form-group,
-          .toolbar-grid-bottom .form-group,
-          .toolbar-grid-placement .form-group {
-            margin-bottom: 0;
-          }
-          .toolbar-grid label,
-          .toolbar-grid-bottom label,
-          .toolbar-grid-placement label {
-            text-align: right;
-          }
-          .toggle-btn {
-            position: relative;
-            padding-left: 2.5rem;
-            border: 1px solid #ddd !important;
-          }
-          .toggle-btn::before {
-            content: '';
-            position: absolute;
-            left: 0.3rem;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 1.8rem;
-            height: 1rem;
-            background: #ccc;
-            border-radius: 0.5rem;
-            transition: background 0.3s;
-          }
-          .toggle-btn::after {
-            content: '';
-            position: absolute;
-            left: 0.4rem;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 0.8rem;
-            height: 0.8rem;
-            background: white;
-            border-radius: 50%;
-            transition: left 0.3s;
-          }
-          .toggle-btn.active {
-            border-color: #28a745 !important;
-          }
-          .toggle-btn.active::before {
-            background: #28a745;
-          }
-          .toggle-btn.active::after {
-            left: 1.3rem;
-          }
-          .control-group {
-            display: flex;
-            gap: 0.2rem;
-            align-items: center;
-            justify-content: center;
-          }
-        ")),
 
         # Top toolbar - Layouts row
         div(
@@ -619,8 +392,8 @@ test_siloplacements_ui <- function(id) {
   )
 }
 
-# Server
-test_siloplacements_server <- function(id) {
+# ========================== SERVER ============================================
+browser_siloplacements_server <- function(id, pool, route = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -1248,76 +1021,8 @@ test_siloplacements_server <- function(id) {
       silos <- silos_data()
       templates <- shape_templates_data()
 
-      # Build shapes for canvas
-      shapes <- lapply(seq_len(nrow(placements)), function(i) {
-        p <- placements[i, ]
-
-        # Find silo info
-        silo <- silos[silos$SiloID == p$SiloID, ]
-        silo_code <- if (nrow(silo) > 0) silo$SiloCode[1] else paste0("S", p$SiloID)
-
-        # Find shape template
-        template <- templates[templates$ShapeTemplateID == p$ShapeTemplateID, ]
-
-        shape_type <- if (nrow(template) > 0) template$ShapeType[1] else "CIRCLE"
-
-        # Build shape object
-        if (shape_type == "CIRCLE") {
-          radius <- if (nrow(template) > 0 && !is.na(template$Radius[1])) as.numeric(template$Radius[1]) else 20
-          list(
-            id = as.character(p$PlacementID),
-            type = "circle",
-            x = as.numeric(p$CenterX),
-            y = as.numeric(p$CenterY),
-            r = radius,
-            label = silo_code,
-            fill = "rgba(59, 130, 246, 0.2)",
-            stroke = "rgba(59, 130, 246, 0.8)",
-            strokeWidth = 2
-          )
-        } else if (shape_type == "RECTANGLE") {
-          width <- if (nrow(template) > 0 && !is.na(template$Width[1])) as.numeric(template$Width[1]) else 40
-          height <- if (nrow(template) > 0 && !is.na(template$Height[1])) as.numeric(template$Height[1]) else 40
-          list(
-            id = as.character(p$PlacementID),
-            type = "rect",
-            x = as.numeric(p$CenterX) - width / 2,
-            y = as.numeric(p$CenterY) - height / 2,
-            w = width,
-            h = height,
-            label = silo_code,
-            fill = "rgba(34, 197, 94, 0.2)",
-            stroke = "rgba(34, 197, 94, 0.8)",
-            strokeWidth = 2
-          )
-        } else if (shape_type == "TRIANGLE") {
-          radius <- if (nrow(template) > 0 && !is.na(template$Radius[1])) as.numeric(template$Radius[1]) else 20
-          list(
-            id = as.character(p$PlacementID),
-            type = "triangle",
-            x = as.numeric(p$CenterX),
-            y = as.numeric(p$CenterY),
-            r = radius,
-            label = silo_code,
-            fill = "rgba(168, 85, 247, 0.2)",
-            stroke = "rgba(168, 85, 247, 0.8)",
-            strokeWidth = 2
-          )
-        } else {
-          # Fallback to circle for unknown types
-          list(
-            id = as.character(p$PlacementID),
-            type = "circle",
-            x = as.numeric(p$CenterX),
-            y = as.numeric(p$CenterY),
-            r = 20,
-            label = silo_code,
-            fill = "rgba(59, 130, 246, 0.2)",
-            stroke = "rgba(59, 130, 246, 0.8)",
-            strokeWidth = 2
-          )
-        }
-      })
+      # Build shapes for canvas using helper function
+      shapes <- build_canvas_shapes(placements, silos, templates)
 
       canvas_shapes(shapes)
 
@@ -3287,6 +2992,7 @@ test_siloplacements_server <- function(id) {
 }
 
 # Standalone runner
+# Test runner (for standalone testing - not needed in main app)
 run_siloplacements_canvas_test <- function() {
   library(shiny)
 
@@ -3308,18 +3014,19 @@ run_siloplacements_canvas_test <- function() {
       tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
     ),
     tags$h3("SiloPlacements Canvas + Table Browser"),
-    test_siloplacements_ui("test")
+    browser_siloplacements_ui("test")
   )
 
   server <- function(input, output, session) {
-    test_siloplacements_server("test")
+    browser_siloplacements_server("test", pool = db_pool())
   }
 
   cat("\n=== Launching SiloPlacements Canvas Test ===\n")
   cat("Canvas + React Table for placement management\n\n")
 
-  # Add resource path for www directory
+  # Add resource paths for www directory
   shiny::addResourcePath("js", "www/js")
+  shiny::addResourcePath("css", "www/css")
 
   shinyApp(ui, server, options = list(launch.browser = TRUE))
 }

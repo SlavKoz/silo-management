@@ -1,16 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:cdn.jsdelivr.net)",
-      "Bash(curl:*)",
-      "Bash(Rscript:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(awk:*)",
-      "Bash(\"C:\\Users\\slawomirkozielec\\AppData\\Local\\Programs\\R\\R-4.5.1\\bin\\Rscript.exe\" run_canvas_test.R)",
-      "Bash(taskkill:*)",
-      "Bash(netstat:*)",
-      "Bash(findstr:*)"
+      "Bash(\"C:\\Users\\slawomirkozielec\\AppData\\Local\\Programs\\R\\R-4.5.1\\bin\\Rscript.exe\" -e \"source(''R/browsers/f_browser_siloplacements.R''); run_siloplacements_canvas_test()\")"
     ],
     "deny": [],
     "ask": []
