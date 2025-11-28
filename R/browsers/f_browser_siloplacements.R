@@ -397,6 +397,14 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    notify_error <- function(prefix, e, duration = NULL) {
+      message(sprintf("[siloplacements] %s: %s", prefix, conditionMessage(e)))
+      if (!is.null(e$call)) {
+        message("  call: ", paste(deparse(e$call), collapse = " "))
+      }
+      showNotification(paste(prefix, conditionMessage(e)), type = "error", duration = duration)
+    }
+    
     # Reactive values
     trigger_refresh <- reactiveVal(0)
     selected_placement_id <- reactiveVal(NULL)
@@ -579,7 +587,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         )
         
       }, error = function(e) {
-        showNotification(paste("Error:", e$message), type = "error")
+        notify_error("Error creating layout", e)
       })
     })
     
@@ -667,8 +675,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         )
         # No need to trigger_refresh - reactives depend on input$layout_site_id directly
       }, error = function(e) {
-        showNotification(paste("Error updating site:", conditionMessage(e)),
-                        type = "error", duration = NULL)
+        notify_error("Error updating site", e)
       })
     }, ignoreInit = TRUE)
 
@@ -740,8 +747,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         canvases_refresh(canvases_refresh() + 1)  # Trigger canvas list refresh
         showNotification("Canvas area updated", type = "message", duration = 2)
       }, error = function(e) {
-        showNotification(paste("Error updating canvas area:", conditionMessage(e)),
-                        type = "error", duration = NULL)
+        notify_error("Error updating canvas area", e)
       })
     }, ignoreInit = TRUE)
 
@@ -1340,7 +1346,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
           showNotification("Placement saved", type = "message", duration = 2)
           return(TRUE)
         }, error = function(e) {
-          showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
+          notify_error("Error saving placement", e)
           return(FALSE)
         })
       },
@@ -1370,7 +1376,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
           showNotification("Placement deleted", type = "message", duration = 2)
           return(TRUE)
         }, error = function(e) {
-          showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
+          notify_error("Error deleting placement", e)
           return(FALSE)
         })
       }
@@ -1419,7 +1425,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
           return(TRUE)
         }, error = function(e) {
-          showNotification(paste("Error creating silo:", conditionMessage(e)), type = "error", duration = NULL)
+          notify_error("Error creating silo", e)
           return(FALSE)
         })
       },
@@ -2497,7 +2503,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
           showNotification("Placement moved successfully", type = "message", duration = 2)
         }, error = function(e) {
-          showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = NULL)
+          notify_error("Error moving placement", e)
         })
       }
     })
