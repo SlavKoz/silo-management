@@ -553,7 +553,7 @@ update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NUL
 
   if (!is.null(canvas_id)) {
     updates <- c(updates, "CanvasID = ?")
-    params <- c(params, list(if(canvas_id == "") NULL else as.integer(canvas_id)))
+    params <- c(params, list(if (is.null(canvas_id) || is.na(canvas_id) || canvas_id == "") NULL else as.integer(canvas_id)))
   }
   if (!is.null(rotation)) {
     updates <- c(updates, "BackgroundRotation = ?")
@@ -581,7 +581,7 @@ update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NUL
   }
   if (!is.null(site_id)) {
     updates <- c(updates, "SiteID = ?")
-    params <- c(params, list(if (site_id == "") NULL else as.integer(site_id)))
+    params <- c(params, list(if (is.null(site_id) || is.na(site_id) || site_id == "") NULL else as.integer(site_id)))
   }
 
   if (length(updates) == 0) return(FALSE)
@@ -660,7 +660,7 @@ update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NUL
 
   if (!is.null(canvas_id)) {
     updates <- c(updates, "CanvasID = ?")
-    params <- c(params, list(if (canvas_id == "") NULL else as.integer(canvas_id)))
+    params <- c(params, list(if (is.null(canvas_id) || is.na(canvas_id) || canvas_id == "") NULL else as.integer(canvas_id)))
   }
   if (!is.null(rotation)) {
     updates <- c(updates, "BackgroundRotation = ?")
@@ -688,7 +688,7 @@ update_layout_background <- function(layout_id, canvas_id = NULL, rotation = NUL
   }
   if (!is.null(site_id)) {
     updates <- c(updates, "SiteID = ?")
-    params <- c(params, list(if (site_id == "") NULL else as.integer(site_id)))
+    params <- c(params, list(if (is.null(site_id) || is.na(site_id) || site_id == "") NULL else as.integer(site_id)))
   }
 
   if (length(updates) == 0) return(FALSE)

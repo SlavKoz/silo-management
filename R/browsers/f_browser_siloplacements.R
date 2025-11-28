@@ -405,6 +405,24 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       showNotification(paste(prefix, conditionMessage(e)), type = "error", duration = duration)
     }
     
+    # Safely coerce optional ID inputs that may be NULL/blank/NA
+    as_optional_integer <- function(value) {
+      if (is.null(value) || is.na(value) || identical(value, "")) return(NULL)
+      as.integer(value)
+    }
+    
+    # Same as above but returns NA instead of NULL for missing values
+    as_optional_integer_na <- function(value) {
+      if (is.null(value) || is.na(value) || identical(value, "")) return(NA)
+      as.integer(value)
+    }
+    
+    # Preserve blank string when pre-populating form fields
+    blank_if_missing <- function(value) {
+      if (is.null(value) || is.na(value) || identical(value, "")) return("")
+      value
+    }
+    
     # Reactive values
     trigger_refresh <- reactiveVal(0)
     selected_placement_id <- reactiveVal(NULL)
@@ -657,8 +675,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       layout_id <- current_layout_id()
       if (is.null(layout_id) || is.na(layout_id)) return()
 
-      site_id <- input$layout_site_id
-      site_id_value <- if (is.null(site_id) || site_id == "") NA else as.integer(site_id)
+      site_id_value <- as_optional_integer_na(input$layout_site_id)
 
       # Update layout's site in database
       tryCatch({
@@ -852,8 +869,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       # Get site_id directly from input selector (not from database)
       # This ensures immediate filtering when site selector changes
-      site_id <- input$layout_site_id
-      site_id <- if (is.null(site_id) || site_id == "") NULL else as.integer(site_id)
+      site_id <- as_optional_integer(input$layout_site_id)
 
       # Get area_id from currently selected canvas
       # If area has AreaCode = "ALL", pass NULL to show all silos for site
@@ -891,8 +907,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       # Get site_id directly from input selector (not from database)
       # This ensures immediate filtering when site selector changes
-      site_id <- input$layout_site_id
-      site_id <- if (is.null(site_id) || site_id == "") NULL else as.integer(site_id)
+      site_id <- as_optional_integer(input$layout_site_id)
 
       # Get area_id from currently selected canvas
       # If area has AreaCode = "ALL", pass NULL to show all silos for site
@@ -939,8 +954,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     areas_data <- reactive({
       # Get site_id directly from input selector (not from database)
       # This ensures immediate filtering when site selector changes
-      site_id <- input$layout_site_id
-      site_id <- if (is.null(site_id) || site_id == "") NULL else as.integer(site_id)
+      site_id <- as_optional_integer(input$layout_site_id)
 
       df <- try(list_areas(site_id = site_id, limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
@@ -1188,7 +1202,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         SiloName = "",
         VolumeM3 = 100,
         IsActive = TRUE,
-        SiteID = if (is.null(site_id) || site_id == "") "" else site_id,
+        SiteID = blank_if_missing(site_id),
         AreaID = prepopulated_area,
         ContainerTypeID = ""
       )
@@ -2803,8 +2817,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Save layout background settings (site is part of layout)
       result <- try(update_layout_background(
         layout_id = layout_id,
-        canvas_id = if (is.null(canvas_id) || canvas_id == "") NULL else as.integer(canvas_id),
-        site_id = if (is.null(site_id) || site_id == "") NULL else as.integer(site_id),
+        canvas_id = as_optional_integer(canvas_id),
+        site_id = as_optional_integer(site_id),
         rotation = rotation,
         pan_x = offset$x,
         pan_y = offset$y,
@@ -2813,10 +2827,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       ), silent = TRUE)
 
       # Save canvas area (area is part of canvas, not layout)
-      if (!is.null(canvas_id) && canvas_id != "") {
+      if (!is.null(canvas_id) && !is.na(canvas_id) && canvas_id != "") {
         area_result <- try(update_canvas_area(
           as.integer(canvas_id),
-          if (is.null(area_id) || area_id == "") NULL else as.integer(area_id)
+          as_optional_integer(area_id)
         ), silent = TRUE)
       }
 
