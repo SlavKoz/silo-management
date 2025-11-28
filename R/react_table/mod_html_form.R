@@ -430,7 +430,7 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
           }, 100);
         };
 
-        // Delete confirmation function
+        // Delete button click - trigger Shiny event for confirmation dialog
         window['confirmDelete_", module_id_js, "'] = function(btn) {
           if (btn.disabled) return;
 
@@ -440,13 +440,11 @@ mod_html_form_ui <- function(id, max_width = "1200px", margin = "2rem auto") {
           const titleInput = container.querySelector('.form-control-title');
           const itemName = titleInput ? titleInput.value : 'this item';
 
-          if (confirm('Are you sure you want to delete ' + itemName + '?\\n\\nThis action cannot be undone.')) {
-            // Trigger Shiny input event
-            const baseNs = moduleId.substring(0, moduleId.lastIndexOf('-form'));
-            const inputName = baseNs + '-delete_confirmed';
-            if (window.Shiny && typeof Shiny.setInputValue === 'function') {
-              Shiny.setInputValue(inputName, Date.now(), {priority: 'event'});
-            }
+          // Trigger Shiny input event - confirmation will be handled by shinyalert in R
+          const baseNs = moduleId.substring(0, moduleId.lastIndexOf('-form'));
+          const inputName = baseNs + '-delete_clicked';
+          if (window.Shiny && typeof Shiny.setInputValue === 'function') {
+            Shiny.setInputValue(inputName, {name: itemName, timestamp: Date.now()}, {priority: 'event'});
           }
         };
 
@@ -1006,18 +1004,38 @@ mod_html_form_server <- function(id, schema_config, form_data,
       })
     }, ignoreInit = TRUE)
 
-    # Observe Delete button click
-    observeEvent(input$delete_confirmed, {
+    # Observe Delete button click - show confirmation dialog
+    observeEvent(input$delete_clicked, {
       if (!is.null(on_delete)) {
-        tryCatch({
-          success <- on_delete()
-          if (isTRUE(success)) {
-            rv$deleted <- TRUE
-            rv$delete_timestamp <- Sys.time()
+        item_name <- if (!is.null(input$delete_clicked$name)) {
+          input$delete_clicked$name
+        } else {
+          "this item"
+        }
+
+        shinyalert::shinyalert(
+          title = "Delete Item?",
+          text = paste0("Are you sure you want to delete ", item_name, "? This action cannot be undone."),
+          type = "warning",
+          showCancelButton = TRUE,
+          confirmButtonText = "Yes, delete it",
+          cancelButtonText = "Cancel",
+          callbackR = function(value) {
+            if (isTRUE(value)) {
+              tryCatch({
+                success <- on_delete()
+                if (isTRUE(success)) {
+                  rv$deleted <- TRUE
+                  rv$delete_timestamp <- Sys.time()
+                  showNotification("Deleted successfully", type = "message", duration = 3)
+                }
+              }, error = function(e) {
+                cat("[mod_html_form] Delete error:", conditionMessage(e), "\n")
+                showNotification(paste("Error deleting:", conditionMessage(e)), type = "error", duration = NULL)
+              })
+            }
           }
-        }, error = function(e) {
-          cat("[mod_html_form] Delete error:", conditionMessage(e), "\n")
-        })
+        )
       }
     }, ignoreInit = TRUE)
 

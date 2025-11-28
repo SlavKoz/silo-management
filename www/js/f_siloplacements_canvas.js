@@ -477,8 +477,14 @@
         ctx.arc(shape.x, shape.y, shape.r, 0, Math.PI * 2);
         ctx.fillStyle = shape.fill || 'rgba(59, 130, 246, 0.2)';
         ctx.fill();
-        ctx.strokeStyle = isSelected ? 'rgba(239, 68, 68, 0.9)' : (shape.stroke || 'rgba(59, 130, 246, 0.8)');
-        ctx.lineWidth = isSelected ? 3 : (shape.strokeWidth || 2);
+
+        // Apply dotted line for selected shape
+        if (isSelected && !inMoveMode) {
+          ctx.setLineDash([5, 5]);
+        }
+
+        ctx.strokeStyle = isSelected ? 'rgba(255, 193, 7, 1)' : (shape.stroke || 'rgba(59, 130, 246, 0.8)');
+        ctx.lineWidth = isSelected ? 4 : (shape.strokeWidth || 2);
         ctx.stroke();
 
         // Draw label
@@ -493,8 +499,14 @@
       } else if (shape.type === 'rect') {
         ctx.fillStyle = shape.fill || 'rgba(34, 197, 94, 0.2)';
         ctx.fillRect(shape.x, shape.y, shape.w, shape.h);
-        ctx.strokeStyle = isSelected ? 'rgba(239, 68, 68, 0.9)' : (shape.stroke || 'rgba(34, 197, 94, 0.8)');
-        ctx.lineWidth = isSelected ? 3 : (shape.strokeWidth || 2);
+
+        // Apply dotted line for selected shape
+        if (isSelected && !inMoveMode) {
+          ctx.setLineDash([5, 5]);
+        }
+
+        ctx.strokeStyle = isSelected ? 'rgba(255, 193, 7, 1)' : (shape.stroke || 'rgba(34, 197, 94, 0.8)');
+        ctx.lineWidth = isSelected ? 4 : (shape.strokeWidth || 2);
         ctx.strokeRect(shape.x, shape.y, shape.w, shape.h);
 
         // Draw label
@@ -524,8 +536,14 @@
 
         ctx.fillStyle = shape.fill || 'rgba(168, 85, 247, 0.2)';
         ctx.fill();
-        ctx.strokeStyle = isSelected ? 'rgba(239, 68, 68, 0.9)' : (shape.stroke || 'rgba(168, 85, 247, 0.8)');
-        ctx.lineWidth = isSelected ? 3 : (shape.strokeWidth || 2);
+
+        // Apply dotted line for selected shape
+        if (isSelected && !inMoveMode) {
+          ctx.setLineDash([5, 5]);
+        }
+
+        ctx.strokeStyle = isSelected ? 'rgba(255, 193, 7, 1)' : (shape.stroke || 'rgba(168, 85, 247, 0.8)');
+        ctx.lineWidth = isSelected ? 4 : (shape.strokeWidth || 2);
         ctx.stroke();
 
         // Draw label
@@ -662,6 +680,12 @@
     }
 
     state.shapes = message.data || [];
+
+    // Store selection ID for highlighting
+    if ('selectedId' in message) {
+      state.selectedId = message.selectedId || null;
+    }
+
     render(state);
 
     // Auto-fit if requested

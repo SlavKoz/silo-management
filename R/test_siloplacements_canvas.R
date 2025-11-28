@@ -527,14 +527,7 @@ test_siloplacements_ui <- function(id) {
             numericInput(ns("zoom_level"), label = NULL, value = 100, min = 10, max = 500, step = 10, width = "32px"),
             actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm",
                         style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;")
-          ),
-
-          # Column 14: Space
-          div(),
-
-          # Column 15: Delete button (100px)
-          actionButton(ns("delete"), "Delete", icon = icon("trash"), class = "btn-sm btn-danger",
-                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;")
+          )
         ),
 
         # Move operation bar (hidden by default, shown when moving an object)
@@ -1239,7 +1232,7 @@ test_siloplacements_server <- function(id) {
 
       if (!nrow(placements)) {
         canvas_shapes(list())
-        session$sendCustomMessage(paste0(ns("root"), ":setData"), list(data = list(), autoFit = FALSE))
+        session$sendCustomMessage(paste0(ns("root"), ":setData"), list(data = list(), autoFit = FALSE, selectedId = NULL))
         return()
       }
 
@@ -1325,7 +1318,17 @@ test_siloplacements_server <- function(id) {
         canvas_initialized(TRUE)
       }
 
-      session$sendCustomMessage(paste0(ns("root"), ":setData"), list(data = shapes, autoFit = should_autofit))
+      # Get current selection for highlighting
+      selected_id <- selected_placement_id()
+
+      session$sendCustomMessage(
+        paste0(ns("root"), ":setData"),
+        list(
+          data = shapes,
+          autoFit = should_autofit,
+          selectedId = if (!is.null(selected_id) && !is.na(selected_id)) as.character(selected_id) else NULL
+        )
+      )
     })
 
     # ---- Form schema for placement details ----
@@ -1815,58 +1818,40 @@ test_siloplacements_server <- function(id) {
       # Depend on canvas selection so the dropdown refreshes after clicks
       canvas_pid <- selected_placement_id()
 
-      # Only update when in non-edit mode
-      if (edit_mode_state()) return()
-
+      # Read reactive inputs FIRST to establish dependencies
       show_inactive <- input$show_inactive
       search_all <- input$search_all_sites
       current_layout <- current_layout_id()
-      source <- selection_source()
 
-      cat(sprintf("[Object Selector] Observer triggered - canvas_pid: %s, show_inactive: %s, search_all: %s, layout: %s, source: %s\n",
-                  ifelse(is.null(canvas_pid) || is.na(canvas_pid), "NULL", canvas_pid),
-                  ifelse(is.null(show_inactive), "NULL", show_inactive),
-                  ifelse(is.null(search_all), "NULL", search_all),
-                  ifelse(is.null(current_layout), "NULL", current_layout),
-                  source))
+      # Only update when in non-edit mode
+      if (edit_mode_state()) return()
+
+      source <- selection_source()
 
       if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) return()
 
-      # Get all placements with silo and layout info
-      query <- "
+      # Get all silos with optional placement info
+      query <- paste0("
         SELECT
-          p.PlacementID,
-          p.LayoutID,
-          l.LayoutName,
-          p.CenterX,
-          p.CenterY,
           s.SiloID,
           s.SiloCode,
           s.SiloName,
           s.IsActive,
-          s.VolumeM3,
-          s.Notes AS SiloNotes,
-          ct.ContainerTypeID,
-          ct.TypeCode,
-          ct.TypeName,
-          ct.Description AS ContainerDescription,
-          st.ShapeTemplateID,
-          st.TemplateCode,
-          st.ShapeType,
+          si.SiteID,
+          si.SiteCode,
+          si.SiteName,
           sa.AreaID,
           sa.AreaCode,
           sa.AreaName,
-          si.SiteID,
-          si.SiteCode,
-          si.SiteName
-        FROM SiloPlacements p
-        INNER JOIN Silos s ON p.SiloID = s.SiloID
-        INNER JOIN ContainerTypes ct ON s.ContainerTypeID = ct.ContainerTypeID
-        INNER JOIN ShapeTemplates st ON p.ShapeTemplateID = st.ShapeTemplateID
-        INNER JOIN CanvasLayouts l ON p.LayoutID = l.LayoutID
-        LEFT JOIN SiteAreas sa ON s.AreaID = sa.AreaID
+          p.PlacementID,
+          p.LayoutID,
+          p.CenterX,
+          p.CenterY
+        FROM Silos s
         LEFT JOIN Sites si ON s.SiteID = si.SiteID
-      "
+        LEFT JOIN SiteAreas sa ON s.AreaID = sa.AreaID
+        LEFT JOIN SiloPlacements p ON s.SiloID = p.SiloID AND p.LayoutID = ", current_layout, "
+      ")
 
       # Add filter conditions
       where_clauses <- c()
@@ -1890,60 +1875,97 @@ test_siloplacements_server <- function(id) {
         query <- paste0(query, " WHERE ", paste(where_clauses, collapse = " AND "))
       }
 
-      query <- paste0(query, " ORDER BY l.LayoutName, s.SiloCode")
+      query <- paste0(query, " ORDER BY si.SiteName, sa.AreaName, s.SiloCode")
 
-      all_placements <- try(DBI::dbGetQuery(db_pool(), query), silent = FALSE)
+      all_silos <- try(DBI::dbGetQuery(db_pool(), query), silent = FALSE)
 
-      if (inherits(all_placements, "try-error")) {
-        cat("[Object Selector] Query error:", as.character(all_placements), "\n")
-        updateSelectInput(session, "object_selector", choices = c("No placements found" = ""))
+      if (inherits(all_silos, "try-error")) {
+        cat("[Object Selector] Query error:", as.character(all_silos), "\n")
+        updateSelectInput(session, "object_selector", choices = c("No silos found" = ""))
         return()
       }
 
-      if (nrow(all_placements) == 0) {
-        cat("[Object Selector] Query succeeded but returned 0 rows\n")
-        cat("[Object Selector] Query was:\n", query, "\n")
-        updateSelectInput(session, "object_selector", choices = c("No placements found" = ""))
+      if (nrow(all_silos) == 0) {
+        updateSelectInput(session, "object_selector", choices = c("No silos found" = ""))
         return()
       }
 
-      cat(sprintf("[Object Selector] Found %d placements\n", nrow(all_placements)))
+      # Get current layout's site for comparison
+      current_layout_data <- try(get_layout_by_id(current_layout), silent = TRUE)
+      current_site_id <- NULL
+      if (!inherits(current_layout_data, "try-error") && nrow(current_layout_data) > 0) {
+        current_site_id <- current_layout_data$SiteID[1]
+      }
 
-      # Build choices: "LayoutName / SiloCode - SiloName"
-      choices <- setNames(
-        as.character(all_placements$PlacementID),
-        paste0(all_placements$LayoutName, " / ", all_placements$SiloCode, " - ", all_placements$SiloName)
-      )
+      # Build choices: "SiteName / AreaName / SiloCode - SiloName"
+      # Mark items not from current site or without placement with brackets
+      choice_labels <- sapply(1:nrow(all_silos), function(i) {
+        site_name <- if (!is.na(all_silos$SiteName[i])) all_silos$SiteName[i] else "Unknown Site"
+        area_part <- if (!is.na(all_silos$AreaName[i])) paste0(" / ", all_silos$AreaName[i]) else ""
+        silo_part <- paste0(" / ", all_silos$SiloCode[i], " - ", all_silos$SiloName[i])
+
+        base_label <- paste0(site_name, area_part, silo_part)
+
+        # Mark items from other sites OR without placement in current layout with brackets
+        from_different_site <- !is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
+                               all_silos$SiteID[i] != current_site_id
+        no_placement <- is.na(all_silos$PlacementID[i])
+
+        if (from_different_site || no_placement) {
+          base_label <- paste0("[", base_label, "]")
+        }
+
+        base_label
+      })
+
+      # Use PlacementID only if from current site AND has placement
+      # Otherwise use "silo_" prefix to prevent centering
+      choice_values <- sapply(1:nrow(all_silos), function(i) {
+        from_current_site <- !is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
+                             all_silos$SiteID[i] == current_site_id
+        has_placement <- !is.na(all_silos$PlacementID[i])
+
+        if (from_current_site && has_placement) {
+          as.character(all_silos$PlacementID[i])
+        } else {
+          paste0("silo_", all_silos$SiloID[i])
+        }
+      })
+
+      choices <- setNames(choice_values, choice_labels)
 
       # Determine which selection to use (isolate dropdown to avoid circular updates)
       current_selection <- isolate(input$object_selector)
 
-      cat(sprintf("[Object Selector] Current dropdown selection: %s, Canvas PID: %s\n",
-                  ifelse(is.null(current_selection) || current_selection == "", "NONE", current_selection),
-                  ifelse(is.null(canvas_pid) || is.na(canvas_pid), "NONE", canvas_pid)))
-
       if (!is.null(canvas_pid) && !is.na(canvas_pid) && as.character(canvas_pid) %in% choices) {
         # Use canvas selection if available
-        cat(sprintf("[Object Selector] Setting to canvas selection: %s\n", canvas_pid))
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = as.character(canvas_pid))
       } else if (!is.null(current_selection) && current_selection != "" && current_selection %in% choices) {
         # Keep current dropdown selection if canvas selection is not available
-        cat(sprintf("[Object Selector] Keeping current selection: %s\n", current_selection))
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = current_selection)
       } else {
         # No valid selection
-        cat("[Object Selector] No valid selection, clearing\n")
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
       }
     })
 
     # Handle object selector selection (when dropdown changed)
     observeEvent(input$object_selector, {
-      placement_id <- input$object_selector
+      selection <- input$object_selector
 
-      if (is.null(placement_id) || placement_id == "") {
+      if (is.null(selection) || selection == "") {
         return()
       }
+
+      # Check if this is a silo without placement (starts with "silo_")
+      if (grepl("^silo_", selection)) {
+        # Don't try to select on canvas, just clear selection
+        selected_placement_id(NA)
+        return()
+      }
+
+      # It's a real placement ID
+      placement_id <- selection
 
       # Check if this selection was triggered by canvas click (don't center in that case)
       source <- isolate(selection_source())
@@ -1952,7 +1974,9 @@ test_siloplacements_server <- function(id) {
       query <- sprintf("SELECT LayoutID, CenterX, CenterY FROM SiloPlacements WHERE PlacementID = %s", placement_id)
       layout_data <- try(DBI::dbGetQuery(db_pool(), query), silent = TRUE)
 
-      if (inherits(layout_data, "try-error") || nrow(layout_data) == 0) return()
+      if (inherits(layout_data, "try-error") || nrow(layout_data) == 0) {
+        return()
+      }
 
       placement_layout_id <- layout_data$LayoutID[1]
       current_layout <- current_layout_id()
@@ -1976,17 +2000,26 @@ test_siloplacements_server <- function(id) {
 
     # Render layout warning banner
     output$layout_warning_banner <- renderUI({
-      placement_id <- input$object_selector
+      selection <- input$object_selector
 
-      if (is.null(placement_id) || placement_id == "") return(NULL)
+      if (is.null(selection) || selection == "") return(NULL)
 
-      # Get layout info
+      # Check if this is a silo without placement
+      if (grepl("^silo_", selection)) {
+        return(div(
+          style = "background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; padding: 0.75rem; margin: 0.5rem 1rem; border-radius: 4px;",
+          tags$i(class = "fas fa-info-circle", style = "margin-right: 0.5rem;"),
+          "This silo does not have a placement on the current layout yet"
+        ))
+      }
+
+      # Get layout info for existing placement
       query <- sprintf("
         SELECT l.LayoutName, p.LayoutID
         FROM SiloPlacements p
         INNER JOIN CanvasLayouts l ON p.LayoutID = l.LayoutID
         WHERE p.PlacementID = %s
-      ", placement_id)
+      ", selection)
 
       placement_data <- try(DBI::dbGetQuery(db_pool(), query), silent = TRUE)
 
@@ -2007,13 +2040,59 @@ test_siloplacements_server <- function(id) {
 
     # Render object details
     output$object_details <- renderUI({
-      placement_id <- input$object_selector
+      selection <- input$object_selector
 
-      if (is.null(placement_id) || placement_id == "") {
-        return(div(style = "padding: 2rem; text-align: center; color: #999;", "Select a placement to view details"))
+      if (is.null(selection) || selection == "") {
+        return(div(style = "padding: 2rem; text-align: center; color: #999;", "Select a silo to view details"))
       }
 
-      # Get full details
+      # Check if this is a silo without placement
+      if (grepl("^silo_", selection)) {
+        silo_id <- sub("^silo_", "", selection)
+
+        # Get silo details only
+        query <- sprintf("
+          SELECT
+            s.SiloCode,
+            s.SiloName,
+            s.VolumeM3,
+            s.Notes AS SiloNotes,
+            ct.TypeCode AS ContainerTypeCode,
+            ct.TypeName AS ContainerTypeName,
+            ct.Description AS ContainerDescription,
+            sa.AreaCode,
+            sa.AreaName,
+            si.SiteCode,
+            si.SiteName
+          FROM Silos s
+          INNER JOIN ContainerTypes ct ON s.ContainerTypeID = ct.ContainerTypeID
+          LEFT JOIN SiteAreas sa ON s.AreaID = sa.AreaID
+          LEFT JOIN Sites si ON s.SiteID = si.SiteID
+          WHERE s.SiloID = %s
+        ", silo_id)
+
+        data <- try(DBI::dbGetQuery(db_pool(), query), silent = TRUE)
+
+        if (inherits(data, "try-error") || nrow(data) == 0) {
+          return(div("Error loading silo details"))
+        }
+
+        return(tagList(
+          # Silo details (no placement info)
+          div(style = "padding: 0.5rem 1rem; border-left: 3px solid #dee2e6; margin-bottom: 1rem;",
+            tags$h4(paste0(data$SiloCode, " - ", data$SiloName)),
+            tags$p(tags$strong("Site: "), ifelse(!is.na(data$SiteName), data$SiteName, "N/A")),
+            tags$p(tags$strong("Area: "), ifelse(!is.na(data$AreaName), data$AreaName, "N/A")),
+            tags$p(tags$strong("Type: "), paste0(data$ContainerTypeCode, " - ", data$ContainerTypeName)),
+            tags$p(tags$strong("Volume: "), paste0(data$VolumeM3, " m³")),
+            if (!is.na(data$SiloNotes) && nzchar(data$SiloNotes)) {
+              tags$p(tags$strong("Notes: "), data$SiloNotes)
+            }
+          )
+        ))
+      }
+
+      # Get full details for placement
       query <- sprintf("
         SELECT
           p.CenterX,
@@ -2037,7 +2116,7 @@ test_siloplacements_server <- function(id) {
         LEFT JOIN SiteAreas sa ON s.AreaID = sa.AreaID
         LEFT JOIN Sites si ON s.SiteID = si.SiteID
         WHERE p.PlacementID = %s
-      ", placement_id)
+      ", selection)
 
       data <- try(DBI::dbGetQuery(db_pool(), query), silent = TRUE)
 
@@ -2662,7 +2741,8 @@ test_siloplacements_server <- function(id) {
         # Clear canvas selection
         session$sendCustomMessage(paste0(ns("root"), ":setData"), list(
           data = list(),
-          autoFit = FALSE
+          autoFit = FALSE,
+          selectedId = NULL
         ))
 
         # Refresh to show placements without temp shape
@@ -2808,16 +2888,6 @@ test_siloplacements_server <- function(id) {
       showNotification("Position the duplicate, then confirm", type = "message", duration = 3)
     })
 
-    observeEvent(input$delete, {
-      pid <- selected_placement_id()
-      if (is.null(pid) || is.na(pid)) {
-        showNotification("Select a placement to delete", type = "warning", duration = 2)
-        return()
-      }
-
-      # Trigger form module's delete
-      form_module$trigger_delete()
-    })
 
     # ---- Canvas interactions ----
 
