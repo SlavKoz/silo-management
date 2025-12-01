@@ -976,10 +976,20 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     
     # Lightweight observer to log dataset sizes whenever we re-fetch core data
     log_data_snapshot <- function(tag = "") {
+      
+      safe_nrow <- function(expr) {
+        tryCatch({
+          df <- isolate(expr())
+          if (is.null(df)) 0 else nrow(df)
+        }, error = function(e) {
+          cat("[", id, "] Data snapshot error:", conditionMessage(e), "\n")
+          NA_integer_
+        })
+      }
       cat("[", id, "] Data snapshot", if (nzchar(tag)) paste0(" (", tag, ")"), ":\n", sep = "")
-      cat("  layouts:", nrow(layouts_data()), "| canvases:", nrow(canvases_data()),
-          "| sites:", nrow(sites_data()), "| areas:", nrow(areas_data()),
-          "| silos:", nrow(silos_data()), "| shape templates:", nrow(shape_templates_data()), "\n")
+      cat("  layouts:", safe_nrow(layouts_data), "| canvases:", safe_nrow(canvases_data),
+          "| sites:", safe_nrow(sites_data), "| areas:", safe_nrow(areas_data),
+          "| silos:", safe_nrow(silos_data), "| shape templates:", safe_nrow(shape_templates_data), "\n")
     }
     
     observeEvent(
