@@ -20,9 +20,7 @@
       }
     }
 
-    if (Shiny && Shiny.setInputValue) {
-      Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
-    }
+    Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
   }
 
   // Update cursor based on current state and zoom - ACTUAL SIZE PREVIEW
@@ -119,87 +117,55 @@
     state.canvas.style.cursor = `url('${url}') ${centerX} ${centerY}, crosshair`;
   }
 
-  function initializeCanvasElement(canvas) {
-    const canvasId = canvas.id;
-
-    if (!canvasId || canvases.has(canvasId)) return;
-
-    const ctx = canvas.getContext('2d');
-
-    // Get namespace (remove -canvas suffix)
-    const ns = canvasId.replace(/-canvas$/, '');
-
-    // Initialize state
-    const state = {
-      canvas: canvas,
-      ctx: ctx,
-      ns: ns,
-      shapes: [],
-      tempShape: null,  // Temporary shape with dotted border (before saving)
-      selectedId: null,
-      isDragging: false,
-      dragStart: null,
-      editMode: false,
-      snapGrid: 0,
-      // Pan/zoom/rotate state
-      panX: 0,
-      panY: 0,
-      zoom: 1,
-      rotation: 0, // degrees
-      isPanning: false,
-      panStart: null,
-      // Background image
-      backgroundImage: null,
-      backgroundLoaded: false,
-      backgroundVisible: true,  // Show/hide background
-      backgroundScale: 1,  // Uniform scale
-      backgroundOffsetX: 0,
-      backgroundOffsetY: 0,
-      backgroundPanMode: false,
-      isBackgroundPanning: false,
-      bgPanStart: null,
-      // Selected shape template for cursor
-      selectedShapeTemplate: null
-    };
-
-    canvases.set(canvasId, state);
-    registerNamespaceHandlers(ns);
-
-    // Set up event listeners
-    setupCanvasEvents(canvas, state);
-  }
-
-  function scanForCanvases() {
-    $('canvas[id$="-canvas"]').each(function() {
-      initializeCanvasElement(this);
-    });
-  }
-
-  // Initialize canvas when DOM ready and watch for dynamically added modules
+  // Initialize canvas when DOM ready
   $(document).on('shiny:connected', function() {
-    scanForCanvases();
+    // Find all canvas elements
+    $('canvas[id$="-canvas"]').each(function() {
+      const canvas = this;
+      const canvasId = canvas.id;
+      const ctx = canvas.getContext('2d');
 
-    // Observe DOM changes in case the placements module is rendered after connect
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType !== 1) return;
+      // Get namespace (remove -canvas suffix)
+      const ns = canvasId.replace(/-canvas$/, '');
 
-          if (node.matches && node.matches('canvas[id$="-canvas"]')) {
-            initializeCanvasElement(node);
-          }
+      // Initialize state
+      const state = {
+        canvas: canvas,
+        ctx: ctx,
+        ns: ns,
+        shapes: [],
+        tempShape: null,  // Temporary shape with dotted border (before saving)
+        selectedId: null,
+        isDragging: false,
+        dragStart: null,
+        editMode: false,
+        snapGrid: 0,
+        // Pan/zoom/rotate state
+        panX: 0,
+        panY: 0,
+        zoom: 1,
+        rotation: 0, // degrees
+        isPanning: false,
+        panStart: null,
+        // Background image
+        backgroundImage: null,
+        backgroundLoaded: false,
+        backgroundVisible: true,  // Show/hide background
+        backgroundScale: 1,  // Uniform scale
+        backgroundOffsetX: 0,
+        backgroundOffsetY: 0,
+        backgroundPanMode: false,
+        isBackgroundPanning: false,
+        bgPanStart: null,
+        // Selected shape template for cursor
+        selectedShapeTemplate: null
+      };
 
-          // If a subtree was added, search inside it
-          if (node.querySelectorAll) {
-            node.querySelectorAll('canvas[id$="-canvas"]').forEach((canvas) => {
-              initializeCanvasElement(canvas);
-            });
-          }
-        });
-      });
+      canvases.set(canvasId, state);
+
+      // Set up event listeners
+      setupCanvasEvents(canvas, state);
     });
-
-    observer.observe(document.body, { childList: true, subtree: true });
 
     // Global ESC key handler to deselect shape template
     $(document).on('keydown', function(e) {
@@ -254,13 +220,11 @@
       if (state.selectedShapeTemplate) {
         const inputName = state.ns + '-canvas_add_at';
 
-        if (Shiny && Shiny.setInputValue) {
-          Shiny.setInputValue(inputName, {
-            x: x,
-            y: y,
-            templateId: state.selectedShapeTemplate.templateId
-          }, {priority: 'event'});
-        }
+        Shiny.setInputValue(inputName, {
+          x: x,
+          y: y,
+          templateId: state.selectedShapeTemplate.templateId
+        }, {priority: 'event'});
         return;
       }
 
@@ -272,15 +236,11 @@
         render(state);
 
         // Send selection to Shiny
-        if (Shiny && Shiny.setInputValue) {
-          Shiny.setInputValue(state.ns + '-canvas_selection', clickedShape.id, {priority: 'event'});
-        }
+        Shiny.setInputValue(state.ns + '-canvas_selection', clickedShape.id, {priority: 'event'});
       } else {
         state.selectedId = null;
         render(state);
-        if (Shiny && Shiny.setInputValue) {
-          Shiny.setInputValue(state.ns + '-canvas_selection', null, {priority: 'event'});
-        }
+        Shiny.setInputValue(state.ns + '-canvas_selection', null, {priority: 'event'});
       }
     });
 
@@ -384,12 +344,10 @@
         canvas.style.cursor = state.backgroundPanMode ? 'move' : 'grab';
 
         // Send updated background offset to Shiny
-        if (Shiny && Shiny.setInputValue) {
-          Shiny.setInputValue(state.ns + '-bg_offset_update', {
-            x: state.backgroundOffsetX,
-            y: state.backgroundOffsetY
-          }, {priority: 'event'});
-        }
+        Shiny.setInputValue(state.ns + '-bg_offset_update', {
+          x: state.backgroundOffsetX,
+          y: state.backgroundOffsetY
+        }, {priority: 'event'});
       }
 
       if (state.isDragging) {
@@ -403,13 +361,11 @@
           const centerX = (shape.type === 'circle' || shape.type === 'triangle') ? shape.x : shape.x + shape.w / 2;
           const centerY = (shape.type === 'circle' || shape.type === 'triangle') ? shape.y : shape.y + shape.h / 2;
 
-          if (Shiny && Shiny.setInputValue) {
-            Shiny.setInputValue(state.ns + '-canvas_moved', {
-              id: shape.id,
-              x: centerX,
-              y: centerY
-            }, {priority: 'event'});
-          }
+          Shiny.setInputValue(state.ns + '-canvas_moved', {
+            id: shape.id,
+            x: centerX,
+            y: centerY
+          }, {priority: 'event'});
         }
       }
 
