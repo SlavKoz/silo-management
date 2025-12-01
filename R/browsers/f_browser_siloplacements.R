@@ -973,6 +973,26 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       df <- try(list_container_types(limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
+    
+    # Lightweight observer to log dataset sizes whenever we re-fetch core data
+    log_data_snapshot <- function(tag = "") {
+      cat("[", id, "] Data snapshot", if (nzchar(tag)) paste0(" (", tag, ")"), ":\n", sep = "")
+      cat("  layouts:", nrow(layouts_data()), "| canvases:", nrow(canvases_data()),
+          "| sites:", nrow(sites_data()), "| areas:", nrow(areas_data()),
+          "| silos:", nrow(silos_data()), "| shape templates:", nrow(shape_templates_data()), "\n")
+    }
+    
+    observeEvent(
+      list(
+        layouts_refresh(), canvases_refresh(), silos_refresh(),
+        sites_refresh(), areas_refresh(), shape_templates_refresh()
+      ),
+      {
+        log_data_snapshot("refresh")
+      },
+      ignoreInit = TRUE
+    )
+    
 
     sites_data <- reactive({
       sites_refresh()  # Depend on refresh trigger
@@ -1012,6 +1032,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
               areas_refresh(areas_refresh() + 1)
               shape_templates_refresh(shape_templates_refresh() + 1)
             })
+            
+            log_data_snapshot("route entry")
           }
         }
       }, ignoreNULL = TRUE, ignoreInit = FALSE)
@@ -1032,6 +1054,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         shape_templates_refresh(shape_templates_refresh() + 1)
         cat("[", id, "] Refresh triggers incremented\n")
       })
+      
+      log_data_snapshot("onFlushed")
     }, once = TRUE)
 
     # Populate shape template dropdown
