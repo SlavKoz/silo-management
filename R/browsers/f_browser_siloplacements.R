@@ -537,7 +537,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Populate layout dropdown
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       layouts <- layouts_data()
 
       if (nrow(layouts) > 0) {
@@ -554,7 +554,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
         updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
       }
-    })
+    }, suspendWhenHidden = FALSE)
 
     # Handle "Add New Layout" button - toggle to text input mode
     observeEvent(input$add_new_layout_btn, {
@@ -708,7 +708,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Populate canvas dropdown
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       canvases <- canvases_data()
 
       # Preserve current selection
@@ -722,20 +722,20 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       # Update choices and restore selection
       updateSelectInput(session, "canvas_id", choices = choices, selected = current_canvas_id)
-    })
+    }, suspendWhenHidden = FALSE)
 
     # Populate sites dropdown
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       sites <- sites_data()
       choices <- c("(None)" = "")
       if (nrow(sites) > 0) {
         choices <- c(choices, setNames(sites$SiteID, paste0(sites$SiteCode, " - ", sites$SiteName)))
       }
       updateSelectInput(session, "layout_site_id", choices = choices)
-    })
+    }, suspendWhenHidden = FALSE)
 
     # Populate areas dropdown for background selector
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       areas <- areas_data()
       choices <- c()
       if (nrow(areas) > 0) {
@@ -752,7 +752,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         }
       }
       updateSelectInput(session, "bg_area_id", choices = choices)
-    })
+    }, suspendWhenHidden = FALSE)
 
     # Save canvas area when changed
     observeEvent(input$bg_area_id, {
@@ -839,7 +839,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # ---- Load background image when canvas selected ----
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       canvas_id <- input$canvas_id
       if (is.null(canvas_id) || canvas_id == "") {
         background_image(NULL)
@@ -863,7 +863,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       bg_data <- paste0("data:image/png;base64,", df$bg_png_b64[1])
       background_image(bg_data)
       session$sendCustomMessage(paste0(ns("root"), ":setBackground"), list(image = bg_data))
-    })
+    }, suspendWhenHidden = FALSE)
 
     # ---- Load placements from DB (filtered by current layout, site, and area) ----
     raw_placements <- reactive({
@@ -979,7 +979,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     }, once = TRUE)
 
     # Populate shape template dropdown
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       templates <- shape_templates_data()
       choices <- c("(select shape)" = "")
       if (nrow(templates) > 0) {
@@ -989,7 +989,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         ))
       }
       updateSelectInput(session, "shape_template_id", choices = choices)
-    })
+    }, suspendWhenHidden = FALSE)
 
     # Update cursor based on selected shape template
     observeEvent(input$shape_template_id, {
@@ -1047,7 +1047,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     }, ignoreInit = TRUE)
 
     # ---- Convert placements to canvas shapes ----
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       placements <- raw_placements()
 
       if (!nrow(placements)) {
@@ -1081,7 +1081,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
           selectedId = if (!is.null(selected_id) && !is.na(selected_id)) as.character(selected_id) else NULL
         )
       )
-    })
+    }, suspendWhenHidden = FALSE)
 
     # ---- Form schema for placement details ----
     schema_config <- reactive({
@@ -1566,7 +1566,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # ---- Object selector (non-edit mode) ----
 
     # Populate object selector dropdown based on filters
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       # Depend on canvas selection so the dropdown refreshes after clicks
       canvas_pid <- selected_placement_id()
 
@@ -1699,7 +1699,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         # No valid selection
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
       }
-    })
+    }, suspendWhenHidden = FALSE)
 
     # Handle object selector selection (when dropdown changed)
     observeEvent(input$object_selector, {
@@ -2716,12 +2716,12 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Handle snap grid changes
-    observe(suspendWhenHidden = FALSE, {
+    observe({
       snap <- input$snap_grid
       if (!is.null(snap)) {
         session$sendCustomMessage(paste0(ns("root"), ":setSnap"), list(units = as.numeric(snap)))
       }
-    })
+    }, suspendWhenHidden = FALSE)
 
     # Handle snap grid increment/decrement buttons
     observeEvent(input$snap_up, {

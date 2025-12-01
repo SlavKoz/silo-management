@@ -413,7 +413,14 @@ f_app_server <- function(input, output, session) {
   isolate({
     for (nm in names(route_map)) {
       srv <- route_map[[nm]]$server
-      if (!is.null(srv)) try(srv(), silent = TRUE)
+      if (!is.null(srv)) {
+        cat("[App Server] Loading route:", nm, "\n")
+        result <- try(srv(), silent = FALSE)
+        if (inherits(result, "try-error")) {
+          cat("[App Server] ERROR loading route:", nm, "\n")
+          print(result)
+        }
+      }
     }
   })
 }
