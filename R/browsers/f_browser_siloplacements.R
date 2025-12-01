@@ -534,7 +534,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Populate layout dropdown
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       layouts <- layouts_data()
 
       if (nrow(layouts) > 0) {
@@ -705,7 +705,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Populate canvas dropdown
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       canvases <- canvases_data()
 
       # Preserve current selection
@@ -722,7 +722,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Populate sites dropdown
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       sites <- sites_data()
       choices <- c("(None)" = "")
       if (nrow(sites) > 0) {
@@ -732,7 +732,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Populate areas dropdown for background selector
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       areas <- areas_data()
       choices <- c()
       if (nrow(areas) > 0) {
@@ -836,7 +836,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # ---- Load background image when canvas selected ----
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       canvas_id <- input$canvas_id
       if (is.null(canvas_id) || canvas_id == "") {
         background_image(NULL)
@@ -961,7 +961,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Populate shape template dropdown
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       templates <- shape_templates_data()
       choices <- c("(select shape)" = "")
       if (nrow(templates) > 0) {
@@ -1029,7 +1029,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     }, ignoreInit = TRUE)
 
     # ---- Convert placements to canvas shapes ----
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       placements <- raw_placements()
 
       if (!nrow(placements)) {
@@ -1548,7 +1548,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # ---- Object selector (non-edit mode) ----
 
     # Populate object selector dropdown based on filters
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       # Depend on canvas selection so the dropdown refreshes after clicks
       canvas_pid <- selected_placement_id()
 
@@ -1641,9 +1641,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         base_label <- paste0(site_name, area_part, silo_part)
 
         # Mark items from other sites OR without placement in current layout with brackets
-        from_different_site <- !is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
-                               all_silos$SiteID[i] != current_site_id
-        no_placement <- is.na(all_silos$PlacementID[i])
+        from_different_site <- isTRUE(!is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
+                               all_silos$SiteID[i] != current_site_id)
+        no_placement <- isTRUE(is.na(all_silos$PlacementID[i]))
 
         if (from_different_site || no_placement) {
           base_label <- paste0("[", base_label, "]")
@@ -1655,9 +1655,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Use PlacementID only if from current site AND has placement
       # Otherwise use "silo_" prefix to prevent centering
       choice_values <- sapply(1:nrow(all_silos), function(i) {
-        from_current_site <- !is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
-                             all_silos$SiteID[i] == current_site_id
-        has_placement <- !is.na(all_silos$PlacementID[i])
+        from_current_site <- isTRUE(!is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
+                             all_silos$SiteID[i] == current_site_id)
+        has_placement <- isTRUE(!is.na(all_silos$PlacementID[i]))
 
         if (from_current_site && has_placement) {
           as.character(all_silos$PlacementID[i])
@@ -2698,7 +2698,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     # Handle snap grid changes
-    observe({
+    observe(suspendWhenHidden = FALSE, {
       snap <- input$snap_grid
       if (!is.null(snap)) {
         session$sendCustomMessage(paste0(ns("root"), ":setSnap"), list(units = as.numeric(snap)))
