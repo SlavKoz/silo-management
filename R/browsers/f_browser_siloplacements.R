@@ -439,6 +439,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     panel_mode <- reactiveVal("placement")  # Track panel mode: "placement" or "silo"
     silos_refresh <- reactiveVal(0)  # Trigger to refresh silos list after creating new silo
     canvases_refresh <- reactiveVal(0)  # Trigger to refresh canvases list after updating area
+    sites_refresh <- reactiveVal(0)  # Trigger to refresh sites list
+    areas_refresh <- reactiveVal(0)  # Trigger to refresh areas list
+    shape_templates_refresh <- reactiveVal(0)  # Trigger to refresh shape templates list
     show_silo_warning <- reactiveVal(FALSE)  # Track whether to show "no silos" warning
     initial_load_complete <- reactiveVal(FALSE)  # Track whether initial layout load is complete
     move_mode_state <- reactiveVal(FALSE)  # Track whether move mode is active
@@ -937,6 +940,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     shape_templates_data <- reactive({
+      shape_templates_refresh()  # Depend on refresh trigger
       df <- try(list_shape_templates(limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
@@ -947,11 +951,13 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     sites_data <- reactive({
+      sites_refresh()  # Depend on refresh trigger
       df <- try(list_sites(limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
 
     areas_data <- reactive({
+      areas_refresh()  # Depend on refresh trigger
       # Get site_id directly from input selector (not from database)
       # This ensures immediate filtering when site selector changes
       site_id <- as_optional_integer(input$layout_site_id)
@@ -959,6 +965,18 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       df <- try(list_areas(site_id = site_id, limit = 1000), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
+
+    # When running inside the full app shell, some observers may fire before
+    # the UI is attached to the DOM. Re-trigger the key refresh reactives once
+    # the session has flushed to ensure select inputs receive their choices.
+    session$onFlushed(function() {
+      layouts_refresh(layouts_refresh() + 1)
+      canvases_refresh(canvases_refresh() + 1)
+      silos_refresh(silos_refresh() + 1)
+      sites_refresh(sites_refresh() + 1)
+      areas_refresh(areas_refresh() + 1)
+      shape_templates_refresh(shape_templates_refresh() + 1)
+    }, once = TRUE)
 
     # Populate shape template dropdown
     observe(suspendWhenHidden = FALSE, {
