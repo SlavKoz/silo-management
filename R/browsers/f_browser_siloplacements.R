@@ -1676,11 +1676,16 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       source <- selection_source()
 
-      if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) {
-        cat("[", id, "] Skipping object selector - inputs not ready:",
-            "show_inactive=", !is.null(show_inactive),
-            "search_all=", !is.null(search_all),
-            "current_layout=", !is.null(current_layout), "\n")
+      # Default NULL inputs to FALSE so the selector can still populate even
+      # if the initial checkbox values haven't arrived from the client yet.
+      if (is.null(show_inactive)) {
+        show_inactive <- FALSE
+      }
+      if (is.null(search_all)) {
+        search_all <- FALSE
+      }
+      if (is.null(current_layout)) {
+        cat("[", id, "] Skipping object selector - current layout missing\n")
         return()
       }
 
@@ -1742,6 +1747,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       }
 
       if (nrow(all_silos) == 0) {
+        cat("[", id, "] Object selector: no silos returned for current filters\n")
         updateSelectInput(session, "object_selector", choices = c("No silos found" = ""))
         return()
       }
@@ -1803,6 +1809,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         # No valid selection
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
       }
+      cat("[", id, "] Object selector updated with", length(choices), "choices\n")
     })
 
     # Handle object selector selection (when dropdown changed)
