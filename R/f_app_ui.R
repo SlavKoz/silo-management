@@ -270,9 +270,15 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         function syncRoute(){
           var h = normRoute(location.hash);
           setActiveRoute(h);
-                    if (window.Shiny && typeof window.Shiny.setInputValue === 'function') {
+          if (window.Shiny && typeof window.Shiny.setInputValue === 'function') {
             Shiny.setInputValue('f_route', h, {priority:'event'});
           }
+        }
+
+        function syncRouteWhenReady(){
+          if (!(window.Shiny && typeof window.Shiny.setInputValue === 'function')) return false;
+          syncRoute();
+          return true;
         }
         // click on menu items updates hash
         document.addEventListener('click', function(e){
@@ -306,8 +312,15 @@ document.addEventListener('DOMContentLoaded', function(){
   items.forEach(function(it){ it.classList.toggle('nav-active', it.getAttribute('data-route') === h); });
   var active = document.querySelector('.sb-rail .item[data-route=\"' + h + '\"]');
   if (active) { var group = active.closest('.group-block'); if (group) group.classList.remove('collapsed'); }
-  if (window.Shiny && typeof window.Shiny.setInputValue === 'function') {
-    Shiny.setInputValue('f_route', h, {priority:'event'});
+  if (!syncRouteWhenReady()) {
+    var routeInitTimer = setInterval(function(){
+      if (syncRouteWhenReady()) {
+        clearInterval(routeInitTimer);
+      }
+    }, 100);
+
+    // also catch the moment Shiny connects (happens after DOMContentLoaded)
+    document.addEventListener('shiny:connected', function(){ syncRouteWhenReady(); }, { once: true });
   }
 });
 
