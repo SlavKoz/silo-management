@@ -562,27 +562,17 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       cat("[", id, "] Found", nrow(layouts), "layouts\n")
 
       if (nrow(layouts) > 0) {
-        cat("[", id, "] Building choices for layout dropdown\n")
         choices <- setNames(layouts$LayoutID, layouts$LayoutName)
+        cat("[", id, "] Calling updateSelectInput with", length(choices), "choices\n")
 
-        # Use isolate to read current_layout_id without creating a dependency
-        current_id <- isolate(current_layout_id())
-        cat("[", id, "] Current layout ID:", current_id, "\n")
+        # FIXED: Simply select first choice instead of trying to preserve selection
+        # The isolate(current_layout_id()) logic was breaking dropdown population
+        updateSelectInput(session, "layout_id", choices = choices, selected = choices[1])
 
-        selected_val <- if (!is.null(current_id) && !is.na(current_id) &&
-                           as.character(current_id) %in% choices) {
-          as.character(current_id)
-        } else {
-          as.character(layouts$LayoutID[1])
-        }
-        cat("[", id, "] Selected value:", selected_val, "\n")
-        cat("[", id, "] Calling updateSelectInput for layout_id with", length(choices), "choices\n")
-
-        updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
-
-        cat("[", id, "] Layout dropdown updateSelectInput called\n")
+        cat("[", id, "] updateSelectInput called\n")
       } else {
         cat("[", id, "] No layouts found\n")
+        updateSelectInput(session, "layout_id", choices = c("No layouts found" = ""))
       }
     })
 
