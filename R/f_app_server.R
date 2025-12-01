@@ -245,6 +245,26 @@ f_app_server <- function(input, output, session) {
       server = function() {
         if (exists("f_browser_canvas_server")) f_browser_canvas_server("canvases", pool)
       }
+    ),
+    "minimal" = list(
+      title = "Minimal Test",
+      ui    = function() {
+        if (exists("minimal_test_ui")) minimal_test_ui("minimal")
+        else div("Minimal test not loaded")
+      },
+      server = function() {
+        if (exists("minimal_test_server")) minimal_test_server("minimal", pool, route = current)
+      }
+    ),
+    "placements_minimal" = list(
+      title = "Placements Minimal",
+      ui    = function() {
+        if (exists("f_browser_placements_minimal_ui")) f_browser_placements_minimal_ui("placements_minimal")
+        else div("Placements minimal not loaded")
+      },
+      server = function() {
+        if (exists("f_browser_placements_minimal_server")) f_browser_placements_minimal_server("placements_minimal", pool, route = current)
+      }
     )
   )
   
@@ -260,7 +280,9 @@ f_app_server <- function(input, output, session) {
     "icons"                  = "icons",
     "containers"             = "boxes",
     "placements"             = "map marker alternate",
-    "canvases"               = "image outline"
+    "canvases"               = "image outline",
+    "minimal"                = "bug",
+    "placements_minimal"     = "flask"
   )
   
 
@@ -299,7 +321,9 @@ f_app_server <- function(input, output, session) {
     list( key="icons@single",     title="Icons",     items=c("icons") ),
     list( key="containers@single",title="Containers",items=c("containers") ),
     list( key="placements@single",title="Placements",items=c("placements") ),
-    list( key="canvases@single",  title="Canvases",  items=c("canvases") )
+    list( key="canvases@single",  title="Canvases",  items=c("canvases") ),
+    list( key="minimal@single",   title="Minimal Test",items=c("minimal") ),
+    list( key="placements_minimal@single", title="Placements Minimal", items=c("placements_minimal") )
   )
   
   build_menu <- function(active_key) {

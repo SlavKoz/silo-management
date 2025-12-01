@@ -234,8 +234,10 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         });
 
         // Custom message handler for setting hash from server
-        Shiny.addCustomMessageHandler('set-hash', function(msg){
-          if (msg && msg.h && location.hash !== msg.h) location.hash = msg.h;
+        $(document).on('shiny:connected', function() {
+          Shiny.addCustomMessageHandler('set-hash', function(msg){
+            if (msg && msg.h && location.hash !== msg.h) location.hash = msg.h;
+          });
         });
 
         // collapse control

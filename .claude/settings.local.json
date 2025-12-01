@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(\"C:\\Users\\slawomirkozielec\\AppData\\Local\\Programs\\R\\R-4.5.1\\bin\\Rscript.exe\" -e \"source(''R/browsers/f_browser_siloplacements.R''); run_siloplacements_canvas_test()\")"
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

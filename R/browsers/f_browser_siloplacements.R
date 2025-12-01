@@ -55,7 +55,7 @@ browser_siloplacements_ui <- function(id) {
               style = "display: block;",
               shiny::selectInput(
                 ns("layout_id"), label = NULL, choices = c(), width = "100%",
-                selectize = TRUE
+                selectize = FALSE
               )
             ),
             # Fomantic-style action input (hidden by default)
@@ -562,18 +562,27 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       cat("[", id, "] Found", nrow(layouts), "layouts\n")
 
       if (nrow(layouts) > 0) {
+        cat("[", id, "] Building choices for layout dropdown\n")
         choices <- setNames(layouts$LayoutID, layouts$LayoutName)
 
         # Use isolate to read current_layout_id without creating a dependency
         current_id <- isolate(current_layout_id())
+        cat("[", id, "] Current layout ID:", current_id, "\n")
+
         selected_val <- if (!is.null(current_id) && !is.na(current_id) &&
                            as.character(current_id) %in% choices) {
           as.character(current_id)
         } else {
           as.character(layouts$LayoutID[1])
         }
+        cat("[", id, "] Selected value:", selected_val, "\n")
+        cat("[", id, "] Calling updateSelectInput for layout_id with", length(choices), "choices\n")
 
         updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
+
+        cat("[", id, "] Layout dropdown updateSelectInput called\n")
+      } else {
+        cat("[", id, "] No layouts found\n")
       }
     })
 
@@ -1023,7 +1032,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # Detect when user navigates to this route (for app with router)
     # The route parameter is a reactiveVal that changes when navigation occurs
     if (!is.null(route) && is.function(route)) {
-      observeEvent(route(), {
+      observe({
         current_route <- route()
         cat("[", id, "] Route changed to:", paste(current_route, collapse="/"), "\n")
 
@@ -1042,31 +1051,32 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
               areas_refresh(areas_refresh() + 1)
               shape_templates_refresh(shape_templates_refresh() + 1)
             })
-            
+
             log_data_snapshot("route entry")
           }
         }
-      }, ignoreNULL = TRUE, ignoreInit = FALSE)
+      })
     }
 
-    # When running inside the full app shell, some observers may fire before
-    # the UI is attached to the DOM. Re-trigger the key refresh reactives once
-    # the session has flushed to ensure select inputs receive their choices.
-    session$onFlushed(function() {
-      cat("[", id, "] onFlushed callback triggered\n")
-      isolate({
-        cat("[", id, "] Incrementing refresh triggers\n")
-        layouts_refresh(layouts_refresh() + 1)
-        canvases_refresh(canvases_refresh() + 1)
-        silos_refresh(silos_refresh() + 1)
-        sites_refresh(sites_refresh() + 1)
-        areas_refresh(areas_refresh() + 1)
-        shape_templates_refresh(shape_templates_refresh() + 1)
-        cat("[", id, "] Refresh triggers incremented\n")
-      })
-      
-      log_data_snapshot("onFlushed")
-    }, once = TRUE)
+    # When running standalone (test), trigger refresh on flush
+    # When running in app with router, rely on route-based refresh instead
+    if (is.null(route) || !is.function(route)) {
+      cat("[", id, "] Standalone mode - using onFlushed trigger\n")
+      session$onFlushed(function() {
+        cat("[", id, "] onFlushed callback triggered (standalone mode)\n")
+        isolate({
+          layouts_refresh(layouts_refresh() + 1)
+          canvases_refresh(canvases_refresh() + 1)
+          silos_refresh(silos_refresh() + 1)
+          sites_refresh(sites_refresh() + 1)
+          areas_refresh(areas_refresh() + 1)
+          shape_templates_refresh(shape_templates_refresh() + 1)
+        })
+        log_data_snapshot("onFlushed")
+      }, once = TRUE)
+    } else {
+      cat("[", id, "] Router mode - refresh will trigger on navigation\n")
+    }
 
     # Populate shape template dropdown
     observe({
