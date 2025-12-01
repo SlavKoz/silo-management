@@ -119,55 +119,87 @@
     state.canvas.style.cursor = `url('${url}') ${centerX} ${centerY}, crosshair`;
   }
 
-  // Initialize canvas when DOM ready
-  $(document).on('shiny:connected', function() {
-    // Find all canvas elements
+  function initializeCanvasElement(canvas) {
+    const canvasId = canvas.id;
+
+    if (!canvasId || canvases.has(canvasId)) return;
+
+    const ctx = canvas.getContext('2d');
+
+    // Get namespace (remove -canvas suffix)
+    const ns = canvasId.replace(/-canvas$/, '');
+
+    // Initialize state
+    const state = {
+      canvas: canvas,
+      ctx: ctx,
+      ns: ns,
+      shapes: [],
+      tempShape: null,  // Temporary shape with dotted border (before saving)
+      selectedId: null,
+      isDragging: false,
+      dragStart: null,
+      editMode: false,
+      snapGrid: 0,
+      // Pan/zoom/rotate state
+      panX: 0,
+      panY: 0,
+      zoom: 1,
+      rotation: 0, // degrees
+      isPanning: false,
+      panStart: null,
+      // Background image
+      backgroundImage: null,
+      backgroundLoaded: false,
+      backgroundVisible: true,  // Show/hide background
+      backgroundScale: 1,  // Uniform scale
+      backgroundOffsetX: 0,
+      backgroundOffsetY: 0,
+      backgroundPanMode: false,
+      isBackgroundPanning: false,
+      bgPanStart: null,
+      // Selected shape template for cursor
+      selectedShapeTemplate: null
+    };
+
+    canvases.set(canvasId, state);
+    registerNamespaceHandlers(ns);
+
+    // Set up event listeners
+    setupCanvasEvents(canvas, state);
+  }
+
+  function scanForCanvases() {
     $('canvas[id$="-canvas"]').each(function() {
-      const canvas = this;
-      const canvasId = canvas.id;
-      const ctx = canvas.getContext('2d');
-
-      // Get namespace (remove -canvas suffix)
-      const ns = canvasId.replace(/-canvas$/, '');
-
-      // Initialize state
-      const state = {
-        canvas: canvas,
-        ctx: ctx,
-        ns: ns,
-        shapes: [],
-        tempShape: null,  // Temporary shape with dotted border (before saving)
-        selectedId: null,
-        isDragging: false,
-        dragStart: null,
-        editMode: false,
-        snapGrid: 0,
-        // Pan/zoom/rotate state
-        panX: 0,
-        panY: 0,
-        zoom: 1,
-        rotation: 0, // degrees
-        isPanning: false,
-        panStart: null,
-        // Background image
-        backgroundImage: null,
-        backgroundLoaded: false,
-        backgroundVisible: true,  // Show/hide background
-        backgroundScale: 1,  // Uniform scale
-        backgroundOffsetX: 0,
-        backgroundOffsetY: 0,
-        backgroundPanMode: false,
-        isBackgroundPanning: false,
-        bgPanStart: null,
-        // Selected shape template for cursor
-        selectedShapeTemplate: null
-      };
-
-      canvases.set(canvasId, state);
-
-      // Set up event listeners
-      setupCanvasEvents(canvas, state);
+      initializeCanvasElement(this);
     });
+  }
+
+  // Initialize canvas when DOM ready and watch for dynamically added modules
+  $(document).on('shiny:connected', function() {
+    scanForCanvases();
+
+    // Observe DOM changes in case the placements module is rendered after connect
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) return;
+
+          if (node.matches && node.matches('canvas[id$="-canvas"]')) {
+            initializeCanvasElement(node);
+          }
+
+          // If a subtree was added, search inside it
+          if (node.querySelectorAll) {
+            node.querySelectorAll('canvas[id$="-canvas"]').forEach((canvas) => {
+              initializeCanvasElement(canvas);
+            });
+          }
+        });
+      });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
 
     // Global ESC key handler to deselect shape template
     $(document).on('keydown', function(e) {
