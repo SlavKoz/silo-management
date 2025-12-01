@@ -256,14 +256,24 @@ f_app_server <- function(input, output, session) {
         if (exists("minimal_test_server")) minimal_test_server("minimal", pool, route = current)
       }
     ),
-    "placements_minimal" = list(
-      title = "Placements Minimal",
+    "minimal2" = list(
+      title = "Minimal Test 2",
       ui    = function() {
-        if (exists("f_browser_placements_minimal_ui")) f_browser_placements_minimal_ui("placements_minimal")
-        else div("Placements minimal not loaded")
+        if (exists("minimal_test2_ui")) minimal_test2_ui("minimal2")
+        else div("Minimal test 2 not loaded")
       },
       server = function() {
-        if (exists("f_browser_placements_minimal_server")) f_browser_placements_minimal_server("placements_minimal", pool, route = current)
+        if (exists("minimal_test2_server")) minimal_test2_server("minimal2", pool, route = current)
+      }
+    ),
+    "testdropdown" = list(
+      title = "Test Dropdown",
+      ui    = function() {
+        if (exists("browser_placements_minimal_ui")) browser_placements_minimal_ui("testdropdown")
+        else div("Test dropdown not loaded")
+      },
+      server = function() {
+        if (exists("browser_placements_minimal_server")) browser_placements_minimal_server("testdropdown", pool, route = current)
       }
     )
   )
@@ -282,7 +292,8 @@ f_app_server <- function(input, output, session) {
     "placements"             = "map marker alternate",
     "canvases"               = "image outline",
     "minimal"                = "bug",
-    "placements_minimal"     = "flask"
+    "minimal2"               = "bug",
+    "testdropdown"           = "flask"
   )
   
 
@@ -323,7 +334,8 @@ f_app_server <- function(input, output, session) {
     list( key="placements@single",title="Placements",items=c("placements") ),
     list( key="canvases@single",  title="Canvases",  items=c("canvases") ),
     list( key="minimal@single",   title="Minimal Test",items=c("minimal") ),
-    list( key="placements_minimal@single", title="Placements Minimal", items=c("placements_minimal") )
+    list( key="minimal2@single",  title="Minimal Test 2",items=c("minimal2") ),
+    list( key="testdropdown@single", title="Test Dropdown", items=c("testdropdown") )
   )
   
   build_menu <- function(active_key) {
