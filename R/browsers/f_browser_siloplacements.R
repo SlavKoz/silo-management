@@ -395,7 +395,26 @@ browser_siloplacements_ui <- function(id) {
 # ========================== SERVER ============================================
 browser_siloplacements_server <- function(id, pool, route = NULL) {
   moduleServer(id, function(input, output, session) {
+    cat("\n========================================\n")
+    cat("[", id, "] MODULE INITIALIZATION STARTED\n")
+    cat("========================================\n")
     ns <- session$ns
+
+    # Track if this is the first time the UI becomes visible
+    ui_initialized <- reactiveVal(FALSE)
+
+    # Toggle panel visibility when edit mode changes
+    observeEvent(edit_mode_state(), {
+      if (edit_mode_state()) {
+        # Edit mode ON - show edit panel, hide readonly panel
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': '', 'position': '', 'z-index': ''})", ns("edit_panel")))
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': 'hidden', 'position': 'absolute', 'z-index': '-1'})", ns("readonly_panel")))
+      } else {
+        # Edit mode OFF - hide edit panel, show readonly panel
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': 'hidden', 'position': 'absolute', 'z-index': '-1'})", ns("edit_panel")))
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': '', 'position': '', 'z-index': ''})", ns("readonly_panel")))
+      }
+    }, ignoreInit = TRUE)
 
     notify_error <- function(prefix, e, duration = NULL) {
       message(sprintf("[siloplacements] %s: %s", prefix, conditionMessage(e)))
@@ -538,7 +557,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate layout dropdown
     observe({
+      cat("[", id, "] Populating layout dropdown observer fired\n")
       layouts <- layouts_data()
+      cat("[", id, "] Found", nrow(layouts), "layouts\n")
 
       if (nrow(layouts) > 0) {
         choices <- setNames(layouts$LayoutID, layouts$LayoutName)
@@ -709,7 +730,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate canvas dropdown
     observe({
+      cat("[", id, "] Populating canvas dropdown observer fired\n")
       canvases <- canvases_data()
+      cat("[", id, "] Found", nrow(canvases), "canvases\n")
 
       # Preserve current selection
       current_canvas_id <- input$canvas_id
@@ -722,6 +745,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       # Update choices and restore selection
       updateSelectInput(session, "canvas_id", choices = choices, selected = current_canvas_id)
+      cat("[", id, "] Canvas dropdown updated with", length(choices), "choices\n")
     })
 
     # Populate sites dropdown
@@ -966,17 +990,47 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
 
+    # Detect when user navigates to this route (for app with router)
+    # The route parameter is a reactiveVal that changes when navigation occurs
+    if (!is.null(route) && is.function(route)) {
+      observeEvent(route(), {
+        current_route <- route()
+        cat("[", id, "] Route changed to:", paste(current_route, collapse="/"), "\n")
+
+        # Check if this route is for placements (current_route should be c("placements"))
+        if (length(current_route) > 0 && current_route[1] == "placements") {
+          if (!ui_initialized()) {
+            cat("[", id, "] First navigation to placements, triggering refresh\n")
+            ui_initialized(TRUE)
+
+            # Trigger all refresh reactives to populate dropdowns
+            isolate({
+              layouts_refresh(layouts_refresh() + 1)
+              canvases_refresh(canvases_refresh() + 1)
+              silos_refresh(silos_refresh() + 1)
+              sites_refresh(sites_refresh() + 1)
+              areas_refresh(areas_refresh() + 1)
+              shape_templates_refresh(shape_templates_refresh() + 1)
+            })
+          }
+        }
+      }, ignoreNULL = TRUE, ignoreInit = FALSE)
+    }
+
     # When running inside the full app shell, some observers may fire before
     # the UI is attached to the DOM. Re-trigger the key refresh reactives once
     # the session has flushed to ensure select inputs receive their choices.
     session$onFlushed(function() {
+      cat("[", id, "] onFlushed callback triggered\n")
       isolate({
+        cat("[", id, "] Incrementing refresh triggers\n")
         layouts_refresh(layouts_refresh() + 1)
         canvases_refresh(canvases_refresh() + 1)
         silos_refresh(silos_refresh() + 1)
         sites_refresh(sites_refresh() + 1)
         areas_refresh(areas_refresh() + 1)
         shape_templates_refresh(shape_templates_refresh() + 1)
+        cat("[", id, "] Refresh triggers incremented\n")
       })
     }, once = TRUE)
 
@@ -1522,7 +1576,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         tagList(
           # Editable form (hidden when edit mode OFF)
           div(
-            style = if (edit_mode_state()) "" else "visibility: hidden; position: absolute; z-index: -1;",
+            id = ns("edit_panel"),
+            style = "visibility: hidden; position: absolute; z-index: -1;",
             mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
             # Move and Duplicate buttons at bottom left
             div(style = "margin-top: 1rem; padding: 0 1rem; display: flex; gap: 0.5rem;",
@@ -1536,7 +1591,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
           ),
           # Read-only view (hidden when edit mode ON)
           div(
-            style = if (!edit_mode_state()) "" else "visibility: hidden; position: absolute; z-index: -1;",
+            id = ns("readonly_panel"),
+            style = "",
             # Object selector
             div(style = "padding: 1rem;",
               # Checkboxes
@@ -1569,6 +1625,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate object selector dropdown based on filters
     observe({
+      cat("[", id, "] Object selector observer fired\n")
       # Depend on canvas selection so the dropdown refreshes after clicks
       canvas_pid <- selected_placement_id()
 
@@ -1578,11 +1635,22 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       current_layout <- current_layout_id()
 
       # Only update when in non-edit mode
-      if (edit_mode_state()) return()
+      if (edit_mode_state()) {
+        cat("[", id, "] Skipping object selector - edit mode active\n")
+        return()
+      }
 
       source <- selection_source()
 
-      if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) return()
+      if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) {
+        cat("[", id, "] Skipping object selector - inputs not ready:",
+            "show_inactive=", !is.null(show_inactive),
+            "search_all=", !is.null(search_all),
+            "current_layout=", !is.null(current_layout), "\n")
+        return()
+      }
+
+      cat("[", id, "] Building object selector query\n")
 
       # Get all silos with optional placement info
       query <- paste0("
@@ -2066,7 +2134,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
                 e.preventDefault();
                 isTyping = false;
                 $(this).trigger('change');
-                Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                if (Shiny && Shiny.setInputValue) {
+                  Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                }
               }
             });
 
@@ -2074,7 +2144,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
             $('#%s, #%s').on('change', function(e) {
               if (!isTyping) {
                 // Change from arrows, Enter, or blur after typing elsewhere
-                Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                if (Shiny && Shiny.setInputValue) {
+                  Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                }
               }
               isTyping = false;
             });
