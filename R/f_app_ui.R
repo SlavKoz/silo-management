@@ -270,7 +270,9 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         function syncRoute(){
           var h = normRoute(location.hash);
           setActiveRoute(h);
-          if (window.Shiny) Shiny.setInputValue('f_route', h, {priority:'event'});
+                    if (window.Shiny && typeof window.Shiny.setInputValue === 'function') {
+            Shiny.setInputValue('f_route', h, {priority:'event'});
+          }
         }
         // click on menu items updates hash
         document.addEventListener('click', function(e){
