@@ -554,7 +554,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
         updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
       }
-    }, suspendWhenHidden = FALSE)
+    })
 
     # Handle "Add New Layout" button - toggle to text input mode
     observeEvent(input$add_new_layout_btn, {
@@ -722,7 +722,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       # Update choices and restore selection
       updateSelectInput(session, "canvas_id", choices = choices, selected = current_canvas_id)
-    }, suspendWhenHidden = FALSE)
+    })
 
     # Populate sites dropdown
     observe({
@@ -732,7 +732,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         choices <- c(choices, setNames(sites$SiteID, paste0(sites$SiteCode, " - ", sites$SiteName)))
       }
       updateSelectInput(session, "layout_site_id", choices = choices)
-    }, suspendWhenHidden = FALSE)
+    })
 
     # Populate areas dropdown for background selector
     observe({
@@ -752,7 +752,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         }
       }
       updateSelectInput(session, "bg_area_id", choices = choices)
-    }, suspendWhenHidden = FALSE)
+    })
 
     # Save canvas area when changed
     observeEvent(input$bg_area_id, {
@@ -863,7 +863,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       bg_data <- paste0("data:image/png;base64,", df$bg_png_b64[1])
       background_image(bg_data)
       session$sendCustomMessage(paste0(ns("root"), ":setBackground"), list(image = bg_data))
-    }, suspendWhenHidden = FALSE)
+    })
 
     # ---- Load placements from DB (filtered by current layout, site, and area) ----
     raw_placements <- reactive({
@@ -970,12 +970,14 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # the UI is attached to the DOM. Re-trigger the key refresh reactives once
     # the session has flushed to ensure select inputs receive their choices.
     session$onFlushed(function() {
-      layouts_refresh(layouts_refresh() + 1)
-      canvases_refresh(canvases_refresh() + 1)
-      silos_refresh(silos_refresh() + 1)
-      sites_refresh(sites_refresh() + 1)
-      areas_refresh(areas_refresh() + 1)
-      shape_templates_refresh(shape_templates_refresh() + 1)
+      isolate({
+        layouts_refresh(layouts_refresh() + 1)
+        canvases_refresh(canvases_refresh() + 1)
+        silos_refresh(silos_refresh() + 1)
+        sites_refresh(sites_refresh() + 1)
+        areas_refresh(areas_refresh() + 1)
+        shape_templates_refresh(shape_templates_refresh() + 1)
+      })
     }, once = TRUE)
 
     # Populate shape template dropdown
@@ -989,7 +991,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         ))
       }
       updateSelectInput(session, "shape_template_id", choices = choices)
-    }, suspendWhenHidden = FALSE)
+    })
 
     # Update cursor based on selected shape template
     observeEvent(input$shape_template_id, {
@@ -1081,7 +1083,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
           selectedId = if (!is.null(selected_id) && !is.na(selected_id)) as.character(selected_id) else NULL
         )
       )
-    }, suspendWhenHidden = FALSE)
+    })
 
     # ---- Form schema for placement details ----
     schema_config <- reactive({
@@ -1699,7 +1701,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         # No valid selection
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
       }
-    }, suspendWhenHidden = FALSE)
+    })
 
     # Handle object selector selection (when dropdown changed)
     observeEvent(input$object_selector, {
@@ -2721,7 +2723,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       if (!is.null(snap)) {
         session$sendCustomMessage(paste0(ns("root"), ":setSnap"), list(units = as.numeric(snap)))
       }
-    }, suspendWhenHidden = FALSE)
+    })
 
     # Handle snap grid increment/decrement buttons
     observeEvent(input$snap_up, {
