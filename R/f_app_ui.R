@@ -306,7 +306,9 @@ document.addEventListener('DOMContentLoaded', function(){
   items.forEach(function(it){ it.classList.toggle('nav-active', it.getAttribute('data-route') === h); });
   var active = document.querySelector('.sb-rail .item[data-route=\"' + h + '\"]');
   if (active) { var group = active.closest('.group-block'); if (group) group.classList.remove('collapsed'); }
-  if (window.Shiny) Shiny.setInputValue('f_route', h, {priority:'event'});
+  if (window.Shiny && typeof window.Shiny.setInputValue === 'function') {
+    Shiny.setInputValue('f_route', h, {priority:'event'});
+  }
 });
 
       })();
