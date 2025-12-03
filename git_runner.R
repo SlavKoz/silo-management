@@ -1,6 +1,9 @@
-
-
 # commit_all.R
+# Run in clean environment to avoid conflicts with running Shiny app
+
+# Clear any inherited objects that might cause conflicts
+if (exists(".db_pool_env")) rm(.db_pool_env, envir = .GlobalEnv)
+
 message("Committing current project to git...")
 
 # Basic sanity check
