@@ -26,3 +26,4 @@ cat("\n=== Launching SiloPlacements Browser Test ===\n")
 cat("Modularized version with external CSS and helpers\n\n")
 
 run_siloplacements_canvas_test()
+

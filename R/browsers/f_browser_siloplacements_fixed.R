@@ -34,7 +34,7 @@ browser_siloplacements_ui <- function(id) {
         div(
           class = "toolbar-grid",
 
-          # Column 1: Add Layout button
+          # Column 1: Add New Layout button
           actionButton(
             ns("add_new_layout_btn"), "Add New", class = "btn-sm btn-primary",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
@@ -46,34 +46,10 @@ browser_siloplacements_ui <- function(id) {
             style = "margin: 0; font-size: 13px; font-weight: normal;"
           ),
 
-          # Column 3: Layout selector (or action input for new layout)
-          div(
-            style = "position: relative;",
-            # Select input (visible by default)
-            div(
-              id = ns("select_container"),
-              style = "display: block;",
-              shiny::selectInput(
-                ns("layout_id"), label = NULL, choices = c(), width = "100%",
-                selectize = TRUE
-              )
-            ),
-            # Fomantic-style action input (hidden by default)
-            div(
-              id = ns("text_container"),
-              class = "ui action input",
-              style = "display: none; width: 100%;",
-              tags$input(
-                type = "text",
-                id = ns("new_layout_name"),
-                placeholder = "Enter name...",
-                style = "height: 26px; font-size: 12px; padding: 0.15rem 0.5rem; flex: 1; min-width: 0;"
-              ),
-              actionButton(
-                ns("save_new_btn"), "Save", class = "ui button btn-sm btn-success",
-                style = "height: 26px; padding: 0.1rem 0.4rem; font-size: 12px; flex-shrink: 0;"
-              )
-            )
+          # Column 3: Layout selector - NO WRAPPER DIVS (breaks renderUI updates)
+          shiny::selectInput(
+            ns("layout_id"), label = NULL, choices = c("Loading..." = ""), width = "100%",
+            selectize = FALSE
           ),
 
           # Column 4: Site label
@@ -84,8 +60,8 @@ browser_siloplacements_ui <- function(id) {
 
           # Column 5: Site selector
           shiny::selectInput(
-            ns("layout_site_id"), label = NULL, choices = c(), width = "100%",
-            selectize = TRUE
+            ns("layout_site_id"), label = NULL, choices = c("Loading..." = ""), width = "100%",
+            selectize = FALSE
           ),
 
           # Column 6: Save Layout button
@@ -130,7 +106,7 @@ browser_siloplacements_ui <- function(id) {
           class = "toolbar-grid-bottom",
           style = "margin-top: 0.3rem;",
 
-          # Column 1: Add Background button
+          # Column 1: Add New Background button
           tags$a(
             href = "#/canvases",
             target = "_blank",
@@ -177,50 +153,39 @@ browser_siloplacements_ui <- function(id) {
           # Column 8: Empty
           div(),
 
-          # Column 9: Edit dropdown for background controls
+          # Column 9: Rotate label (right-aligned)
+          tags$label("Rotate:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 10: Rotate controls (centered)
           div(
-            style = "position: relative;",
-            tags$button(
-              id = ns("bg_edit_btn"),
-              class = "btn btn-sm btn-secondary dropdown-toggle",
-              type = "button",
-              style = "height: 26px; padding: 0.2rem 0.5rem; font-size: 12px;",
-              `data-toggle` = "dropdown",
-              "Edit"
-            ),
-            div(
-              id = ns("bg_edit_menu"),
-              class = "dropdown-menu",
-              style = "display: none; position: absolute; z-index: 1000; background: white; border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 320px;",
-              # Rotate controls
-              div(
-                style = "display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
-                tags$label("Rotate:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°",
-                            style = "height: 26px; width: 26px; padding: 0;"),
-                numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "60px"),
-                actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°",
-                            style = "height: 26px; width: 26px; padding: 0;")
-              ),
-              # BG Size controls
-              div(
-                style = "display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
-                tags$label("BG Size:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("bg_scale_down"), "-", class = "btn-sm", title = "Shrink BG",
-                            style = "height: 26px; width: 26px; padding: 0;"),
-                numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "60px"),
-                actionButton(ns("bg_scale_up"), "+", class = "btn-sm", title = "Enlarge BG",
-                            style = "height: 26px; width: 26px; padding: 0;")
-              )
-            )
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
+            actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°",
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;"),
+            numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "32px"),
+            actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°",
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;")
           ),
 
-          # Column 10-15: Empty spacers
+          # Column 11: Space
           div(),
+
+          # Column 12: BG Size label (right-aligned)
+          tags$label("BG Size:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 13: BG Size controls (centered)
+          div(
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
+            actionButton(ns("bg_scale_down"), "-", class = "btn-sm", title = "Shrink BG",
+                        style = "height: 26px; width: 26px; padding: 0;"),
+            numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "32px"),
+            actionButton(ns("bg_scale_up"), "+", class = "btn-sm", title = "Enlarge BG",
+                        style = "height: 26px; width: 26px; padding: 0;")
+          ),
+
+          # Column 14: Space
           div(),
-          div(),
-          div(),
-          div(),
+
+          # Column 15: Empty spacer
           div()
         ),
 
@@ -239,52 +204,15 @@ browser_siloplacements_ui <- function(id) {
                 icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
               }
             });
-
-            // Background Edit dropdown toggle
-            $('#%s').on('click', function(e) {
-              e.stopPropagation();
-              var menu = $('#%s');
-              menu.toggle();
-            });
-
-            // Prevent menu from closing when clicking inside it
-            $('#%s').on('click', function(e) {
-              e.stopPropagation();
-            });
-
-            // Placement Edit dropdown toggle
-            $('#%s').on('click', function(e) {
-              e.stopPropagation();
-              var menu = $('#%s');
-              menu.toggle();
-            });
-
-            // Prevent placement menu from closing when clicking inside it
-            $('#%s').on('click', function(e) {
-              e.stopPropagation();
-            });
-
-            // Close dropdowns on ESC key
-            $(document).on('keydown', function(e) {
-              if (e.key === 'Escape') {
-                $('#%s').hide();
-                $('#%s').hide();
-              }
-            });
           });
-        ", ns("toggle_bg_controls"), ns("bg_controls"),
-           ns("bg_edit_btn"), ns("bg_edit_menu"),
-           ns("bg_edit_menu"),
-           ns("placement_edit_btn"), ns("placement_edit_menu"),
-           ns("placement_edit_menu"),
-           ns("bg_edit_menu"), ns("placement_edit_menu")))),
+        ", ns("toggle_bg_controls"), ns("bg_controls")))),
 
         # Main toolbar - Placement & View controls
         div(
           class = "toolbar-grid-placement",
           style = "margin-bottom: 0.5rem;",
 
-          # Column 1: Edit Mode toggle button
+          # Column 1: Edit toggle
           actionButton(
             ns("edit_mode_toggle"), "Edit", class = "btn-sm toggle-btn",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
@@ -321,50 +249,34 @@ browser_siloplacements_ui <- function(id) {
           # Column 8: Empty
           div(),
 
-          # Column 9: Edit dropdown for placement tools (aligns with background Edit above)
+          # Column 9: Grid Snap label (right-aligned)
+          tags$label("Grid Snap:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 10: Grid Snap controls (centered)
           div(
-            style = "position: relative;",
-            tags$button(
-              id = ns("placement_edit_btn"),
-              class = "btn btn-sm btn-secondary dropdown-toggle",
-              type = "button",
-              style = "height: 26px; padding: 0.2rem 0.5rem; font-size: 12px;",
-              `data-toggle` = "dropdown",
-              "Edit"
-            ),
-            div(
-              id = ns("placement_edit_menu"),
-              class = "dropdown-menu",
-              style = "display: none; position: absolute; z-index: 1000; background: white; border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 320px;",
-              # Grid Snap controls
-              div(
-                style = "display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
-                tags$label("Grid Snap:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("snap_down"), "-", class = "btn-sm", title = "Decrease Snap",
-                            style = "height: 26px; width: 26px; padding: 0;"),
-                numericInput(ns("snap_grid"), label = NULL, value = 0, min = 0, step = 10, width = "60px"),
-                actionButton(ns("snap_up"), "+", class = "btn-sm", title = "Increase Snap",
-                            style = "height: 26px; width: 26px; padding: 0;")
-              ),
-              # Zoom controls
-              div(
-                style = "display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
-                tags$label("Zoom:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("zoom_out"), "", icon = icon("magnifying-glass-minus"), class = "btn-sm",
-                            style = "height: 26px; width: 26px; padding: 0;"),
-                numericInput(ns("zoom_level"), label = NULL, value = 100, min = 10, max = 500, step = 10, width = "60px"),
-                actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm",
-                            style = "height: 26px; width: 26px; padding: 0;")
-              )
-            )
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
+            actionButton(ns("snap_down"), "-", class = "btn-sm", title = "Decrease Snap",
+                        style = "height: 26px; width: 26px; padding: 0;"),
+            numericInput(ns("snap_grid"), label = NULL, value = 0, min = 0, step = 10, width = "32px"),
+            actionButton(ns("snap_up"), "+", class = "btn-sm", title = "Increase Snap",
+                        style = "height: 26px; width: 26px; padding: 0;")
           ),
 
-          # Column 10-15: Empty spacers
+          # Column 11: Space
           div(),
-          div(),
-          div(),
-          div(),
-          div()
+
+          # Column 12: Zoom label (right-aligned)
+          tags$label("Zoom:", style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right; width: 100%;"),
+
+          # Column 13: Zoom controls with input (centered)
+          div(
+            style = "display: flex; align-items: center; justify-content: center; gap: 0.3rem;",
+            actionButton(ns("zoom_out"), "", icon = icon("magnifying-glass-minus"), class = "btn-sm",
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;"),
+            numericInput(ns("zoom_level"), label = NULL, value = 100, min = 10, max = 500, step = 10, width = "32px"),
+            actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm",
+                        style = "height: 26px; width: 26px; padding: 0; display: flex; align-items: center; justify-content: center;")
+          )
         ),
 
         # Move operation bar (hidden by default, shown when moving an object)
@@ -459,7 +371,24 @@ browser_siloplacements_ui <- function(id) {
 # ========================== SERVER ============================================
 browser_siloplacements_server <- function(id, pool, route = NULL) {
   moduleServer(id, function(input, output, session) {
+    cat("[", id, "] Module starting (fixed version)\n")
     ns <- session$ns
+
+    # Track if this is the first time the UI becomes visible
+    ui_initialized <- reactiveVal(FALSE)
+
+    # Toggle panel visibility when edit mode changes
+    observeEvent(edit_mode_state(), {
+      if (edit_mode_state()) {
+        # Edit mode ON - show edit panel, hide readonly panel
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': '', 'position': '', 'z-index': ''})", ns("edit_panel")))
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': 'hidden', 'position': 'absolute', 'z-index': '-1'})", ns("readonly_panel")))
+      } else {
+        # Edit mode OFF - hide edit panel, show readonly panel
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': 'hidden', 'position': 'absolute', 'z-index': '-1'})", ns("edit_panel")))
+        shinyjs::runjs(sprintf("$('#%s').css({'visibility': '', 'position': '', 'z-index': ''})", ns("readonly_panel")))
+      }
+    }, ignoreInit = TRUE)
 
     notify_error <- function(prefix, e, duration = NULL) {
       message(sprintf("[siloplacements] %s: %s", prefix, conditionMessage(e)))
@@ -503,6 +432,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     panel_mode <- reactiveVal("placement")  # Track panel mode: "placement" or "silo"
     silos_refresh <- reactiveVal(0)  # Trigger to refresh silos list after creating new silo
     canvases_refresh <- reactiveVal(0)  # Trigger to refresh canvases list after updating area
+    sites_refresh <- reactiveVal(0)  # Trigger to refresh sites list
+    areas_refresh <- reactiveVal(0)  # Trigger to refresh areas list
+    shape_templates_refresh <- reactiveVal(0)  # Trigger to refresh shape templates list
     show_silo_warning <- reactiveVal(FALSE)  # Track whether to show "no silos" warning
     initial_load_complete <- reactiveVal(FALSE)  # Track whether initial layout load is complete
     move_mode_state <- reactiveVal(FALSE)  # Track whether move mode is active
@@ -511,6 +443,21 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     move_is_duplicate <- reactiveVal(FALSE)  # Track if current move is for a duplicate operation
     pending_duplicate_data <- reactiveVal(NULL)  # Store duplicate data (temp shape, coords) when waiting for silo creation
     selection_source <- reactiveVal("dropdown")  # Track if selection came from "canvas" or "dropdown" (default is dropdown)
+
+    # ---- Input Watcher: Trigger refresh when UI first renders ----
+    observeEvent(input$layout_id, {
+      cat("[", id, "] layout_id input appeared, triggering layouts refresh\n")
+      isolate({
+        layouts_refresh(layouts_refresh() + 1)
+      })
+    }, once = TRUE, ignoreNULL = TRUE)
+
+    observeEvent(input$layout_site_id, {
+      cat("[", id, "] layout_site_id input appeared, triggering sites refresh\n")
+      isolate({
+        sites_refresh(sites_refresh() + 1)
+      })
+    }, once = TRUE, ignoreNULL = TRUE)
 
     # ---- Reusable Move Mode Functions ----
 
@@ -600,20 +547,33 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # Populate layout dropdown
     observe({
       layouts <- layouts_data()
+      input_exists <- isolate(!is.null(input$layout_id))
+
+      if (!input_exists) return()
 
       if (nrow(layouts) > 0) {
         choices <- setNames(layouts$LayoutID, layouts$LayoutName)
+        selected_value <- unname(choices[1])
+        choices_json <- jsonlite::toJSON(as.list(choices), auto_unbox = TRUE)
 
-        # Use isolate to read current_layout_id without creating a dependency
-        current_id <- isolate(current_layout_id())
-        selected_val <- if (!is.null(current_id) && !is.na(current_id) &&
-                           as.character(current_id) %in% choices) {
-          as.character(current_id)
-        } else {
-          as.character(layouts$LayoutID[1])
-        }
+        shinyjs::runjs(sprintf("
+          var sel = document.getElementById('%s');
+          if (sel) {
+            sel.innerHTML = '';
+            var choices = %s;
+            Object.keys(choices).forEach(function(name) {
+              var opt = document.createElement('option');
+              opt.value = choices[name];
+              opt.text = name;
+              sel.appendChild(opt);
+            });
+            sel.value = '%s';
+            $(sel).trigger('change');
+            console.log('[LAYOUT] Populated ' + sel.options.length + ' options');
+          }
+        ", session$ns("layout_id"), choices_json, selected_value))
 
-        updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
+        cat("[", id, "] Layout dropdown populated\n")
       }
     })
 
@@ -714,7 +674,15 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Clear current layout and refresh dropdown                           # ADDED
       current_layout_id(NULL)                                               # ADDED
       layouts_refresh(layouts_refresh() + 1)                                # ADDED
-      updateSelectInput(session, "layout_id", selected = "")                # ADDED
+
+      # Use JavaScript to clear selection
+      shinyjs::runjs(sprintf("
+        var sel = document.getElementById('%s');
+        if (sel) {
+          sel.value = '';
+          $(sel).trigger('change');
+        }
+      ", session$ns("layout_id")))
       
       # Make sure we are in select mode, not text mode                      # ADDED
       shinyjs::hide("text_container")                                       # ADDED
@@ -768,9 +736,11 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       df
     })
 
-    # Populate canvas dropdown
+    # Populate canvas dropdown (in collapsible section - use updateSelectInput)
     observe({
+      cat("[", id, "] Populating canvas dropdown observer fired\n")
       canvases <- canvases_data()
+      cat("[", id, "] Found", nrow(canvases), "canvases\n")
 
       # Preserve current selection
       current_canvas_id <- input$canvas_id
@@ -783,19 +753,51 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       # Update choices and restore selection
       updateSelectInput(session, "canvas_id", choices = choices, selected = current_canvas_id)
+      cat("[", id, "] Canvas dropdown updated with", length(choices), "choices\n")
     })
 
     # Populate sites dropdown
     observe({
+      cat("[", id, "] Sites dropdown observer fired\n")
       sites <- sites_data()
+      cat("[", id, "] Got", nrow(sites), "sites\n")
+      input_exists <- isolate(!is.null(input$layout_site_id))
+      cat("[", id, "] input$layout_site_id exists:", input_exists, "\n")
+
+      if (!input_exists) {
+        cat("[", id, "] Sites input doesn't exist yet, returning\n")
+        return()
+      }
+
       choices <- c("(None)" = "")
       if (nrow(sites) > 0) {
         choices <- c(choices, setNames(sites$SiteID, paste0(sites$SiteCode, " - ", sites$SiteName)))
       }
-      updateSelectInput(session, "layout_site_id", choices = choices)
+      cat("[", id, "] Prepared", length(choices), "site choices\n")
+
+      choices_json <- jsonlite::toJSON(as.list(choices), auto_unbox = TRUE)
+
+      shinyjs::runjs(sprintf("
+        var sel = document.getElementById('%s');
+        if (sel) {
+          sel.innerHTML = '';
+          var choices = %s;
+          Object.keys(choices).forEach(function(name) {
+            var opt = document.createElement('option');
+            opt.value = choices[name];
+            opt.text = name;
+            sel.appendChild(opt);
+          });
+          $(sel).trigger('change');
+          console.log('[SITES] Populated ' + sel.options.length + ' options');
+        } else {
+          console.error('[SITES] Select element not found!');
+        }
+      ", session$ns("layout_site_id"), choices_json))
+      cat("[", id, "] Sites dropdown updated via JavaScript\n")
     })
 
-    # Populate areas dropdown for background selector
+    # Populate areas dropdown for background selector (in collapsible section - use updateSelectInput)
     observe({
       areas <- areas_data()
       choices <- c()
@@ -857,7 +859,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     observe(priority = -1, {
       layout <- current_layout()
 
-      # Update canvas selection
+      # Update canvas selection (use updateSelectInput - it's in collapsible section)
       canvas_id <- if (is.null(layout$CanvasID) || is.na(layout$CanvasID)) "" else as.character(layout$CanvasID)
       updateSelectInput(session, "canvas_id", selected = canvas_id)
 
@@ -870,9 +872,16 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         }
       }
 
-      # Update site selection
+      # Update site selection using JavaScript (updateSelectInput unreliable with renderUI)
       site_id <- if (is.null(layout$SiteID) || is.na(layout$SiteID)) "" else as.character(layout$SiteID)
-      updateSelectInput(session, "layout_site_id", selected = site_id)
+      shinyjs::runjs(sprintf("
+        var sel = document.getElementById('%s');
+        if (sel) {
+          sel.value = '%s';
+          $(sel).trigger('change');
+          console.log('[CASCADE] Set site to:', sel.value);
+        }
+      ", session$ns("layout_site_id"), site_id))
 
       # Update background rotation control
       bg_rot <- f_or(layout$BackgroundRotation, 0)
@@ -1001,6 +1010,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
     shape_templates_data <- reactive({
+      shape_templates_refresh()  # Depend on refresh trigger
       df <- try(list_shape_templates(limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
@@ -1009,13 +1019,51 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       df <- try(list_container_types(limit = 500), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
+    
+    # Lightweight observer to log dataset sizes whenever we re-fetch core data
+    log_data_snapshot <- function(tag = "") {
+      
+      safe_nrow <- function(expr) {
+        tryCatch({
+          df <- isolate(expr())
+          if (is.null(df)) 0 else nrow(df)
+        }, error = function(e) {
+          cat("[", id, "] Data snapshot error:", conditionMessage(e), "\n")
+          NA_integer_
+        })
+      }
+      cat("[", id, "] Data snapshot", if (nzchar(tag)) paste0(" (", tag, ")"), ":\n", sep = "")
+      cat("  layouts:", safe_nrow(layouts_data), "| canvases:", safe_nrow(canvases_data),
+          "| sites:", safe_nrow(sites_data), "| areas:", safe_nrow(areas_data),
+          "| silos:", safe_nrow(silos_data), "| shape templates:", safe_nrow(shape_templates_data), "\n")
+    }
+    
+    observeEvent(
+      list(
+        layouts_refresh(), canvases_refresh(), silos_refresh(),
+        sites_refresh(), areas_refresh(), shape_templates_refresh()
+      ),
+      {
+        log_data_snapshot("refresh")
+      },
+      ignoreInit = TRUE
+    )
+    
 
     sites_data <- reactive({
+      sites_refresh()  # Depend on refresh trigger
+      cat("[", id, "] sites_data() called\n")
       df <- try(list_sites(limit = 1000), silent = TRUE)
-      if (inherits(df, "try-error") || is.null(df)) data.frame() else df
+      if (inherits(df, "try-error") || is.null(df)) {
+        cat("[", id, "] list_sites FAILED\n")
+        return(data.frame())
+      }
+      cat("[", id, "] list_sites returned", nrow(df), "rows\n")
+      df
     })
 
     areas_data <- reactive({
+      areas_refresh()  # Depend on refresh trigger
       # Get site_id directly from input selector (not from database)
       # This ensures immediate filtering when site selector changes
       site_id <- as_optional_integer(input$layout_site_id)
@@ -1024,7 +1072,57 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       if (inherits(df, "try-error") || is.null(df)) data.frame() else df
     })
 
+    # Detect when user navigates to this route (for app with router)
+    # The route parameter is a reactiveVal that changes when navigation occurs
+    if (!is.null(route) && is.function(route)) {
+      observe({
+        current_route <- route()
+        cat("[", id, "] Route changed to:", paste(current_route, collapse="/"), "\n")
+
+        # Check if this route is for placements (current_route should be c("placements"))
+        if (length(current_route) > 0 && current_route[1] == "placements") {
+          if (!ui_initialized()) {
+            cat("[", id, "] First navigation to placements, triggering refresh\n")
+            ui_initialized(TRUE)
+
+            # Trigger all refresh reactives to populate dropdowns
+            isolate({
+              layouts_refresh(layouts_refresh() + 1)
+              canvases_refresh(canvases_refresh() + 1)
+              silos_refresh(silos_refresh() + 1)
+              sites_refresh(sites_refresh() + 1)
+              areas_refresh(areas_refresh() + 1)
+              shape_templates_refresh(shape_templates_refresh() + 1)
+            })
+
+            log_data_snapshot("route entry")
+          }
+        }
+      })
+    }
+
+    # When running standalone (test), trigger refresh on flush
+    # When running in app with router, rely on route-based refresh instead
+    if (is.null(route) || !is.function(route)) {
+      cat("[", id, "] Standalone mode - using onFlushed trigger\n")
+      session$onFlushed(function() {
+        cat("[", id, "] onFlushed callback triggered (standalone mode)\n")
+        isolate({
+          layouts_refresh(layouts_refresh() + 1)
+          canvases_refresh(canvases_refresh() + 1)
+          silos_refresh(silos_refresh() + 1)
+          sites_refresh(sites_refresh() + 1)
+          areas_refresh(areas_refresh() + 1)
+          shape_templates_refresh(shape_templates_refresh() + 1)
+        })
+        log_data_snapshot("onFlushed")
+      }, once = TRUE)
+    } else {
+      cat("[", id, "] Router mode - refresh will trigger on navigation\n")
+    }
+
     # Populate shape template dropdown
+    # Note: Shape templates are independent, no input check needed - will populate when data available
     observe({
       templates <- shape_templates_data()
       choices <- c("(select shape)" = "")
@@ -1566,7 +1664,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         tagList(
           # Editable form (hidden when edit mode OFF)
           div(
-            style = if (edit_mode_state()) "" else "visibility: hidden; position: absolute; z-index: -1;",
+            id = ns("edit_panel"),
+            style = "visibility: hidden; position: absolute; z-index: -1;",
             mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
             # Move and Duplicate buttons at bottom left
             div(style = "margin-top: 1rem; padding: 0 1rem; display: flex; gap: 0.5rem;",
@@ -1580,7 +1679,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
           ),
           # Read-only view (hidden when edit mode ON)
           div(
-            style = if (!edit_mode_state()) "" else "visibility: hidden; position: absolute; z-index: -1;",
+            id = ns("readonly_panel"),
+            style = "",
             # Object selector
             div(style = "padding: 1rem;",
               # Checkboxes
@@ -1613,6 +1713,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate object selector dropdown based on filters
     observe({
+      cat("[", id, "] Object selector observer fired\n")
       # Depend on canvas selection so the dropdown refreshes after clicks
       canvas_pid <- selected_placement_id()
 
@@ -1622,11 +1723,27 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       current_layout <- current_layout_id()
 
       # Only update when in non-edit mode
-      if (edit_mode_state()) return()
+      if (edit_mode_state()) {
+        cat("[", id, "] Skipping object selector - edit mode active\n")
+        return()
+      }
 
       source <- selection_source()
 
-      if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) return()
+      # Default NULL inputs to FALSE so the selector can still populate even
+      # if the initial checkbox values haven't arrived from the client yet.
+      if (is.null(show_inactive)) {
+        show_inactive <- FALSE
+      }
+      if (is.null(search_all)) {
+        search_all <- FALSE
+      }
+      if (is.null(current_layout)) {
+        cat("[", id, "] Skipping object selector - current layout missing\n")
+        return()
+      }
+
+      cat("[", id, "] Building object selector query\n")
 
       # Get all silos with optional placement info
       query <- paste0("
@@ -1684,6 +1801,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       }
 
       if (nrow(all_silos) == 0) {
+        cat("[", id, "] Object selector: no silos returned for current filters\n")
         updateSelectInput(session, "object_selector", choices = c("No silos found" = ""))
         return()
       }
@@ -1705,11 +1823,11 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         base_label <- paste0(site_name, area_part, silo_part)
 
         # Mark items from other sites OR without placement in current layout with brackets
-        from_different_site <- !is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
-                               all_silos$SiteID[i] != current_site_id
-        no_placement <- is.na(all_silos$PlacementID[i])
+        from_different_site <- isTRUE(!is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
+                               all_silos$SiteID[i] != current_site_id)
+        no_placement <- isTRUE(is.na(all_silos$PlacementID[i]))
 
-        if (isTRUE(from_different_site) || isTRUE(no_placement)) {
+        if (from_different_site || no_placement) {
           base_label <- paste0("[", base_label, "]")
         }
 
@@ -1719,11 +1837,11 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Use PlacementID only if from current site AND has placement
       # Otherwise use "silo_" prefix to prevent centering
       choice_values <- sapply(1:nrow(all_silos), function(i) {
-        from_current_site <- !is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
-                             all_silos$SiteID[i] == current_site_id
-        has_placement <- !is.na(all_silos$PlacementID[i])
+        from_current_site <- isTRUE(!is.null(current_site_id) && !is.na(all_silos$SiteID[i]) &&
+                             all_silos$SiteID[i] == current_site_id)
+        has_placement <- isTRUE(!is.na(all_silos$PlacementID[i]))
 
-        if (isTRUE(from_current_site) && isTRUE(has_placement)) {
+        if (from_current_site && has_placement) {
           as.character(all_silos$PlacementID[i])
         } else {
           paste0("silo_", all_silos$SiloID[i])
@@ -1745,6 +1863,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
         # No valid selection
         updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
       }
+      cat("[", id, "] Object selector updated with", length(choices), "choices\n")
     })
 
     # Handle object selector selection (when dropdown changed)
@@ -2110,7 +2229,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
                 e.preventDefault();
                 isTyping = false;
                 $(this).trigger('change');
-                Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                if (Shiny && Shiny.setInputValue) {
+                  Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                }
               }
             });
 
@@ -2118,7 +2239,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
             $('#%s, #%s').on('change', function(e) {
               if (!isTyping) {
                 // Change from arrows, Enter, or blur after typing elsewhere
-                Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                if (Shiny && Shiny.setInputValue) {
+                  Shiny.setInputValue('%s', Math.random(), {priority: 'event'});
+                }
               }
               isTyping = false;
             });

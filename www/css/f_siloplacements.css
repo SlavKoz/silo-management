@@ -172,7 +172,7 @@ body {
 /* Toolbar grid layouts */
 .toolbar-grid {
   display: grid;
-  grid-template-columns: 80px 90px 220px 50px 180px 110px 150px 1fr 100px;
+  grid-template-columns: 80px 90px 132px 50px 180px 110px 110px 1fr 100px;
   gap: 0.3rem;
   align-items: center;
   padding: 0.3rem;
@@ -182,7 +182,7 @@ body {
 
 .toolbar-grid-bottom {
   display: grid;
-  grid-template-columns: 80px 90px 220px 50px 180px 110px 150px auto 80px auto 1fr 80px auto 1fr 100px;
+  grid-template-columns: 80px 90px 132px 50px 180px 110px 110px auto 80px auto 1fr 80px auto 1fr 100px;
   gap: 0.3rem;
   align-items: center;
   padding: 0.3rem;
@@ -192,7 +192,7 @@ body {
 
 .toolbar-grid-placement {
   display: grid;
-  grid-template-columns: 80px 90px 220px 50px 180px 110px 150px auto 80px auto 1fr 80px auto 1fr 100px;
+  grid-template-columns: 80px 90px 132px 50px 180px 110px 110px auto 80px auto 1fr 80px auto 1fr 100px;
   gap: 0.3rem;
   align-items: center;
   padding: 0.3rem;
@@ -210,6 +210,22 @@ body {
 .toolbar-grid-bottom label,
 .toolbar-grid-placement label {
   text-align: right;
+}
+
+/* Selector inputs: narrow when closed, wider when open */
+.toolbar-grid .selectize-input,
+.toolbar-grid-bottom .selectize-input,
+.toolbar-grid-placement .selectize-input {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-grid .selectize-dropdown,
+.toolbar-grid-bottom .selectize-dropdown,
+.toolbar-grid-placement .selectize-dropdown {
+  min-width: 250px !important;
+  width: auto !important;
 }
 
 /* Toggle button styles */
@@ -263,4 +279,11 @@ body {
   gap: 0.2rem;
   align-items: center;
   justify-content: center;
+}
+
+/* Text container for new layout input */
+.ui.action.input {
+  display: flex;
+  gap: 0.2rem;
+  align-items: center;
 }

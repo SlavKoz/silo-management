@@ -18,46 +18,19 @@ minimal_test_ui <- function(id) {
         div(
           class = "toolbar-grid",
           
-          # Column 1: Add New Layout button
-          actionButton(
-            ns("add_new_layout_btn"), "Add New", class = "btn-sm btn-primary",
-            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
-          ),
-          
+          # Column 1: Empty (removed Add New button for testing)
+          div(),
+
           # Column 2: Layout label
           tags$label(
             "Layout:",
             style = "margin: 0; font-size: 13px; font-weight: normal;"
           ),
           
-          # Column 3: Layout selector (or action input for new layout)
-          div(
-            style = "position: relative;",
-            # Select input (visible by default)
-            div(
-              id = ns("select_container"),
-              style = "display: block;",
-              shiny::selectInput(
-                ns("layout_id"), label = NULL, choices = c(), width = "100%",
-                selectize = FALSE
-              )
-            ),
-            # Fomantic-style action input (hidden by default)
-            div(
-              id = ns("text_container"),
-              class = "ui action input",
-              style = "display: none; width: 100%;",
-              tags$input(
-                type = "text",
-                id = ns("new_layout_name"),
-                placeholder = "Enter name...",
-                style = "height: 26px; font-size: 12px; padding: 0.15rem 0.5rem;"
-              ),
-              actionButton(
-                ns("save_new_btn"), "Save", class = "ui button btn-sm btn-success",
-                style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"
-              )
-            )
+          # Column 3: Layout selector - NO WRAPPER DIV to avoid update issues
+          shiny::selectInput(
+            ns("layout_id"), label = NULL, choices = c("Loading..." = ""), width = "100%",
+            selectize = FALSE
           ),
           
           # Column 4: Site label
@@ -69,7 +42,7 @@ minimal_test_ui <- function(id) {
           # Column 5: Site selector
           shiny::selectInput(
             ns("layout_site_id"), label = NULL, choices = c(), width = "100%",
-            selectize = TRUE
+            selectize = FALSE
           ),
           
           # Spacer columns to preserve original formatting
@@ -78,24 +51,63 @@ minimal_test_ui <- function(id) {
           
           # Column 8: Empty spacer
           div(),
-          
-          # Column 9: Delete button (far right)
-          actionButton(
-            ns("delete_layout_btn"), "Delete", class = "btn-sm btn-danger",
-            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
-          )
-        ),
-        
-        # JavaScript for layout input toggle
-        tags$script(HTML(sprintf(
-          "$(document).on('keyup', '#%s', function(e) {\n            if (e.key === 'Enter') {\n              e.preventDefault();\n              $('#%s').click();\n            }\n          });\n          $(document).on('keydown', '#%s', function(e) {\n            if (e.which === 27) { // Escape key\n              $('#%s').hide();\n              $('#%s').show();\n              $(this).val('');\n            }\n          });",
-          ns("new_layout_name"), ns("save_new_btn"),
-          ns("new_layout_name"), ns("text_container"), ns("select_container")
-        )))
+
+          # Column 9: Empty (removed Delete button for testing)
+          div()
+        )
       )
     ),
-    
-    verbatimTextOutput(ns("debug_output"))
+
+    verbatimTextOutput(ns("debug_output")),
+
+    # JavaScript to monitor DOM changes
+    tags$script(HTML(sprintf("
+      console.log('[JS] Minimal test UI loaded');
+
+      // Watch for when the select element appears
+      var checkInterval = setInterval(function() {
+        var select = document.getElementById('%s');
+        if (select) {
+          console.log('[JS] Select element found:', select);
+          console.log('[JS] Select has', select.options.length, 'options');
+
+          // Watch for changes to the select
+          var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+              console.log('[JS] Select mutated:', mutation.type, mutation);
+              console.log('[JS] Select now has', select.options.length, 'options');
+            });
+          });
+
+          observer.observe(select, {
+            childList: true,
+            attributes: true,
+            subtree: true
+          });
+
+          // Also watch if the select gets removed from DOM
+          var parentObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+              if (mutation.removedNodes) {
+                mutation.removedNodes.forEach(function(node) {
+                  if (node.id === '%s' || (node.querySelector && node.querySelector('#%s'))) {
+                    console.error('[JS] SELECT ELEMENT WAS REMOVED FROM DOM!');
+                    console.trace();
+                  }
+                });
+              }
+            });
+          });
+
+          parentObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
+
+          clearInterval(checkInterval);
+        }
+      }, 100);
+    ", ns("layout_id"), ns("layout_id"), ns("layout_id"))))
   )
 }
 
@@ -121,136 +133,138 @@ minimal_test_server <- function(id, pool, route = NULL) {
     sites_refresh <- reactiveVal(0)
     current_layout_id <- reactiveVal(1)
     layouts_status <- reactiveVal("Waiting for query...")
-    
-    
+
+    cat("[minimal_test] ======================================\n")
+    cat("[minimal_test] MODULE SERVER STARTED\n")
+    cat("[minimal_test] ======================================\n")
+
     layouts_data <- reactive({
-      layouts_refresh()
+      refresh_val <- layouts_refresh()
+      cat("[minimal_test] layouts_data() CALLED - refresh trigger value:", refresh_val, "\n")
       layouts_status("Querying layouts...")
       df <- try(list_canvas_layouts(limit = 100), silent = TRUE)
       if (inherits(df, "try-error") || is.null(df)) {
         msg <- if (inherits(df, "try-error")) conditionMessage(attr(df, "condition")) else "query returned NULL"
         layouts_status(paste("ERROR:", msg))
-        cat("[minimal] list_canvas_layouts failed:", msg, "\n")
+        cat("[minimal_test] list_canvas_layouts FAILED:", msg, "\n")
         return(data.frame())
+      }
+      cat("[minimal_test] list_canvas_layouts SUCCESS - returned", nrow(df), "layouts\n")
+      if (nrow(df) > 0) {
+        cat("[minimal_test] Layout names:", paste(df$LayoutName, collapse=", "), "\n")
       }
       layouts_status(paste("Loaded", nrow(df), "layouts"))
       df
     })
-    
+
+    # Update dropdown when layouts data changes
+    # Use isolate() to check if input exists without creating a reactive dependency
     observe({
+      cat("[minimal_test] -----------------------------------\n")
+      cat("[minimal_test] DROPDOWN UPDATE OBSERVER FIRED\n")
+
+      # Get layouts data (this is the reactive dependency)
       layouts <- layouts_data()
-      
+      cat("[minimal_test] Got", nrow(layouts), "layouts from reactive\n")
+
+      # Check if input exists using isolate() to avoid creating dependency
+      input_exists <- isolate(!is.null(input$layout_id))
+      cat("[minimal_test] input$layout_id exists (isolated check):", input_exists, "\n")
+
+      if (!input_exists) {
+        cat("[minimal_test] Input doesn't exist yet, skipping update\n")
+        cat("[minimal_test] -----------------------------------\n")
+        return()
+      }
+
       if (nrow(layouts) > 0) {
         choices <- setNames(layouts$LayoutID, layouts$LayoutName)
-        updateSelectInput(session, "layout_id", choices = choices, selected = choices[1])
+        selected_value <- unname(choices[1])
+        cat("[minimal_test] Prepared", length(choices), "choices:\n")
+        cat("[minimal_test] Choices:", paste(names(choices), "=", choices, collapse=", "), "\n")
+        cat("[minimal_test] Selected value:", selected_value, "(type:", class(selected_value), ")\n")
+
+        cat("[minimal_test] Calling updateSelectInput\n")
+        cat("[minimal_test] Input ID:", session$ns("layout_id"), "\n")
+        cat("[minimal_test] Choices length:", length(choices), "\n")
+        cat("[minimal_test] Selected:", selected_value, "\n")
+
+        tryCatch({
+          # Direct DOM manipulation because updateSelectInput fails when binding isn't ready
+          cat("[minimal_test] Using JavaScript to update select (bypassing Shiny binding)\n")
+
+          choices_json <- jsonlite::toJSON(as.list(choices), auto_unbox = TRUE)
+
+          shinyjs::runjs(sprintf("
+            var sel = document.getElementById('%s');
+            if (!sel) {
+              console.error('[UPDATE] Select element not found!');
+            } else {
+              // Clear and rebuild options
+              sel.innerHTML = '';
+              var choices = %s;
+              Object.keys(choices).forEach(function(name) {
+                var opt = document.createElement('option');
+                opt.value = choices[name];
+                opt.text = name;
+                sel.appendChild(opt);
+              });
+
+              // Set selected value
+              sel.value = '%s';
+
+              // Notify Shiny of the change
+              $(sel).trigger('change');
+
+              console.log('[UPDATE] Populated with ' + sel.options.length + ' options, selected:', sel.value);
+            }
+          ", session$ns("layout_id"), choices_json, selected_value))
+
+          cat("[minimal_test] Dropdown populated via JavaScript\n")
+
+        }, error = function(e) {
+          cat("[minimal_test] ERROR in update:", conditionMessage(e), "\n")
+        })
       } else {
-        
+        cat("[minimal_test] No layouts found, setting empty dropdown\n")
         status <- layouts_status()
         if (is.character(status) && grepl("^ERROR", status)) {
           showNotification(status, type = "error", duration = NULL)
         }
-        
+
         updateSelectInput(session, "layout_id", choices = c("No layouts found" = ""))
       }
+      cat("[minimal_test] -----------------------------------\n")
     })
     
-    observeEvent(input$add_new_layout_btn, {
-      shinyjs::hide("select_container")
-      shinyjs::show("text_container")
-      shinyjs::runjs(paste0("$('#", ns("new_layout_name"), "').focus();"))
-    })
+    # COMMENTED OUT: Add/Delete functionality removed for testing
+    # observeEvent(input$add_new_layout_btn, {
+    #   shinyjs::hide("select_container")
+    #   shinyjs::show("text_container")
+    #   shinyjs::runjs(paste0("$('#", ns("new_layout_name"), "').focus();"))
+    # })
+    #
+    # observeEvent(input$save_new_btn, {
+    #   ...
+    # })
+    #
+    # observeEvent(input$delete_layout_btn, {
+    #   ...
+    # })
     
-    observeEvent(input$save_new_btn, {
-      layout_name <- trimws(input$new_layout_name)
-      
-      if (layout_name == "") {
-        showNotification("Please enter a layout name", type = "error")
-        return()
-      }
-      
-      existing <- layouts_data()
-      if (nrow(existing) > 0) {
-        existing_names <- trimws(existing$LayoutName)
-        match_idx <- match(tolower(layout_name), tolower(existing_names))
-        if (!is.na(match_idx)) {
-          showNotification(
-            paste0("A layout called ", shQuote(layout_name), " already exists."),
-            type = "error"
-          )
-          return()
-        }
-      }
-      
-      tryCatch({
-        new_layout_id <- create_canvas_layout(layout_name = layout_name)
-        
-        updateTextInput(session, "new_layout_name", value = "")
-        
-        current_layout_id(new_layout_id)
-        layouts_refresh(layouts_refresh() + 1)
-        
-        shinyjs::hide("text_container")
-        shinyjs::show("select_container")
-        
-        showNotification(
-          paste("Layout", shQuote(layout_name), "created"),
-          type = "message", duration = 3
-        )
-        
-      }, error = function(e) {
-        notify_error("Error creating layout", e)
-      })
-    })
-    
-    observeEvent(input$delete_layout_btn, {
-      layout_id <- current_layout_id()
-      
-      if (is.null(layout_id) || is.na(layout_id) || layout_id == "") {
-        showNotification("No layout selected to delete.", type = "warning")
-        return()
-      }
-      
-      placements <- try(
-        list_placements(layout_id = layout_id, limit = 1),
-        silent = TRUE
-      )
-      if (!inherits(placements, "try-error") &&
-          !is.null(placements) && nrow(placements) > 0) {
-        showNotification(
-          "This layout has silo placements and cannot be deleted in this test.",
-          type = "error",
-          duration = NULL
-        )
-        return()
-      }
-      
-      ok <- tryCatch({
-        delete_canvas_layout(layout_id)
-        TRUE
-      }, error = function(e) {
-        showNotification(
-          paste("Delete failed:", conditionMessage(e)),
-          type = "error"
-        )
-        FALSE
-      })
-      if (!ok) return()
-      
-      showNotification("Layout deleted.", type = "message")
-      
-      current_layout_id(NULL)
-      layouts_refresh(layouts_refresh() + 1)
-      updateSelectInput(session, "layout_id", selected = "")
-      
-      shinyjs::hide("text_container")
-      shinyjs::show("select_container")
-    })
-    
+    # REMOVED: Input watcher that was creating circular dependencies
+    # observe({
+    #   val <- input$layout_id
+    #   cat("[minimal_test] input$layout_id CHANGED to:", val, "(type:", class(val), ")\n")
+    # })
+
     observeEvent(input$layout_id, {
       selected_value <- input$layout_id
-      
+      cat("[minimal_test] layout_id observeEvent triggered with value:", selected_value, "\n")
+
       if (!is.null(selected_value) && selected_value != "") {
         current_layout_id(as.integer(selected_value))
+        cat("[minimal_test] Set current_layout_id to:", as.integer(selected_value), "\n")
       }
     }, ignoreInit = TRUE)
     
@@ -273,18 +287,59 @@ minimal_test_server <- function(id, pool, route = NULL) {
     })
     
     sites_data <- reactive({
-      sites_refresh()
+      refresh_val <- sites_refresh()
+      cat("[minimal_test] sites_data() CALLED - refresh trigger value:", refresh_val, "\n")
       df <- try(list_sites(limit = 1000), silent = TRUE)
-      if (inherits(df, "try-error") || is.null(df)) data.frame() else df
+      if (inherits(df, "try-error") || is.null(df)) {
+        cat("[minimal_test] list_sites FAILED\n")
+        return(data.frame())
+      }
+      cat("[minimal_test] list_sites SUCCESS - returned", nrow(df), "sites\n")
+      df
     })
-    
+
     observe({
+      cat("[minimal_test] SITES DROPDOWN UPDATE OBSERVER FIRED\n")
+
+      # Get sites data (this is the reactive dependency)
       sites <- sites_data()
+      cat("[minimal_test] Got", nrow(sites), "sites from reactive\n")
+
+      # Check if input exists using isolate() to avoid creating dependency
+      input_exists <- isolate(!is.null(input$layout_site_id))
+      cat("[minimal_test] input$layout_site_id exists (isolated check):", input_exists, "\n")
+
+      if (!input_exists) {
+        cat("[minimal_test] Sites input doesn't exist yet, skipping update\n")
+        return()
+      }
+
       choices <- c("(None)" = "")
       if (nrow(sites) > 0) {
         choices <- c(choices, setNames(sites$SiteID, paste0(sites$SiteCode, " - ", sites$SiteName)))
       }
-      updateSelectInput(session, "layout_site_id", choices = choices)
+      cat("[minimal_test] Prepared", length(choices), "site choices\n")
+
+      # Use JavaScript to update (same as layouts dropdown)
+      choices_json <- jsonlite::toJSON(as.list(choices), auto_unbox = TRUE)
+
+      shinyjs::runjs(sprintf("
+        var sel = document.getElementById('%s');
+        if (sel) {
+          sel.innerHTML = '';
+          var choices = %s;
+          Object.keys(choices).forEach(function(name) {
+            var opt = document.createElement('option');
+            opt.value = choices[name];
+            opt.text = name;
+            sel.appendChild(opt);
+          });
+          $(sel).trigger('change');
+          console.log('[UPDATE] Sites dropdown populated with ' + sel.options.length + ' options');
+        }
+      ", session$ns("layout_site_id"), choices_json))
+
+      cat("[minimal_test] Sites dropdown updated via JavaScript\n")
     })
     
     observeEvent(input$layout_site_id, {
@@ -310,29 +365,19 @@ minimal_test_server <- function(id, pool, route = NULL) {
       })
     }, ignoreInit = TRUE)
     
-    if (!is.null(route) && is.function(route)) {
-      observe({
-        current_route <- route()
-        
-        if (length(current_route) > 0 && current_route[1] == "minimal") {
-          if (!ui_initialized()) {
-            ui_initialized(TRUE)
-            
-            isolate({
-              layouts_refresh(layouts_refresh() + 1)
-              sites_refresh(sites_refresh() + 1)
-            })
-          }
-        }
-      })
-      # Always force at least one refresh when the module is mounted. In the
-      # router flow, the route observer above may not fire if navigation does not
-      # change after initialization, which leaves the dropdown empty.
-      observeEvent(TRUE, {
+    # Watch for when the input first appears (UI rendered) and trigger refresh
+    # Use observeEvent with once=TRUE to avoid circular dependencies
+    observeEvent(input$layout_id, {
+      cat("[minimal_test] Input appeared! Value:", input$layout_id, "\n")
+      cat("[minimal_test] Triggering data refresh...\n")
+
+      isolate({
         layouts_refresh(layouts_refresh() + 1)
         sites_refresh(sites_refresh() + 1)
-      }, once = TRUE)
-    }
+      })
+    }, once = TRUE, ignoreNULL = TRUE)
+
+    cat("[minimal_test] Setup complete - waiting for UI to render\n")
     
     output$debug_output <- renderText({
       layout_id <- input$layout_id
@@ -343,6 +388,10 @@ minimal_test_server <- function(id, pool, route = NULL) {
         "Site selection: ", site_id
       )
     })
+
+    cat("[minimal_test] ======================================\n")
+    cat("[minimal_test] MODULE SERVER INITIALIZATION COMPLETE\n")
+    cat("[minimal_test] ======================================\n")
   })
 }
 
