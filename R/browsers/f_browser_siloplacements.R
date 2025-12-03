@@ -3097,7 +3097,6 @@ run_siloplacements_canvas_test <- function() {
     tags$head(
       tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
     ),
-    tags$h3("SiloPlacements Canvas + Table Browser"),
     browser_siloplacements_ui("test")
   )
 
