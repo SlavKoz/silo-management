@@ -16,37 +16,16 @@ browser_siloplacements_ui <- function(id) {
 
     # External JavaScript (with cache-busting timestamp)
     tags$head(
-      tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
+      tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S"))),
+      tags$style(HTML("
+        .ui.dropdown,
+        .ui.dropdown .text,
+        .ui.dropdown .menu .item {
+          font-size: 13px;
+        }
+      "))
     ),
 
-    # Prevent Fomantic UI from hijacking Shiny selectize dropdowns
-    # Run IMMEDIATELY (not on document.ready) to block Fomantic before it initializes
-    tags$script(HTML("
-      (function() {
-        console.log('[Placements] Installing Fomantic blocker IMMEDIATELY');
-
-        // Disable Fomantic's automatic dropdown initialization globally
-        if (typeof $.fn !== 'undefined' && typeof $.fn.dropdown !== 'undefined') {
-          var originalDropdown = $.fn.dropdown;
-
-          $.fn.dropdown = function(options) {
-            // ALWAYS skip <select> elements - let Shiny handle them
-            if ($(this).is('select')) {
-              console.log('[Placements] Blocking Fomantic from <select>');
-              return this;
-            }
-            // Allow Fomantic for non-select elements (ui buttons, etc.)
-            return originalDropdown.call(this, options);
-          };
-
-          console.log('[Placements] Fomantic blocker installed');
-        } else {
-          console.warn('[Placements] Fomantic not loaded yet, will retry');
-          // Retry after a short delay if Fomantic hasn't loaded
-          setTimeout(arguments.callee, 50);
-        }
-      })();
-    ")),
 
     # Canvas-specific inline styles (canvas ID needs namespace)
     tags$style(HTML(sprintf("
@@ -68,9 +47,9 @@ browser_siloplacements_ui <- function(id) {
         div(
           class = "toolbar-grid",
 
-          # Column 1: Add Layout button
-          actionButton(
-            ns("add_new_layout_btn"), "Add New", class = "btn-sm btn-primary",
+          # Column 1: Add Layout button (Fomantic native)
+          shiny.semantic::action_button(
+            ns("add_new_layout_btn"), "Add New", class = "primary",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
@@ -83,13 +62,16 @@ browser_siloplacements_ui <- function(id) {
           # Column 3: Layout selector (or action input for new layout)
           div(
             style = "position: relative;",
-            # Select input (visible by default)
+            # Select input (visible by default) - Fomantic dropdown
             div(
               id = ns("select_container"),
               style = "display: block;",
-              shiny::selectInput(
-                ns("layout_id"), label = NULL, choices = c(), width = "100%",
-                selectize = TRUE
+              shiny.semantic::dropdown_input(
+                ns("layout_id"),
+                choices = c("Loading..."),
+                choices_value = c(""),
+                value = "",
+                type = "selection fluid"
               )
             ),
             # Fomantic-style action input (hidden by default)
@@ -116,26 +98,37 @@ browser_siloplacements_ui <- function(id) {
             style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right;"
           ),
 
-          # Column 5: Site selector
-          shiny::selectInput(
-            ns("layout_site_id"), label = NULL, choices = c(), width = "100%",
-            selectize = TRUE
+          # Column 5: Site selector (Fomantic native)
+          shiny.semantic::dropdown_input(
+            ns("layout_site_id"),
+            choices = c("Loading..."),
+            choices_value = c(""),
+            value = "",
+            type = "selection fluid"
           ),
 
-          # Column 6: Save Layout button
-          actionButton(ns("save_bg_settings"), "Save Layout", icon = icon("save"), class = "btn-sm btn-success",
-                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
+          # Column 6: Save Layout button (Fomantic native)
+          tags$button(
+            id = ns("save_bg_settings"),
+            list(icon("save"), "Save Layout"),
+            class = "ui labeled icon button positive",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
 
-          # Column 7: Backgrounds button
-          actionButton(ns("toggle_bg_controls"), "Backgrounds", icon = icon("chevron-up"), class = "btn-sm btn-secondary",
-                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
+          # Column 7: Backgrounds button (Fomantic native)
+          tags$button(
+            id = ns("toggle_bg_controls"),
+            list("Backgrounds", icon("chevron up")),
+            class = "ui right labeled icon button",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
 
           # Column 8: Empty spacer
           div(),
 
-          # Column 9: Delete button (far right)
-          actionButton(
-            ns("delete_layout_btn"), "Delete", class = "btn-sm btn-danger",
+          # Column 9: Delete button (far right, Fomantic native)
+          shiny.semantic::action_button(
+            ns("delete_layout_btn"), "Delete", class = "negative",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           )
         ),
@@ -491,9 +484,11 @@ browser_siloplacements_ui <- function(id) {
 }
 
 # ========================== SERVER ============================================
-browser_siloplacements_server <- function(id, pool, route = NULL) {
+browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout_id = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    cat("[DEBUG] Server started with initial_layout_id:", initial_layout_id, "\n")
 
     notify_error <- function(prefix, e, duration = NULL) {
       message(sprintf("[siloplacements] %s: %s", prefix, conditionMessage(e)))
@@ -526,7 +521,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     selected_placement_id <- reactiveVal(NULL)
     pending_placement <- reactiveVal(NULL)  # Store pending placement data before DB insert
     canvas_shapes <- reactiveVal(list())
-    current_layout_id <- reactiveVal(1)  # Default to layout 1
+    current_layout_id <- reactiveVal(initial_layout_id)  # Set from parameter
+    cat("[DEBUG] current_layout_id initialized to:", initial_layout_id, "\n")
     background_image <- reactiveVal(NULL)
     layouts_refresh <- reactiveVal(0)  # Trigger to refresh layouts list
     bg_offset <- reactiveVal(list(x = 0, y = 0))  # Track current background offset from pan mode
@@ -626,8 +622,13 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # ---- Load layouts ----
     layouts_data <- reactive({
       layouts_refresh()  # Depend on refresh trigger
-      df <- try(list_canvas_layouts(limit = 100), silent = TRUE)
-      if (inherits(df, "try-error") || is.null(df)) return(data.frame())
+      cat("[DEBUG] layouts_data reactive triggered\n")
+      df <- try(list_canvas_layouts(limit = 100), silent = FALSE)  # Show errors
+      if (inherits(df, "try-error") || is.null(df)) {
+        cat("[ERROR] layouts_data failed\n")
+        return(data.frame())
+      }
+      cat("[DEBUG] layouts_data returned", nrow(df), "rows\n")
       df
     })
 
@@ -638,20 +639,30 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       req(length(route()) > 0 && route()[1] == "placements")
 
       layouts <- layouts_data()
+      cat("[DEBUG] Populate layouts observe triggered\n")
+      cat("[DEBUG] Layouts rows:", nrow(layouts), "\n")
 
       if (nrow(layouts) > 0) {
-        choices <- setNames(layouts$LayoutID, layouts$LayoutName)
-
-        # Use isolate to read current_layout_id without creating a dependency
+        # Real data from database
         current_id <- isolate(current_layout_id())
-        selected_val <- if (!is.null(current_id) && !is.na(current_id) &&
-                           as.character(current_id) %in% choices) {
-          as.character(current_id)
-        } else {
-          as.character(layouts$LayoutID[1])
-        }
 
-        updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
+        cat("[DEBUG] current_layout_id:", current_id, "\n")
+        cat("[DEBUG] Layout choices:", paste(layouts$LayoutName, collapse=", "), "\n")
+        cat("[DEBUG] Layout IDs:", paste(layouts$LayoutID, collapse=", "), "\n")
+
+        tryCatch({
+          shiny.semantic::update_dropdown_input(
+            session,
+            input_id = "layout_id",
+            choices = layouts$LayoutName,
+            choices_value = layouts$LayoutID,
+            value = current_id
+          )
+          cat("[DEBUG] update_dropdown_input completed successfully\n")
+        }, error = function(e) {
+          cat("[ERROR] update_dropdown_input failed:", e$message, "\n")
+          print(e)
+        })
       }
     })
 
@@ -752,7 +763,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Clear current layout and refresh dropdown                           # ADDED
       current_layout_id(NULL)                                               # ADDED
       layouts_refresh(layouts_refresh() + 1)                                # ADDED
-      updateSelectInput(session, "layout_id", selected = "")
+      shiny.semantic::update_dropdown_input(session, "layout_id", value = "")
       
       # Make sure we are in select mode, not text mode                      # ADDED
       shinyjs::hide("text_container")                                       # ADDED
@@ -763,11 +774,15 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # Handle layout selection from dropdown
     observeEvent(input$layout_id, {
       selected_value <- input$layout_id
+      cat("[DEBUG] input$layout_id changed to:", selected_value, "type:", class(selected_value), "\n")
 
       if (!is.null(selected_value) && selected_value != "") {
+        cat("[DEBUG] Setting current_layout_id to:", as.integer(selected_value), "\n")
         current_layout_id(as.integer(selected_value))
         # Reset initial load flag so new layout's area is populated
         initial_load_complete(FALSE)
+      } else {
+        cat("[DEBUG] Skipped setting current_layout_id - value is null or empty\n")
       }
     }, ignoreInit = TRUE)
 
@@ -834,11 +849,21 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       req(length(route()) > 0 && route()[1] == "placements")
 
       sites <- sites_data()
-      choices <- c("(None)" = "")
+      # Real data from database
       if (nrow(sites) > 0) {
-        choices <- c(choices, setNames(sites$SiteID, paste0(sites$SiteCode, " - ", sites$SiteName)))
+        site_labels <- paste0(sites$SiteCode, " - ", sites$SiteName)
+        cat("[DEBUG] Site choices:", paste(site_labels, collapse=", "), "\n")
+        cat("[DEBUG] Site IDs:", paste(sites$SiteID, collapse=", "), "\n")
+
+        shiny.semantic::update_dropdown_input(
+          session,
+          input_id = "layout_site_id",
+          choices = site_labels,
+          choices_value = sites$SiteID
+        )
+      } else {
+        cat("[DEBUG] No sites available\n")
       }
-      updateSelectInput(session, "layout_site_id", choices = choices)
     })
 
     # Populate areas dropdown for background selector
@@ -926,7 +951,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       # Update site selection
       site_id <- if (is.null(layout$SiteID) || is.na(layout$SiteID)) "" else as.character(layout$SiteID)
-      updateSelectInput(session, "layout_site_id", selected = site_id)
+      cat("[DEBUG] Setting site dropdown to site_id:", site_id, "for layout:", layout$LayoutID, "\n")
+      shiny.semantic::update_dropdown_input(session, "layout_site_id", value = site_id)
 
       # Update background rotation control
       bg_rot <- f_or(layout$BackgroundRotation, 0)
@@ -1696,7 +1722,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
       source <- selection_source()
 
-      if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout)) return()
+      if (is.null(show_inactive) || is.null(search_all) || is.null(current_layout) || is.na(current_layout) || current_layout == "") return()
 
       # Get all silos with optional placement info
       query <- paste0("
@@ -3162,17 +3188,34 @@ run_siloplacements_canvas_test <- function() {
     source("R/react_table/mod_html_form.R", local = TRUE)
   }
 
-  ui <- fluidPage(
+  # Respect the same semantic wrapper as the main app when available so the
+  # browser can be tested with the full Fomantic dependency stack.
+  page_wrapper <- if (exists("semantic_page", inherits = TRUE)) {
+    semantic_page
+  } else if (requireNamespace("shiny.semantic", quietly = TRUE)) {
+    shiny.semantic::semanticPage
+  } else {
+    shiny::fluidPage
+  }
+
+  ui <- page_wrapper(
     title = "SiloPlacements Canvas Test",
     tags$head(
-      tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
+      tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S"))),
+      tags$style(HTML("
+        .ui.dropdown,
+        .ui.dropdown .text,
+        .ui.dropdown .menu .item {
+          font-size: 13px;
+        }
+      "))
     ),
-    browser_siloplacements_ui("test")
+    div(class = "ui container", browser_siloplacements_ui("test"))
   )
 
   server <- function(input, output, session) {
     # Use "placements" as route to match the route checks in observe blocks
-    browser_siloplacements_server("test", pool = db_pool(), route = reactive(c("placements")))
+    browser_siloplacements_server("test", pool = db_pool(), route = reactive(c("placements")), initial_layout_id = 1)
   }
 
   cat("\n=== Launching SiloPlacements Canvas Test ===\n")

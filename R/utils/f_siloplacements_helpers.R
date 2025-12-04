@@ -94,6 +94,11 @@ build_canvas_shapes <- function(placements, silos, templates) {
 #'
 #' @return List with choices (named vector) and all_silos (data frame)
 build_silo_dropdown_choices <- function(current_layout_id, show_inactive = FALSE, search_all = FALSE, pool) {
+  # Validate current_layout_id to prevent SQL injection of NA
+  if (is.null(current_layout_id) || is.na(current_layout_id) || current_layout_id == "") {
+    return(list(choices = c(), all_silos = data.frame()))
+  }
+
   # Get all silos with optional placement info
   query <- paste0("
     SELECT
