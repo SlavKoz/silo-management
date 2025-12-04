@@ -14,6 +14,11 @@ browser_siloplacements_ui <- function(id) {
     # External CSS
     tags$link(rel = "stylesheet", href = "css/f_siloplacements.css"),
 
+    # External JavaScript (with cache-busting timestamp)
+    tags$head(
+      tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
+    ),
+
     # Canvas-specific inline styles (canvas ID needs namespace)
     tags$style(HTML(sprintf("
       #%s {
@@ -599,6 +604,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate layout dropdown
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       layouts <- layouts_data()
 
       if (nrow(layouts) > 0) {
@@ -770,6 +779,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate canvas dropdown
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       canvases <- canvases_data()
 
       # Preserve current selection
@@ -787,6 +800,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate sites dropdown
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       sites <- sites_data()
       choices <- c("(None)" = "")
       if (nrow(sites) > 0) {
@@ -797,6 +814,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate areas dropdown for background selector
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       areas <- areas_data()
       choices <- c()
       if (nrow(areas) > 0) {
@@ -855,6 +876,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     # Update UI when layout changes
     # Priority = -1 to ensure dropdown choices are populated first (default priority = 0)
     observe(priority = -1, {
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       layout <- current_layout()
 
       # Update canvas selection
@@ -901,6 +926,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # ---- Load background image when canvas selected ----
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       canvas_id <- input$canvas_id
       if (is.null(canvas_id) || canvas_id == "") {
         background_image(NULL)
@@ -1026,6 +1055,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate shape template dropdown
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       templates <- shape_templates_data()
       choices <- c("(select shape)" = "")
       if (nrow(templates) > 0) {
@@ -1094,6 +1127,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # ---- Convert placements to canvas shapes ----
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       placements <- raw_placements()
 
       if (!nrow(placements)) {
@@ -1613,6 +1650,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
 
     # Populate object selector dropdown based on filters
     observe({
+      # Only run when route is active and UI exists
+      req(route)
+      req(length(route()) > 0 && route()[1] == "placements")
+
       # Depend on canvas selection so the dropdown refreshes after clicks
       canvas_pid <- selected_placement_id()
 

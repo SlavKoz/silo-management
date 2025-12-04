@@ -1,5 +1,5 @@
 // www/js/f_siloplacements_canvas.js
-// Simple canvas renderer for SiloPlacements test
+// Simple canvas renderer for SiloPlacements (namespace-agnostic)
 
 (function() {
   'use strict';
@@ -7,9 +7,14 @@
   // Canvas state
   const canvases = new Map();
 
+  // Helper: build namespaced selector
+  function nsSelector(ns, id) {
+    return '#' + ns + '-' + id;
+  }
+
   // Centralized function to properly clear shape template selection (Selectize-aware)
-  function clearShapeTemplateSelection() {
-    const dropdown = $('#test-shape_template_id');
+  function clearShapeTemplateSelection(ns) {
+    const dropdown = $(nsSelector(ns, 'shape_template_id'));
 
     if (dropdown.length) {
       const selectize = dropdown[0].selectize;
@@ -20,7 +25,7 @@
       }
     }
 
-    Shiny.setInputValue('test-shape_template_id', '', {priority: 'event'});
+    Shiny.setInputValue(ns + '-shape_template_id', '', {priority: 'event'});
   }
 
   // Update cursor based on current state and zoom - ACTUAL SIZE PREVIEW
@@ -117,8 +122,10 @@
     state.canvas.style.cursor = `url('${url}') ${centerX} ${centerY}, crosshair`;
   }
 
-  // Initialize canvas when DOM ready
-  $(document).on('shiny:connected', function() {
+  // Canvas initialization function
+  function initializeCanvases() {
+    console.log('[Canvas] Starting canvas initialization...');
+
     // Find all canvas elements
     $('canvas[id$="-canvas"]').each(function() {
       const canvas = this;
@@ -127,6 +134,8 @@
 
       // Get namespace (remove -canvas suffix)
       const ns = canvasId.replace(/-canvas$/, '');
+
+      console.log('[Canvas] Initializing canvas with namespace:', ns);
 
       // Initialize state
       const state = {
@@ -165,22 +174,469 @@
 
       // Set up event listeners
       setupCanvasEvents(canvas, state);
+
+      // Register message handlers for THIS namespace
+      registerMessageHandlers(ns, canvasId, state);
     });
 
-    // Global ESC key handler to deselect shape template
+    // Global ESC key handler to deselect shape template (works for all namespaces)
     $(document).on('keydown', function(e) {
       if (e.key === 'Escape') {
-        console.log('[Cursor] ESC pressed - clearing shape selection');
+        console.log('[Cursor] ESC pressed - clearing shape selections');
 
-        // Blur dropdown and move focus
-        $('#test-shape_template_id').blur();
-        $('#test-edit_mode_toggle').focus();
+        // Clear all active canvases
+        canvases.forEach((state, canvasId) => {
+          const ns = state.ns;
 
-        // Clear selection using centralized function (Selectize-aware)
-        clearShapeTemplateSelection();
+          // Blur dropdown and move focus
+          $(nsSelector(ns, 'shape_template_id')).blur();
+          $(nsSelector(ns, 'edit_mode_toggle')).focus();
+
+          // Clear selection using centralized function (Selectize-aware)
+          clearShapeTemplateSelection(ns);
+        });
       }
     });
-  });
+  }
+
+  // Initialize immediately if Shiny already connected, otherwise wait for event
+  if (typeof Shiny !== 'undefined' && Shiny.shinyapp) {
+    console.log('[Canvas] Shiny already connected, initializing immediately...');
+    $(function() { initializeCanvases(); });
+  } else {
+    console.log('[Canvas] Waiting for shiny:connected event...');
+    $(document).on('shiny:connected', initializeCanvases);
+  }
+
+  // Register all Shiny message handlers for a specific namespace
+  function registerMessageHandlers(ns, canvasId, state) {
+    console.log('[Canvas] Registering message handlers for namespace:', ns);
+
+    // Custom message handler: set canvas data
+    Shiny.addCustomMessageHandler(ns + '-root:setData', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        console.warn('[Canvas] State not found for:', canvasId);
+        return;
+      }
+
+      state.shapes = message.data || [];
+
+      // Store selection ID for highlighting
+      if ('selectedId' in message) {
+        state.selectedId = message.selectedId || null;
+      }
+
+      render(state);
+
+      // Auto-fit if requested
+      if (message.autoFit && state.shapes.length > 0) {
+        setTimeout(function() {
+          fitView(state);
+        }, 50);
+      }
+    });
+
+    // Custom message handler: set edit mode
+    Shiny.addCustomMessageHandler(ns + '-root:setEditMode', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      state.editMode = message.on;
+
+      // When turning OFF edit mode, clear shape template
+      if (!message.on) {
+        console.log('[Cursor] Edit mode OFF - clearing shape selection');
+
+        // Blur dropdown and move focus
+        $(nsSelector(ns, 'shape_template_id')).blur();
+        $(nsSelector(ns, 'edit_mode_toggle')).focus();
+
+        // Clear selection using centralized function (Selectize-aware)
+        clearShapeTemplateSelection(ns);
+      }
+
+      // Update cursor - will be handled by R observer responding to cleared dropdown
+      if (!state.selectedShapeTemplate) {
+        updateShapeCursor(state);
+      }
+    });
+
+    // Custom message handler: set snap grid
+    Shiny.addCustomMessageHandler(ns + '-root:setSnap', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      state.snapGrid = message.units || 0;
+      render(state);
+    });
+
+    // Custom message handler: fit view
+    Shiny.addCustomMessageHandler(ns + '-root:fitView', function(message) {
+      const state = canvases.get(canvasId);
+      if (state) {
+        fitView(state);
+      }
+    });
+
+    // Custom message handler: center on shape
+    Shiny.addCustomMessageHandler(ns + '-root:centerOnShape', function(message) {
+      const state = canvases.get(canvasId);
+      if (!state) return;
+
+      const centerX = message.x;
+      const centerY = message.y;
+
+      // Center the view on the specified coordinates
+      state.panX = state.canvas.width / 2 - centerX * state.zoom;
+      state.panY = state.canvas.height / 2 - centerY * state.zoom;
+
+      render(state);
+      updateShapeCursor(state);
+    });
+
+    // Custom message handler: set background image
+    Shiny.addCustomMessageHandler(ns + '-root:setBackground', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      if (!message.image) {
+        state.backgroundImage = null;
+        state.backgroundLoaded = false;
+        render(state);
+        return;
+      }
+
+      // Load the image
+      const img = new Image();
+      img.onload = function() {
+        state.backgroundImage = img;
+        state.backgroundLoaded = true;
+        render(state);
+      };
+      img.onerror = function() {
+        console.error('[Canvas] Failed to load background image');
+        state.backgroundImage = null;
+        state.backgroundLoaded = false;
+      };
+      img.src = message.image;
+    });
+
+    // Custom message handler: set rotation
+    Shiny.addCustomMessageHandler(ns + '-root:setRotation', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      state.rotation = message.angle || 0;
+      render(state);
+    });
+
+    // Custom message handler: set background scale
+    Shiny.addCustomMessageHandler(ns + '-root:setBackgroundScale', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      state.backgroundScale = message.scale || 1;
+      render(state);
+    });
+
+    // Custom message handler: set background offset
+    Shiny.addCustomMessageHandler(ns + '-root:setBackgroundOffset', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      state.backgroundOffsetX = message.x || 0;
+      state.backgroundOffsetY = message.y || 0;
+      render(state);
+    });
+
+    // Custom message handler: set background pan mode
+    Shiny.addCustomMessageHandler(ns + '-root:setBackgroundPanMode', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      state.backgroundPanMode = message.on || false;
+      state.canvas.style.cursor = state.backgroundPanMode ? 'move' : 'grab';
+    });
+
+    // Custom message handler: set background visibility
+    Shiny.addCustomMessageHandler(ns + '-root:setBackgroundVisible', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) return;
+
+      state.backgroundVisible = message.visible !== false;
+      render(state);  // Redraw canvas
+    });
+
+    // Custom message handler: zoom
+    Shiny.addCustomMessageHandler(ns + '-root:setZoom', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        return;
+      }
+
+      const direction = message.direction; // 'in' or 'out'
+      const factor = direction === 'in' ? 1.2 : 0.8;
+
+      // Zoom towards center
+      const centerX = state.canvas.width / 2;
+      const centerY = state.canvas.height / 2;
+      const newZoom = Math.max(0.1, Math.min(5, state.zoom * factor));
+
+      state.panX = centerX - (centerX - state.panX) * (newZoom / state.zoom);
+      state.panY = centerY - (centerY - state.panY) * (newZoom / state.zoom);
+      state.zoom = newZoom;
+
+      render(state);
+      updateShapeCursor(state); // Update cursor size with new zoom
+    });
+
+    // Custom message handler: set shape cursor
+    Shiny.addCustomMessageHandler(ns + '-root:setShapeCursor', function(message) {
+      console.log('[Cursor] Received setShapeCursor message:', message);
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        console.warn('[Cursor] Canvas state not found');
+        return;
+      }
+
+      if (message.shapeType === 'default') {
+        console.log('[Cursor] Setting to default cursor');
+        state.selectedShapeTemplate = null;
+      } else {
+        console.log('[Cursor] Setting shape template:', message.shapeType);
+        state.selectedShapeTemplate = message;
+      }
+
+      updateShapeCursor(state);
+    });
+
+    // Set temporary shape (shown with dotted border before saving)
+    Shiny.addCustomMessageHandler(ns + '-root:setTempShape', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        return;
+      }
+
+      state.tempShape = message.shape;
+      render(state);
+    });
+
+    // Clear temporary shape
+    Shiny.addCustomMessageHandler(ns + '-root:clearTempShape', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        return;
+      }
+
+      state.tempShape = null;
+      render(state);
+    });
+
+    // Open panel in edit mode for new placement
+    Shiny.addCustomMessageHandler(ns + '-root:openPanelInEditMode', function(message) {
+      const rootId = message.rootId;
+      const formId = message.formId;
+      const formIdJs = message.formIdJs;
+
+      // Open the panel
+      const toggleFn = window['togglePanel_' + rootId];
+      if (toggleFn) {
+        toggleFn(true);
+      } else {
+        return;
+      }
+
+      // Wait for DOM to settle after panel opens
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // The actual form container has "-form" appended
+          const formContainerId = formId + '-form';
+          const editBtnId = formId + '-field_edit_btn';
+          const deleteBtnId = formId + '-field_delete_btn';
+
+          console.log('Looking for edit button:', editBtnId);
+          console.log('Looking for delete button:', deleteBtnId);
+
+          const editBtn = document.getElementById(editBtnId);
+          const deleteBtn = document.getElementById(deleteBtnId);
+
+          console.log('Edit button found:', !!editBtn);
+          console.log('Delete button found:', !!deleteBtn);
+
+          if (editBtn) {
+            console.log('Edit button classes BEFORE:', editBtn.className);
+          }
+
+          // Toggle edit mode - function name is based on the form container ID
+          const formContainerIdJs = formIdJs + '_form';
+          const toggleEditFn = window['toggleEditMode_' + formContainerIdJs];
+
+          console.log('Looking for function:', 'toggleEditMode_' + formContainerIdJs);
+          console.log('Function found:', !!toggleEditFn);
+
+          if (toggleEditFn && editBtn) {
+            // Only toggle if button is NOT already in editing mode
+            const isEditing = editBtn.classList.contains('editing');
+            console.log('Button already in editing mode:', isEditing);
+
+            // Check form container BEFORE
+            const formContainer = document.getElementById(formContainerId);
+            if (formContainer) {
+              console.log('Form container classes BEFORE:', formContainer.className);
+            }
+
+            if (!isEditing) {
+              toggleEditFn(editBtn);
+              console.log('Edit mode toggled to ON');
+
+              // Check if it actually changed
+              setTimeout(() => {
+                console.log('Edit button classes AFTER (100ms):', editBtn.className);
+                const stillEditing = editBtn.classList.contains('editing');
+                console.log('Still in editing mode:', stillEditing);
+
+                // Check form container AFTER
+                if (formContainer) {
+                  console.log('Form container classes AFTER (100ms):', formContainer.className);
+                  const hasEditMode = formContainer.classList.contains('edit-mode');
+                  console.log('Form has edit-mode class:', hasEditMode);
+
+                  // Check if inputs are enabled
+                  const inputs = formContainer.querySelectorAll('input:not([type="hidden"])');
+                  const selects = formContainer.querySelectorAll('select');
+                  console.log('Sample input disabled?', inputs[0]?.disabled, 'readonly?', inputs[0]?.readOnly);
+                  console.log('Sample select disabled?', selects[0]?.disabled, 'readonly?', selects[0]?.readOnly);
+                }
+              }, 100);
+            } else {
+              console.log('Already in edit mode, skipping toggle');
+            }
+          }
+
+          // Change delete button text to Reset
+          if (deleteBtn) {
+            const deleteBtnSpan = deleteBtn.querySelector('span');
+            if (deleteBtnSpan) {
+              console.log('Delete button span text BEFORE:', deleteBtnSpan.textContent);
+              deleteBtnSpan.textContent = ' Reset';
+              console.log('Delete button span text AFTER:', deleteBtnSpan.textContent);
+
+              // Check if it persists
+              setTimeout(() => {
+                console.log('Delete button span text (100ms later):', deleteBtnSpan.textContent);
+              }, 100);
+            } else {
+              deleteBtn.textContent = ' Reset';
+              console.log('Button text changed to Reset (direct)');
+            }
+          }
+        });
+      });
+    });
+
+    // Update a single shape on the canvas
+    Shiny.addCustomMessageHandler(ns + '-root:updateShape', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        console.warn('[Canvas] State not found for:', canvasId);
+        return;
+      }
+
+      const updatedShape = message.shape;
+      if (!updatedShape || !updatedShape.id) {
+        console.warn('[Canvas] Invalid shape data:', message);
+        return;
+      }
+
+      // Find the shape by ID and update it
+      const shapeIndex = state.shapes.findIndex(s => s.id === updatedShape.id);
+      if (shapeIndex === -1) {
+        console.warn('[Canvas] Shape not found with ID:', updatedShape.id);
+        return;
+      }
+
+      console.log('[Canvas] Updating shape:', updatedShape.id, 'from', state.shapes[shapeIndex].type, 'to', updatedShape.type);
+
+      // Replace the shape with the updated one
+      state.shapes[shapeIndex] = updatedShape;
+
+      // Re-render canvas
+      render(state);
+    });
+
+    // Set move mode for a shape (applies dotted border)
+    Shiny.addCustomMessageHandler(ns + '-root:setMoveMode', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        console.warn('[Canvas] State not found for:', canvasId);
+        return;
+      }
+
+      const shapeId = message.shapeId;
+      const enabled = message.enabled;
+
+      // Find the shape
+      const shape = state.shapes.find(s => s.id === shapeId);
+      if (!shape) {
+        console.warn('[Canvas] Shape not found with ID:', shapeId);
+        return;
+      }
+
+      // Mark shape as being in move mode
+      shape.moveMode = enabled;
+
+      render(state);
+    });
+
+    // Update move position for a shape during move mode
+    Shiny.addCustomMessageHandler(ns + '-root:updateMovePosition', function(message) {
+      const state = canvases.get(canvasId);
+
+      if (!state) {
+        console.warn('[Canvas] State not found for:', canvasId);
+        return;
+      }
+
+      const shapeId = message.shapeId;
+      const x = message.x;
+      const y = message.y;
+
+      // Find the shape
+      const shape = state.shapes.find(s => s.id === shapeId);
+      if (!shape) {
+        console.warn('[Canvas] Shape not found with ID:', shapeId);
+        return;
+      }
+
+      // Update position based on shape type
+      if (shape.type === 'circle' || shape.type === 'triangle') {
+        shape.x = x;
+        shape.y = y;
+      } else if (shape.type === 'rect') {
+        // For rectangles, x,y is top-left, but we store center in DB
+        shape.x = x - shape.w / 2;
+        shape.y = y - shape.h / 2;
+      }
+
+      render(state);
+    });
+  }
 
   // Set up canvas event handlers
   function setupCanvasEvents(canvas, state) {
@@ -669,71 +1125,6 @@
     ctx.restore();
   }
 
-  // Custom message handler: set canvas data
-  Shiny.addCustomMessageHandler('test-root:setData', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      console.warn('[Canvas] State not found for:', canvasId);
-      return;
-    }
-
-    state.shapes = message.data || [];
-
-    // Store selection ID for highlighting
-    if ('selectedId' in message) {
-      state.selectedId = message.selectedId || null;
-    }
-
-    render(state);
-
-    // Auto-fit if requested
-    if (message.autoFit && state.shapes.length > 0) {
-      setTimeout(function() {
-        fitView(state);
-      }, 50);
-    }
-  });
-
-  // Custom message handler: set edit mode
-  Shiny.addCustomMessageHandler('test-root:setEditMode', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    state.editMode = message.on;
-
-    // When turning OFF edit mode, clear shape template
-    if (!message.on) {
-      console.log('[Cursor] Edit mode OFF - clearing shape selection');
-
-      // Blur dropdown and move focus
-      $('#test-shape_template_id').blur();
-      $('#test-edit_mode_toggle').focus();
-
-      // Clear selection using centralized function (Selectize-aware)
-      clearShapeTemplateSelection();
-    }
-
-    // Update cursor - will be handled by R observer responding to cleared dropdown
-    if (!state.selectedShapeTemplate) {
-      updateShapeCursor(state);
-    }
-  });
-
-  // Custom message handler: set snap grid
-  Shiny.addCustomMessageHandler('test-root:setSnap', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    state.snapGrid = message.units || 0;
-    render(state);
-  });
-
   // Fit view function
   function fitView(state) {
     if (!state || state.shapes.length === 0) return;
@@ -772,383 +1163,5 @@
     render(state);
     updateShapeCursor(state); // Update cursor size with new zoom
   }
-
-  // Custom message handler: fit view
-  Shiny.addCustomMessageHandler('test-root:fitView', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-    if (state) {
-      fitView(state);
-    }
-  });
-
-  // Custom message handler: center on shape
-  Shiny.addCustomMessageHandler('test-root:centerOnShape', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-    if (!state) return;
-
-    const centerX = message.x;
-    const centerY = message.y;
-
-    // Center the view on the specified coordinates
-    state.panX = state.canvas.width / 2 - centerX * state.zoom;
-    state.panY = state.canvas.height / 2 - centerY * state.zoom;
-
-    render(state);
-    updateShapeCursor(state);
-  });
-
-  // Custom message handler: set background image
-  Shiny.addCustomMessageHandler('test-root:setBackground', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    if (!message.image) {
-      state.backgroundImage = null;
-      state.backgroundLoaded = false;
-      render(state);
-      return;
-    }
-
-    // Load the image
-    const img = new Image();
-    img.onload = function() {
-      state.backgroundImage = img;
-      state.backgroundLoaded = true;
-      render(state);
-    };
-    img.onerror = function() {
-      console.error('[Canvas] Failed to load background image');
-      state.backgroundImage = null;
-      state.backgroundLoaded = false;
-    };
-    img.src = message.image;
-  });
-
-  // Custom message handler: set rotation
-  Shiny.addCustomMessageHandler('test-root:setRotation', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    state.rotation = message.angle || 0;
-    render(state);
-  });
-
-  // Custom message handler: set background scale
-  Shiny.addCustomMessageHandler('test-root:setBackgroundScale', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    state.backgroundScale = message.scale || 1;
-    render(state);
-  });
-
-  // Custom message handler: set background offset
-  Shiny.addCustomMessageHandler('test-root:setBackgroundOffset', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    state.backgroundOffsetX = message.x || 0;
-    state.backgroundOffsetY = message.y || 0;
-    render(state);
-  });
-
-  // Custom message handler: set background pan mode
-  Shiny.addCustomMessageHandler('test-root:setBackgroundPanMode', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    state.backgroundPanMode = message.on || false;
-    state.canvas.style.cursor = state.backgroundPanMode ? 'move' : 'grab';
-  });
-
-  // Custom message handler: set background visibility
-  Shiny.addCustomMessageHandler('test-root:setBackgroundVisible', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) return;
-
-    state.backgroundVisible = message.visible !== false;
-    render(state);  // Redraw canvas
-  });
-
-  // Custom message handler: zoom
-  Shiny.addCustomMessageHandler('test-root:setZoom', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      return;
-    }
-
-    const direction = message.direction; // 'in' or 'out'
-    const factor = direction === 'in' ? 1.2 : 0.8;
-
-    // Zoom towards center
-    const centerX = state.canvas.width / 2;
-    const centerY = state.canvas.height / 2;
-    const newZoom = Math.max(0.1, Math.min(5, state.zoom * factor));
-
-    state.panX = centerX - (centerX - state.panX) * (newZoom / state.zoom);
-    state.panY = centerY - (centerY - state.panY) * (newZoom / state.zoom);
-    state.zoom = newZoom;
-
-    render(state);
-    updateShapeCursor(state); // Update cursor size with new zoom
-  });
-
-  // Custom message handler: set shape cursor
-  Shiny.addCustomMessageHandler('test-root:setShapeCursor', function(message) {
-    console.log('[Cursor] Received setShapeCursor message:', message);
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      console.warn('[Cursor] Canvas state not found');
-      return;
-    }
-
-    if (message.shapeType === 'default') {
-      console.log('[Cursor] Setting to default cursor');
-      state.selectedShapeTemplate = null;
-    } else {
-      console.log('[Cursor] Setting shape template:', message.shapeType);
-      state.selectedShapeTemplate = message;
-    }
-
-    updateShapeCursor(state);
-  });
-
-  // Set temporary shape (shown with dotted border before saving)
-  Shiny.addCustomMessageHandler('test-root:setTempShape', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      return;
-    }
-
-    state.tempShape = message.shape;
-    render(state);
-  });
-
-  // Clear temporary shape
-  Shiny.addCustomMessageHandler('test-root:clearTempShape', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      return;
-    }
-
-    state.tempShape = null;
-    render(state);
-  });
-
-  // Open panel in edit mode for new placement
-  Shiny.addCustomMessageHandler('test-root:openPanelInEditMode', function(message) {
-    const rootId = message.rootId;
-    const formId = message.formId;
-    const formIdJs = message.formIdJs;
-
-    // Open the panel
-    const toggleFn = window['togglePanel_' + rootId];
-    if (toggleFn) {
-      toggleFn(true);
-    } else {
-      return;
-    }
-
-    // Wait for DOM to settle after panel opens
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        // The actual form container has "-form" appended
-        const formContainerId = formId + '-form';
-        const editBtnId = formId + '-field_edit_btn';
-        const deleteBtnId = formId + '-field_delete_btn';
-
-        console.log('Looking for edit button:', editBtnId);
-        console.log('Looking for delete button:', deleteBtnId);
-
-        const editBtn = document.getElementById(editBtnId);
-        const deleteBtn = document.getElementById(deleteBtnId);
-
-        console.log('Edit button found:', !!editBtn);
-        console.log('Delete button found:', !!deleteBtn);
-
-        if (editBtn) {
-          console.log('Edit button classes BEFORE:', editBtn.className);
-        }
-
-        // Toggle edit mode - function name is based on the form container ID
-        const formContainerIdJs = formIdJs + '_form';
-        const toggleEditFn = window['toggleEditMode_' + formContainerIdJs];
-
-        console.log('Looking for function:', 'toggleEditMode_' + formContainerIdJs);
-        console.log('Function found:', !!toggleEditFn);
-
-        if (toggleEditFn && editBtn) {
-          // Only toggle if button is NOT already in editing mode
-          const isEditing = editBtn.classList.contains('editing');
-          console.log('Button already in editing mode:', isEditing);
-
-          // Check form container BEFORE
-          const formContainer = document.getElementById(formContainerId);
-          if (formContainer) {
-            console.log('Form container classes BEFORE:', formContainer.className);
-          }
-
-          if (!isEditing) {
-            toggleEditFn(editBtn);
-            console.log('Edit mode toggled to ON');
-
-            // Check if it actually changed
-            setTimeout(() => {
-              console.log('Edit button classes AFTER (100ms):', editBtn.className);
-              const stillEditing = editBtn.classList.contains('editing');
-              console.log('Still in editing mode:', stillEditing);
-
-              // Check form container AFTER
-              if (formContainer) {
-                console.log('Form container classes AFTER (100ms):', formContainer.className);
-                const hasEditMode = formContainer.classList.contains('edit-mode');
-                console.log('Form has edit-mode class:', hasEditMode);
-
-                // Check if inputs are enabled
-                const inputs = formContainer.querySelectorAll('input:not([type="hidden"])');
-                const selects = formContainer.querySelectorAll('select');
-                console.log('Sample input disabled?', inputs[0]?.disabled, 'readonly?', inputs[0]?.readOnly);
-                console.log('Sample select disabled?', selects[0]?.disabled, 'readonly?', selects[0]?.readOnly);
-              }
-            }, 100);
-          } else {
-            console.log('Already in edit mode, skipping toggle');
-          }
-        }
-
-        // Change delete button text to Reset
-        if (deleteBtn) {
-          const deleteBtnSpan = deleteBtn.querySelector('span');
-          if (deleteBtnSpan) {
-            console.log('Delete button span text BEFORE:', deleteBtnSpan.textContent);
-            deleteBtnSpan.textContent = ' Reset';
-            console.log('Delete button span text AFTER:', deleteBtnSpan.textContent);
-
-            // Check if it persists
-            setTimeout(() => {
-              console.log('Delete button span text (100ms later):', deleteBtnSpan.textContent);
-            }, 100);
-          } else {
-            deleteBtn.textContent = ' Reset';
-            console.log('Button text changed to Reset (direct)');
-          }
-        }
-      });
-    });
-  });
-
-  // Update a single shape on the canvas
-  Shiny.addCustomMessageHandler('test-root:updateShape', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      console.warn('[Canvas] State not found for:', canvasId);
-      return;
-    }
-
-    const updatedShape = message.shape;
-    if (!updatedShape || !updatedShape.id) {
-      console.warn('[Canvas] Invalid shape data:', message);
-      return;
-    }
-
-    // Find the shape by ID and update it
-    const shapeIndex = state.shapes.findIndex(s => s.id === updatedShape.id);
-    if (shapeIndex === -1) {
-      console.warn('[Canvas] Shape not found with ID:', updatedShape.id);
-      return;
-    }
-
-    console.log('[Canvas] Updating shape:', updatedShape.id, 'from', state.shapes[shapeIndex].type, 'to', updatedShape.type);
-
-    // Replace the shape with the updated one
-    state.shapes[shapeIndex] = updatedShape;
-
-    // Re-render canvas
-    render(state);
-  });
-
-  // Set move mode for a shape (applies dotted border)
-  Shiny.addCustomMessageHandler('test-root:setMoveMode', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      console.warn('[Canvas] State not found for:', canvasId);
-      return;
-    }
-
-    const shapeId = message.shapeId;
-    const enabled = message.enabled;
-
-    // Find the shape
-    const shape = state.shapes.find(s => s.id === shapeId);
-    if (!shape) {
-      console.warn('[Canvas] Shape not found with ID:', shapeId);
-      return;
-    }
-
-    // Mark shape as being in move mode
-    shape.moveMode = enabled;
-
-    render(state);
-  });
-
-  // Update move position for a shape during move mode
-  Shiny.addCustomMessageHandler('test-root:updateMovePosition', function(message) {
-    const canvasId = 'test-canvas';
-    const state = canvases.get(canvasId);
-
-    if (!state) {
-      console.warn('[Canvas] State not found for:', canvasId);
-      return;
-    }
-
-    const shapeId = message.shapeId;
-    const x = message.x;
-    const y = message.y;
-
-    // Find the shape
-    const shape = state.shapes.find(s => s.id === shapeId);
-    if (!shape) {
-      console.warn('[Canvas] Shape not found with ID:', shapeId);
-      return;
-    }
-
-    // Update position based on shape type
-    if (shape.type === 'circle' || shape.type === 'triangle') {
-      shape.x = x;
-      shape.y = y;
-    } else if (shape.type === 'rect') {
-      // For rectangles, x,y is top-left, but we store center in DB
-      shape.x = x - shape.w / 2;
-      shape.y = y - shape.h / 2;
-    }
-
-    render(state);
-  });
 
 })();
