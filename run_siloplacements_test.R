@@ -1,8 +1,11 @@
 #!/usr/bin/env Rscript
 # Test runner for SiloPlacements Browser (modularized version)
 
+# TESTING: Re-enable shiny.semantic after fixing port issues
+# To confirm Fomantic is truly the cause, not stale sessions
+
 # Check packages
-required <- c("shiny", "shinyjs", "shinyalert")
+required <- c("shiny", "shinyjs", "shinyalert", "shiny.semantic")
 for (pkg in required) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     cat("Installing", pkg, "...\n")

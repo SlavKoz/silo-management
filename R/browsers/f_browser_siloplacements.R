@@ -19,6 +19,35 @@ browser_siloplacements_ui <- function(id) {
       tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
     ),
 
+    # Prevent Fomantic UI from hijacking Shiny selectize dropdowns
+    # Run IMMEDIATELY (not on document.ready) to block Fomantic before it initializes
+    tags$script(HTML("
+      (function() {
+        console.log('[Placements] Installing Fomantic blocker IMMEDIATELY');
+
+        // Disable Fomantic's automatic dropdown initialization globally
+        if (typeof $.fn !== 'undefined' && typeof $.fn.dropdown !== 'undefined') {
+          var originalDropdown = $.fn.dropdown;
+
+          $.fn.dropdown = function(options) {
+            // ALWAYS skip <select> elements - let Shiny handle them
+            if ($(this).is('select')) {
+              console.log('[Placements] Blocking Fomantic from <select>');
+              return this;
+            }
+            // Allow Fomantic for non-select elements (ui buttons, etc.)
+            return originalDropdown.call(this, options);
+          };
+
+          console.log('[Placements] Fomantic blocker installed');
+        } else {
+          console.warn('[Placements] Fomantic not loaded yet, will retry');
+          // Retry after a short delay if Fomantic hasn't loaded
+          setTimeout(arguments.callee, 50);
+        }
+      })();
+    ")),
+
     # Canvas-specific inline styles (canvas ID needs namespace)
     tags$style(HTML(sprintf("
       #%s {
@@ -723,7 +752,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Clear current layout and refresh dropdown                           # ADDED
       current_layout_id(NULL)                                               # ADDED
       layouts_refresh(layouts_refresh() + 1)                                # ADDED
-      updateSelectInput(session, "layout_id", selected = "")                # ADDED
+      updateSelectInput(session, "layout_id", selected = "")
       
       # Make sure we are in select mode, not text mode                      # ADDED
       shinyjs::hide("text_container")                                       # ADDED
