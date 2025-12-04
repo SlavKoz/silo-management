@@ -19,6 +19,7 @@ browser_siloplacements_ui <- function(id) {
       tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
     ),
 
+
     # Canvas-specific inline styles (canvas ID needs namespace)
     tags$style(HTML(sprintf("
       #%s {
@@ -608,6 +609,8 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
 
+      cat("[Placements] Populating layout dropdown, route:", paste(route(), collapse="/"), "\n")
+
       layouts <- layouts_data()
 
       if (nrow(layouts) > 0) {
@@ -622,7 +625,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
           as.character(layouts$LayoutID[1])
         }
 
+        cat("[Placements] Updating layout_id with", length(choices), "choices, selected:", selected_val, "\n")
         updateSelectInput(session, "layout_id", choices = choices, selected = selected_val)
+      } else {
+        cat("[Placements] No layouts found!\n")
       }
     })
 
@@ -783,6 +789,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
 
+
       canvases <- canvases_data()
 
       # Preserve current selection
@@ -804,11 +811,15 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
 
+
+      cat("[Placements] Populating sites dropdown\n")
+
       sites <- sites_data()
       choices <- c("(None)" = "")
       if (nrow(sites) > 0) {
         choices <- c(choices, setNames(sites$SiteID, paste0(sites$SiteCode, " - ", sites$SiteName)))
       }
+      cat("[Placements] Updating layout_site_id with", length(choices), "choices\n")
       updateSelectInput(session, "layout_site_id", choices = choices)
     })
 
@@ -817,6 +828,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Only run when route is active and UI exists
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
+
 
       areas <- areas_data()
       choices <- c()
@@ -879,6 +891,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Only run when route is active and UI exists
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
+
 
       layout <- current_layout()
 
@@ -1059,6 +1072,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
 
+
       templates <- shape_templates_data()
       choices <- c("(select shape)" = "")
       if (nrow(templates) > 0) {
@@ -1130,6 +1144,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Only run when route is active and UI exists
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
+
 
       placements <- raw_placements()
 
@@ -1653,6 +1668,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
       # Only run when route is active and UI exists
       req(route)
       req(length(route()) > 0 && route()[1] == "placements")
+
 
       # Depend on canvas selection so the dropdown refreshes after clicks
       canvas_pid <- selected_placement_id()
@@ -3114,44 +3130,4 @@ browser_siloplacements_server <- function(id, pool, route = NULL) {
     })
 
   })
-}
-
-# Standalone runner
-# Test runner (for standalone testing - not needed in main app)
-run_siloplacements_canvas_test <- function() {
-  library(shiny)
-
-  # Load DSL and queries
-  if (!exists("compile_rjsf")) {
-    cat("[Test] Loading modules...\n")
-    source("R/utils/f_helper_core.R", local = TRUE)
-    source("R/db/connect_wrappers.R", local = TRUE)
-    source("R/db/queries.R", local = TRUE)
-    source("R/react_table/react_table_dsl.R", local = TRUE)
-    source("R/react_table/react_table_auto.R", local = TRUE)
-    source("R/react_table/html_form_renderer.R", local = TRUE)
-    source("R/react_table/mod_html_form.R", local = TRUE)
-  }
-
-  ui <- fluidPage(
-    title = "SiloPlacements Canvas Test",
-    tags$head(
-      tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S")))
-    ),
-    browser_siloplacements_ui("test")
-  )
-
-  server <- function(input, output, session) {
-    # Use "placements" as route to match the route checks in observe blocks
-    browser_siloplacements_server("test", pool = db_pool(), route = reactive(c("placements")))
-  }
-
-  cat("\n=== Launching SiloPlacements Canvas Test ===\n")
-  cat("Canvas + React Table for placement management\n\n")
-
-  # Add resource paths for www directory
-  shiny::addResourcePath("js", "www/js")
-  shiny::addResourcePath("css", "www/css")
-
-  shinyApp(ui, server, options = list(launch.browser = TRUE))
 }
