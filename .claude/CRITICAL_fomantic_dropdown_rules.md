@@ -200,3 +200,147 @@ layout_id <- as.integer(input$layout_id)
 - Displays names correctly ✅
 - Returns IDs correctly ✅
 - Cascades with NULL values ✅
+
+## 🎨 Styling Fomantic Dropdowns
+
+### Font Size Override
+
+Fomantic dropdowns have larger default font-size than standard Shiny inputs. To match existing CSS:
+
+```r
+# Add to UI function tags$head():
+tags$head(
+  tags$style(HTML("
+    .ui.dropdown,
+    .ui.dropdown .text,
+    .ui.dropdown .menu .item {
+      font-size: 13px;
+    }
+  "))
+)
+```
+
+**Targets:**
+- `.ui.dropdown` - the dropdown container
+- `.ui.dropdown .text` - the selected/displayed text
+- `.ui.dropdown .menu .item` - the dropdown menu items
+
+**Important:** Add this CSS in BOTH places:
+1. Module UI function (for main app)
+2. Standalone test UI function (for testing)
+
+### Why Not Use `style` Parameter?
+
+```r
+# ❌ DOES NOT WORK - dropdown_input doesn't accept style parameter
+dropdown_input(ns("id"), ..., style = "font-size: 13px;")
+# Error: unused argument (style = "font-size: 13px;")
+
+# ❌ AVOID - wrapping in div with font-size may break functionality
+div(style = "font-size: 13px;",
+  dropdown_input(...)
+)
+```
+
+**Correct approach:** Use global CSS in tags$head()
+
+## 🔘 Fomantic Button Icons
+
+### Icon Syntax for Fomantic Buttons
+
+`shiny.semantic::action_button()` does NOT render icons correctly. Use `tags$button()` with proper Fomantic structure:
+
+```r
+# ❌ WRONG - shows literal text "save Save Layout"
+shiny.semantic::action_button(
+  ns("save_btn"), "Save Layout", icon = "save", class = "positive"
+)
+
+# ✅ CORRECT - icon on left
+tags$button(
+  id = ns("save_btn"),
+  list(icon("save"), "Save Layout"),
+  class = "ui labeled icon button positive"
+)
+
+# ✅ CORRECT - icon on right
+tags$button(
+  id = ns("next_btn"),
+  list("Next", icon("arrow right")),
+  class = "ui right labeled icon button"
+)
+```
+
+**Key Points:**
+- Use `list()` to combine icon and text
+- Icon first = left side (`ui labeled icon button`)
+- Text first = right side (`ui right labeled icon button`)
+- Icon name uses spaces not hyphens: `icon("arrow right")` not `icon("arrow-right")`
+- Icon name uses spaces not hyphens: `icon("chevron up")` not `icon("chevron-up")`
+
+### Button Classes
+
+**Standard Fomantic button classes:**
+- `ui button` - base class
+- `labeled icon button` - icon on left
+- `right labeled icon button` - icon on right
+
+**Color classes:**
+- `primary` - blue
+- `positive` - green
+- `negative` - red
+- (no class) - default grey
+
+**Example with styling:**
+```r
+tags$button(
+  id = ns("save_bg_settings"),
+  list(icon("save"), "Save Layout"),
+  class = "ui labeled icon button positive",
+  style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+)
+```
+
+## 📋 Complete Working Example
+
+```r
+browser_siloplacements_ui <- function(id) {
+  ns <- NS(id)
+
+  tagList(
+    shinyjs::useShinyjs(),
+
+    # External CSS
+    tags$link(rel = "stylesheet", href = "css/f_siloplacements.css"),
+
+    # Fomantic dropdown font-size override
+    tags$head(
+      tags$script(src = "js/myapp.js"),
+      tags$style(HTML("
+        .ui.dropdown,
+        .ui.dropdown .text,
+        .ui.dropdown .menu .item {
+          font-size: 13px;
+        }
+      "))
+    ),
+
+    # Layout selector dropdown
+    shiny.semantic::dropdown_input(
+      ns("layout_id"),
+      choices = c("Loading..."),
+      choices_value = c(""),
+      value = "",
+      type = "selection fluid"
+    ),
+
+    # Save button with icon
+    tags$button(
+      id = ns("save_btn"),
+      list(icon("save"), "Save"),
+      class = "ui labeled icon button positive",
+      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px;"
+    )
+  )
+}
+```
