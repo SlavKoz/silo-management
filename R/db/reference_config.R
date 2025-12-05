@@ -29,7 +29,7 @@ REFERENCE_MAP <- list(
         foreign_key = "ContainerTypeID",
         display_name = "Silo",
         display_name_plural = "Silos",
-        display_columns = c("SiloCode", "SiloName")
+        display_columns = c("SiloName")
       )
     )
   )

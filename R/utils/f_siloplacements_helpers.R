@@ -18,7 +18,7 @@ build_canvas_shapes <- function(placements, silos, templates) {
 
     # Find silo info
     silo <- silos[silos$SiloID == p$SiloID, ]
-    silo_code <- if (nrow(silo) > 0) silo$SiloCode[1] else paste0("S", p$SiloID)
+    silo_code <- if (nrow(silo) > 0) silo$SiloName[1] else paste0("Silo", p$SiloID)
 
     # Find shape template
     template <- templates[templates$ShapeTemplateID == p$ShapeTemplateID, ]
@@ -103,7 +103,6 @@ build_silo_dropdown_choices <- function(current_layout_id, show_inactive = FALSE
   query <- paste0("
     SELECT
       s.SiloID,
-      s.SiloCode,
       s.SiloName,
       s.IsActive,
       si.SiteID,
@@ -144,7 +143,7 @@ build_silo_dropdown_choices <- function(current_layout_id, show_inactive = FALSE
     query <- paste0(query, " WHERE ", paste(where_clauses, collapse = " AND "))
   }
 
-  query <- paste0(query, " ORDER BY si.SiteName, sa.AreaName, s.SiloCode")
+  query <- paste0(query, " ORDER BY si.SiteName, sa.AreaName, s.SiloName")
 
   all_silos <- try(DBI::dbGetQuery(pool, query), silent = FALSE)
 
@@ -159,12 +158,12 @@ build_silo_dropdown_choices <- function(current_layout_id, show_inactive = FALSE
     current_site_id <- current_layout_data$SiteID[1]
   }
 
-  # Build choices: "SiteName / AreaName / SiloCode - SiloName"
+  # Build choices: "SiteName / AreaName / SiloName"
   # Mark items not from current site or without placement with brackets
   choice_labels <- sapply(1:nrow(all_silos), function(i) {
     site_name <- if (!is.na(all_silos$SiteName[i])) all_silos$SiteName[i] else "Unknown Site"
     area_part <- if (!is.na(all_silos$AreaName[i])) paste0(" / ", all_silos$AreaName[i]) else ""
-    silo_part <- paste0(" / ", all_silos$SiloCode[i], " - ", all_silos$SiloName[i])
+    silo_part <- paste0(" / ", all_silos$SiloName[i])
 
     base_label <- paste0(site_name, area_part, silo_part)
 

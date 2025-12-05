@@ -2,7 +2,7 @@
 # Minimal, SAFE (parameterized) queries for browsers
 
 # ---- Allowed columns (for ORDER BY whitelisting) ----
-.ALLOWED_SILOS_COLS <- c("SiloID","SiloCode","SiloName","Area","ContainerTypeID",
+.ALLOWED_SILOS_COLS <- c("SiloID","SiloName","Area","ContainerTypeID",
                          "VolumeM3","IsActive","CreatedAt","UpdatedAt")
 .ALLOWED_PLACEMENTS_COLS <- c("PlacementID","SiloID","LayoutID","ShapeTemplateID","CenterX",
                               "CenterY","ZIndex","IsVisible","IsInteractive","CreatedAt")
@@ -20,10 +20,10 @@
 list_silos <- function(site_id = NULL,
                        area_id = NULL,
                        area_code_like = NULL,
-                       code_like = NULL,
+                       name_like = NULL,
                        active = NULL,
                        ids = NULL,
-                       order_col = "SiloCode",
+                       order_col = "SiloName",
                        order_dir = "ASC",
                        limit = 200,
                        offset = 0) {
@@ -36,14 +36,14 @@ list_silos <- function(site_id = NULL,
   if (!is.null(area_id) && !is.na(area_id))          { where <- c(where, "s.AreaID = ?");         params <- c(params, list(as.integer(area_id))) }
   if (!is.null(area_code_like))   { where <- c(where, "a.AreaCode LIKE ?");   params <- c(params, list(area_code_like)) }
   if (!is.null(active))            { where <- c(where, "s.IsActive = ?");      params <- c(params, list(as.logical(active))) }
-  if (!is.null(code_like))         { where <- c(where, "s.SiloCode LIKE ?");   params <- c(params, list(code_like)) }
+  if (!is.null(name_like))         { where <- c(where, "s.SiloName LIKE ?");   params <- c(params, list(name_like)) }
   if (!is.null(ids) && length(ids)) {
     IN <- sql_in(ids); where <- c(where, paste("s.SiloID", IN$clause)); params <- c(params, IN$params)
   }
   where_sql <- if (length(where)) paste("WHERE", paste(where, collapse = " AND ")) else ""
 
   sql <- sprintf("
-    SELECT s.SiloID, s.SiloCode, s.SiloName,
+    SELECT s.SiloID, s.SiloName,
            s.AreaID, a.AreaCode, a.AreaName,
            s.SiteID, site.SiteCode, site.SiteName,
            s.ContainerTypeID, s.VolumeM3, s.IsActive,
@@ -61,7 +61,7 @@ list_silos <- function(site_id = NULL,
 
 get_silo_by_id <- function(silo_id) {
   db_query_params("
-    SELECT s.SiloID, s.SiloCode, s.SiloName,
+    SELECT s.SiloID, s.SiloName,
            s.AreaID, a.AreaCode, a.AreaName,
            s.SiteID, site.SiteCode, site.SiteName,
            s.ContainerTypeID, s.VolumeM3, s.IsActive,
@@ -77,10 +77,7 @@ upsert_silo <- function(data) {
   pool <- db_pool()
 
   # Extract and validate required fields
-  silo_code <- f_or(data$SiloCode, "")
   silo_name <- f_or(data$SiloName, "")
-
-  if (!nzchar(silo_code)) stop("SiloCode is required")
   if (!nzchar(silo_name)) stop("SiloName is required")
 
   # Handle VolumeM3 - required, must be positive
@@ -170,13 +167,12 @@ upsert_silo <- function(data) {
   if (!is.null(silo_id) && silo_id > 0) {
     # UPDATE
     sql <- "UPDATE SiloOps.dbo.Silos
-            SET SiloCode = ?, SiloName = ?, VolumeM3 = ?,
+            SET SiloName = ?, VolumeM3 = ?,
                 ContainerTypeID = ?, SiteID = ?, AreaID = ?,
                 IsActive = ?, Notes = ?, UpdatedAt = SYSUTCDATETIME()
             WHERE SiloID = ?"
 
     DBI::dbExecute(pool, sql, params = list(
-      silo_code,
       silo_name,
       volume_m3,
       container_type_id,
@@ -192,12 +188,11 @@ upsert_silo <- function(data) {
   } else {
     # INSERT
     sql <- "INSERT INTO SiloOps.dbo.Silos
-            (SiloCode, SiloName, VolumeM3, ContainerTypeID, SiteID, AreaID, IsActive, Notes, CreatedAt, UpdatedAt)
+            (SiloName, VolumeM3, ContainerTypeID, SiteID, AreaID, IsActive, Notes, CreatedAt, UpdatedAt)
             OUTPUT INSERTED.SiloID
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME())"
+            VALUES (?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME())"
 
     result <- DBI::dbGetQuery(pool, sql, params = list(
-      silo_code,
       silo_name,
       volume_m3,
       container_type_id,

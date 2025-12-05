@@ -172,7 +172,7 @@ body {
 /* Toolbar grid layouts */
 .toolbar-grid {
   display: grid;
-  grid-template-columns: 80px 90px 132px 50px 180px 110px 110px 1fr 100px;
+  grid-template-columns: 80px 90px 132px 50px 135px 110px 110px 110px 1fr 110px;
   gap: 0.3rem;
   align-items: center;
   padding: 0.3rem;
@@ -180,9 +180,14 @@ body {
   border-radius: 4px;
 }
 
+.toolbar-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .toolbar-grid-bottom {
   display: grid;
-  grid-template-columns: 80px 90px 132px 50px 180px 110px 110px auto 80px auto 1fr 80px auto 1fr 100px;
+  grid-template-columns: 80px 90px 132px 50px 135px 110px 110px 110px 1fr auto auto 80px auto 1fr 100px;
   gap: 0.3rem;
   align-items: center;
   padding: 0.3rem;
@@ -192,7 +197,7 @@ body {
 
 .toolbar-grid-placement {
   display: grid;
-  grid-template-columns: 80px 90px 132px 50px 180px 110px 110px auto 80px auto 1fr 80px auto 1fr 100px;
+  grid-template-columns: 80px 90px 132px 50px 135px 110px 110px 110px 1fr auto auto 80px auto 1fr 100px;
   gap: 0.3rem;
   align-items: center;
   padding: 0.3rem;

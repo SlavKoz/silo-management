@@ -24,7 +24,7 @@ canvas_utils_coerce <- function(x) {
   shapes <- lapply(seq_len(nrow(df)), function(i) {
     row <- df[i, , drop = FALSE]
     id   <- row[[if (has("PlacementID")) "PlacementID" else if (has("SiloID")) "SiloID" else 1]]
-    code <- as.character(row[[if (has("SiloCode")) "SiloCode" else if (has("TemplateCode")) "TemplateCode" else NA]])
+    code <- as.character(row[[if (has("SiloName")) "SiloName" else if (has("TemplateCode")) "TemplateCode" else NA]])
     
     cx <- as.numeric(row[[if (has("CenterX")) "CenterX" else if (has("x")) "x" else NA]] %||% 0)
     cy <- as.numeric(row[[if (has("CenterY")) "CenterY" else if (has("y")) "y" else NA]] %||% 0)

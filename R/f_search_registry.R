@@ -90,12 +90,12 @@ f_get_search_items <- function(category = "forms", query = "", pool = NULL, limi
         if (nzchar(query)) {
           safe_query <- gsub("'", "''", query)
           sql <- sprintf(
-            "SELECT TOP %d SiloCode, SiloName FROM SiloOps.dbo.Silos WHERE SiloCode LIKE '%%%s%%' OR SiloName LIKE '%%%s%%'",
-            limit, safe_query, safe_query
+            "SELECT TOP %d SiloID, SiloName FROM SiloOps.dbo.Silos WHERE SiloName LIKE '%%%s%%'",
+            limit, safe_query
           )
         } else {
           sql <- sprintf(
-            "SELECT TOP %d SiloCode, SiloName FROM SiloOps.dbo.Silos",
+            "SELECT TOP %d SiloID, SiloName FROM SiloOps.dbo.Silos",
             limit
           )
         }
@@ -104,10 +104,10 @@ f_get_search_items <- function(category = "forms", query = "", pool = NULL, limi
         if (nrow(df) > 0) {
           items <- lapply(1:nrow(df), function(i) {
             list(
-              id = df$SiloCode[i],
-              label = paste0(df$SiloCode[i], " - ", df$SiloName[i]),
+              id = df$SiloID[i],
+              label = df$SiloName[i],
               category = "siloes",
-              route = paste0("#/siloes/", df$SiloCode[i])
+              route = paste0("#/siloes/", df$SiloID[i])
             )
           })
         }

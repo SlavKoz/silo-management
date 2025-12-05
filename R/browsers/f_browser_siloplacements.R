@@ -23,6 +23,17 @@ browser_siloplacements_ui <- function(id) {
         .ui.dropdown .menu .item {
           font-size: 13px;
         }
+        .ui.dropdown .text {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          max-width: 100% !important;
+        }
+        .ui.dropdown .menu .item {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
       "))
     ),
 
@@ -85,8 +96,10 @@ browser_siloplacements_ui <- function(id) {
                 placeholder = "Enter name...",
                 style = "height: 26px; font-size: 12px; padding: 0.15rem 0.5rem; flex: 1; min-width: 0;"
               ),
-              actionButton(
-                ns("save_new_btn"), "Save", class = "ui button btn-sm btn-success",
+              tags$button(
+                id = ns("save_new_btn"),
+                "Save",
+                class = "ui button positive",
                 style = "height: 26px; padding: 0.1rem 0.4rem; font-size: 12px; flex-shrink: 0;"
               )
             )
@@ -98,7 +111,7 @@ browser_siloplacements_ui <- function(id) {
             style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right;"
           ),
 
-          # Column 5: Site selector (Fomantic native)
+          # Column 5: Site selector (135px - Fomantic native)
           shiny.semantic::dropdown_input(
             ns("layout_site_id"),
             choices = c("Loading..."),
@@ -120,16 +133,24 @@ browser_siloplacements_ui <- function(id) {
             id = ns("toggle_bg_controls"),
             list("Backgrounds", icon("chevron up")),
             class = "ui right labeled icon button",
-            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%; max-width: 110px;"
           ),
 
-          # Column 8: Empty spacer
+          # Column 8: Shapes button (Fomantic native)
+          tags$button(
+            id = ns("toggle_shapes_controls"),
+            list("Shapes", icon("chevron up")),
+            class = "ui right labeled icon button",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%; max-width: 110px;"
+          ),
+
+          # Column 9: Empty spacer (pushes Delete to far right)
           div(),
 
-          # Column 9: Delete button (far right, Fomantic native)
+          # Column 10: Delete button (110px - far right, Fomantic native)
           shiny.semantic::action_button(
             ns("delete_layout_btn"), "Delete", class = "negative",
-            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%; max-width: 110px;"
           )
         ),
 
@@ -158,14 +179,11 @@ browser_siloplacements_ui <- function(id) {
           style = "margin-top: 0.3rem;",
 
           # Column 1: Add Background button
-          tags$a(
-            href = "#/canvases",
-            target = "_blank",
-            actionButton(
-              ns("add_new_bg_btn"), "Add New", class = "btn-sm btn-primary",
-              style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;",
-              onclick = "window.open('#/canvases', '_blank'); return false;"
-            )
+          tags$button(
+            id = ns("add_new_bg_btn"),
+            "Add New",
+            class = "ui button primary",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
           # Column 2: Background label
@@ -175,7 +193,13 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 3: Background selector
-          shiny::selectInput(ns("canvas_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
+          shiny.semantic::dropdown_input(
+            ns("canvas_id"),
+            choices = c("Loading..."),
+            choices_value = c(""),
+            value = "",
+            type = "selection fluid"
+          ),
 
           # Column 4: Area label
           tags$label(
@@ -183,37 +207,40 @@ browser_siloplacements_ui <- function(id) {
             style = "margin: 0; font-size: 13px; font-weight: normal; text-align: right;"
           ),
 
-          # Column 5: Area selector
-          shiny::selectInput(
-            ns("bg_area_id"), label = NULL, choices = c(), width = "100%",
-            selectize = TRUE
+          # Column 5: Area selector (135px)
+          shiny.semantic::dropdown_input(
+            ns("bg_area_id"),
+            choices = c("Loading..."),
+            choices_value = c(""),
+            value = "",
+            type = "selection fluid"
           ),
 
           # Column 6: Display BG toggle button
-          actionButton(
-            ns("display_bg_toggle"), "Display BG", class = "btn-sm toggle-btn active",
+          tags$button(
+            id = ns("display_bg_toggle"),
+            "Display BG",
+            class = "ui button toggle-btn active",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
           # Column 7: Move BG toggle button
-          actionButton(
-            ns("move_bg_toggle"), "Move BG", class = "btn-sm toggle-btn",
+          tags$button(
+            id = ns("move_bg_toggle"),
+            "Move BG",
+            class = "ui button toggle-btn",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
-          # Column 8: Empty
-          div(),
-
-          # Column 9: Edit dropdown for background controls
+          # Column 8: Edit dropdown for background controls (110px - aligns with Shapes button above)
           div(
             style = "position: relative;",
             tags$button(
               id = ns("bg_edit_btn"),
-              class = "btn btn-sm btn-secondary dropdown-toggle",
+              list("Edit", icon("chevron down")),
+              class = "ui right labeled icon button",
               type = "button",
-              style = "height: 26px; padding: 0.2rem 0.5rem; font-size: 12px;",
-              `data-toggle` = "dropdown",
-              "Edit"
+              style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%; max-width: 110px;"
             ),
             div(
               id = ns("bg_edit_menu"),
@@ -223,26 +250,47 @@ browser_siloplacements_ui <- function(id) {
               div(
                 style = "display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
                 tags$label("Rotate:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("rotate_ccw_5"), "", icon = icon("rotate-left"), class = "btn-sm", title = "Rotate -5°",
-                            style = "height: 26px; width: 26px; padding: 0;"),
+                tags$button(
+                  id = ns("rotate_ccw_5"),
+                  icon("undo"),
+                  class = "ui icon button",
+                  title = "Rotate -5°",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                ),
                 numericInput(ns("bg_rotation"), label = NULL, value = 0, min = -180, max = 180, step = 1, width = "60px"),
-                actionButton(ns("rotate_cw_5"), "", icon = icon("rotate-right"), class = "btn-sm", title = "Rotate +5°",
-                            style = "height: 26px; width: 26px; padding: 0;")
+                tags$button(
+                  id = ns("rotate_cw_5"),
+                  icon("redo"),
+                  class = "ui icon button",
+                  title = "Rotate +5°",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                )
               ),
               # BG Size controls
               div(
                 style = "display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
                 tags$label("BG Size:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("bg_scale_down"), "-", class = "btn-sm", title = "Shrink BG",
-                            style = "height: 26px; width: 26px; padding: 0;"),
+                tags$button(
+                  id = ns("bg_scale_down"),
+                  icon("minus"),
+                  class = "ui icon button",
+                  title = "Shrink BG",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                ),
                 numericInput(ns("bg_scale"), label = NULL, value = 1, min = 0.1, max = 10, step = 0.1, width = "60px"),
-                actionButton(ns("bg_scale_up"), "+", class = "btn-sm", title = "Enlarge BG",
-                            style = "height: 26px; width: 26px; padding: 0;")
+                tags$button(
+                  id = ns("bg_scale_up"),
+                  icon("plus"),
+                  class = "ui icon button",
+                  title = "Enlarge BG",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                )
               )
             )
           ),
 
-          # Column 10-15: Empty spacers
+          # Column 9-15: Empty spacers (column 9 pushes content right)
+          div(),
           div(),
           div(),
           div(),
@@ -254,7 +302,20 @@ browser_siloplacements_ui <- function(id) {
         # JavaScript for collapsible controls and toggle button
         tags$script(HTML(sprintf("
           $(document).ready(function() {
-            // Collapsible controls
+            // Backgrounds collapsible controls
+            $('#%s').on('click', function() {
+              var controls = $('#%s');
+              var icon = $(this).find('i');
+              if (controls.is(':visible')) {
+                controls.slideUp();
+                icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+              } else {
+                controls.slideDown();
+                icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+              }
+            });
+
+            // Shapes collapsible controls
             $('#%s').on('click', function() {
               var controls = $('#%s');
               var icon = $(this).find('i');
@@ -300,6 +361,7 @@ browser_siloplacements_ui <- function(id) {
             });
           });
         ", ns("toggle_bg_controls"), ns("bg_controls"),
+           ns("toggle_shapes_controls"), ns("shapes_controls"),
            ns("bg_edit_btn"), ns("bg_edit_menu"),
            ns("bg_edit_menu"),
            ns("placement_edit_btn"), ns("placement_edit_menu"),
@@ -308,12 +370,15 @@ browser_siloplacements_ui <- function(id) {
 
         # Main toolbar - Placement & View controls
         div(
+          id = ns("shapes_controls"),
           class = "toolbar-grid-placement",
           style = "margin-bottom: 0.5rem;",
 
           # Column 1: Edit Mode toggle button
-          actionButton(
-            ns("edit_mode_toggle"), "Edit", class = "btn-sm toggle-btn",
+          tags$button(
+            id = ns("edit_mode_toggle"),
+            "Edit",
+            class = "ui button toggle-btn",
             style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
           ),
 
@@ -324,40 +389,50 @@ browser_siloplacements_ui <- function(id) {
           ),
 
           # Column 3: Shape template selector
-          shiny::selectInput(ns("shape_template_id"), label = NULL, choices = c(), width = "100%", selectize = TRUE),
-
-          # Column 4: Empty spacer (aligns with Area: label above)
-          div(),
-
-          # Column 5: Move and Duplicate buttons (180px split 50/50)
-          div(
-            style = "display: flex; gap: 0.3rem; align-items: center;",
-            actionButton(ns("move"), "Move", icon = icon("arrows-alt"), class = "btn-sm btn-info",
-                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
-            actionButton(ns("duplicate"), "Duplicate", icon = icon("copy"), class = "btn-sm btn-secondary",
-                        style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;")
+          shiny.semantic::dropdown_input(
+            ns("shape_template_id"),
+            choices = c("Loading..."),
+            choices_value = c(""),
+            value = "",
+            type = "selection fluid"
           ),
 
-          # Column 6: Fit View button (110px - matches Display BG above)
-          actionButton(ns("fit_view"), "Fit View", icon = icon("expand"), class = "btn-sm btn-secondary",
-                      style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"),
-
-          # Column 7: Empty (skip Move BG position)
+          # Column 4: Empty spacer (aligns with Site: label above)
           div(),
 
-          # Column 8: Empty
-          div(),
+          # Column 5: Fit View button (135px - matches Site selector width above)
+          tags$button(
+            id = ns("fit_view"),
+            list(icon("expand"), "Fit View"),
+            class = "ui labeled icon button",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
 
-          # Column 9: Edit dropdown for placement tools (aligns with background Edit above)
+          # Column 6: Move button (110px - matches Save Layout / Display BG above)
+          tags$button(
+            id = ns("move"),
+            list(icon("arrows alternate"), "Move"),
+            class = "ui labeled icon button",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
+
+          # Column 7: Duplicate button (matches Move BG / Backgrounds above - 110px)
+          tags$button(
+            id = ns("duplicate"),
+            list(icon("copy"), "Duplicate"),
+            class = "ui labeled icon button",
+            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%;"
+          ),
+
+          # Column 8: Edit dropdown for placement tools (110px - aligns with Shapes button above)
           div(
             style = "position: relative;",
             tags$button(
               id = ns("placement_edit_btn"),
-              class = "btn btn-sm btn-secondary dropdown-toggle",
+              list("Edit", icon("chevron down")),
+              class = "ui right labeled icon button",
               type = "button",
-              style = "height: 26px; padding: 0.2rem 0.5rem; font-size: 12px;",
-              `data-toggle` = "dropdown",
-              "Edit"
+              style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%; max-width: 110px;"
             ),
             div(
               id = ns("placement_edit_menu"),
@@ -367,26 +442,46 @@ browser_siloplacements_ui <- function(id) {
               div(
                 style = "display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
                 tags$label("Grid Snap:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("snap_down"), "-", class = "btn-sm", title = "Decrease Snap",
-                            style = "height: 26px; width: 26px; padding: 0;"),
+                tags$button(
+                  id = ns("snap_down"),
+                  icon("minus"),
+                  class = "ui icon button",
+                  title = "Decrease Snap",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                ),
                 numericInput(ns("snap_grid"), label = NULL, value = 0, min = 0, step = 10, width = "60px"),
-                actionButton(ns("snap_up"), "+", class = "btn-sm", title = "Increase Snap",
-                            style = "height: 26px; width: 26px; padding: 0;")
+                tags$button(
+                  id = ns("snap_up"),
+                  icon("plus"),
+                  class = "ui icon button",
+                  title = "Increase Snap",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                )
               ),
               # Zoom controls
               div(
                 style = "display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 3px;",
                 tags$label("Zoom:", style = "margin: 0; font-size: 12px; width: 70px; text-align: right;"),
-                actionButton(ns("zoom_out"), "", icon = icon("magnifying-glass-minus"), class = "btn-sm",
-                            style = "height: 26px; width: 26px; padding: 0;"),
+                tags$button(
+                  id = ns("zoom_out"),
+                  icon("zoom out"),
+                  class = "ui icon button",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                ),
                 numericInput(ns("zoom_level"), label = NULL, value = 100, min = 10, max = 500, step = 10, width = "60px"),
-                actionButton(ns("zoom_in"), "", icon = icon("magnifying-glass-plus"), class = "btn-sm",
-                            style = "height: 26px; width: 26px; padding: 0;")
+                tags$button(
+                  id = ns("zoom_in"),
+                  icon("zoom in"),
+                  class = "ui icon button",
+                  style = "height: 26px; width: 26px; padding: 0;"
+                )
               )
             )
           ),
 
-          # Column 10-15: Empty spacers
+          # Column 9-15: Empty spacers (column 9 pushes content right)
+          div(),
+          div(),
           div(),
           div(),
           div(),
@@ -418,8 +513,12 @@ browser_siloplacements_ui <- function(id) {
     div(id = ns("sliding_panel"), class = "sliding-panel",
       div(class = "panel-header",
         uiOutput(ns("panel_header_ui")),
-        actionButton(ns("close_panel_btn"), "", icon = icon("times"),
-                     class = "ui icon button", style = "margin: 0;")
+        tags$button(
+          id = ns("close_panel_btn"),
+          icon("times"),
+          class = "ui icon button",
+          style = "margin: 0;"
+        )
       ),
       div(class = "panel-content",
         uiOutput(ns("panel_content_ui"))
@@ -769,8 +868,12 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       shinyjs::hide("text_container")                                       # ADDED
       shinyjs::show("select_container")                                     # ADDED
     })                                                                      # ADDED
-    
-    
+
+    # Navigate to Canvases tab when Add New button is clicked
+    observeEvent(input$add_new_bg_btn, {
+      session$sendCustomMessage("set-hash", list(h = "#/canvases"))
+    })
+
     # Handle layout selection from dropdown
     observeEvent(input$layout_id, {
       selected_value <- input$layout_id
@@ -832,14 +935,24 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       # Preserve current selection
       current_canvas_id <- input$canvas_id
 
-      choices <- c("(None)" = "")
+      # Fomantic dropdown requires separate vectors
+      choice_labels <- c("(None)")
+      choice_values <- c("")
+
       if (nrow(canvases) > 0) {
         # Show only canvas names (area is in separate dropdown)
-        choices <- c(choices, setNames(canvases$id, canvases$canvas_name))
+        choice_labels <- c(choice_labels, canvases$canvas_name)
+        choice_values <- c(choice_values, as.character(canvases$id))
       }
 
       # Update choices and restore selection
-      updateSelectInput(session, "canvas_id", choices = choices, selected = current_canvas_id)
+      shiny.semantic::update_dropdown_input(
+        session,
+        "canvas_id",
+        choices = choice_labels,
+        choices_value = choice_values,
+        value = if (is.null(current_canvas_id) || current_canvas_id == "") "" else as.character(current_canvas_id)
+      )
     })
 
     # Populate sites dropdown
@@ -873,7 +986,11 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       req(length(route()) > 0 && route()[1] == "placements")
 
       areas <- areas_data()
-      choices <- c()
+
+      # Fomantic dropdown requires separate vectors
+      choice_labels <- c()
+      choice_values <- c()
+
       if (nrow(areas) > 0) {
         # Show all areas including "ALL" areas from database
         # Put "ALL" areas first for convenience
@@ -881,13 +998,21 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         other_areas <- areas[areas$AreaCode != "ALL", ]
 
         if (nrow(all_areas) > 0) {
-          choices <- c(choices, setNames(all_areas$AreaID, paste0(all_areas$AreaCode, " - ", all_areas$AreaName)))
+          choice_labels <- c(choice_labels, paste0(all_areas$AreaCode, " - ", all_areas$AreaName))
+          choice_values <- c(choice_values, as.character(all_areas$AreaID))
         }
         if (nrow(other_areas) > 0) {
-          choices <- c(choices, setNames(other_areas$AreaID, paste0(other_areas$AreaCode, " - ", other_areas$AreaName)))
+          choice_labels <- c(choice_labels, paste0(other_areas$AreaCode, " - ", other_areas$AreaName))
+          choice_values <- c(choice_values, as.character(other_areas$AreaID))
         }
       }
-      updateSelectInput(session, "bg_area_id", choices = choices)
+
+      shiny.semantic::update_dropdown_input(
+        session,
+        "bg_area_id",
+        choices = choice_labels,
+        choices_value = choice_values
+      )
     })
 
     # Save canvas area when changed
@@ -938,14 +1063,14 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
 
       # Update canvas selection
       canvas_id <- if (is.null(layout$CanvasID) || is.na(layout$CanvasID)) "" else as.character(layout$CanvasID)
-      updateSelectInput(session, "canvas_id", selected = canvas_id)
+      shiny.semantic::update_dropdown_input(session, "canvas_id", value = canvas_id)
 
       # Update area selection based on the canvas (if canvas is set)
       if (!is.null(canvas_id) && canvas_id != "") {
         canvas_data <- try(get_canvas_by_id(as.integer(canvas_id)), silent = TRUE)
         if (!inherits(canvas_data, "try-error") && !is.null(canvas_data) && nrow(canvas_data) > 0) {
           area_id <- if (is.null(canvas_data$AreaID) || is.na(canvas_data$AreaID[1])) "" else as.character(canvas_data$AreaID[1])
-          updateSelectInput(session, "bg_area_id", selected = area_id)
+          shiny.semantic::update_dropdown_input(session, "bg_area_id", value = area_id)
         }
       }
 
@@ -1001,7 +1126,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       # Only update area selector during initial load (not when user manually changes background)
       if (!initial_load_complete()) {
         area_id <- if (is.null(df$AreaID) || is.na(df$AreaID[1])) "" else as.character(df$AreaID[1])
-        updateSelectInput(session, "bg_area_id", selected = area_id)
+        shiny.semantic::update_dropdown_input(session, "bg_area_id", value = area_id)
       }
 
       # Send base64 image to JavaScript
@@ -1115,14 +1240,22 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       req(length(route()) > 0 && route()[1] == "placements")
 
       templates <- shape_templates_data()
-      choices <- c("(select shape)" = "")
+
+      # Fomantic dropdown requires separate vectors
+      choice_labels <- c("(select shape)")
+      choice_values <- c("")
+
       if (nrow(templates) > 0) {
-        choices <- c(choices, setNames(
-          as.character(templates$ShapeTemplateID),
-          paste0(templates$TemplateCode, " (", templates$ShapeType, ")")
-        ))
+        choice_labels <- c(choice_labels, paste0(templates$TemplateCode, " (", templates$ShapeType, ")"))
+        choice_values <- c(choice_values, as.character(templates$ShapeTemplateID))
       }
-      updateSelectInput(session, "shape_template_id", choices = choices)
+
+      shiny.semantic::update_dropdown_input(
+        session,
+        "shape_template_id",
+        choices = choice_labels,
+        choices_value = choice_values
+      )
     })
 
     # Update cursor based on selected shape template
@@ -1259,7 +1392,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       if (nrow(available_silos) > 0) {
         silo_choices <- c(silo_choices, setNames(
           as.character(available_silos$SiloID),
-          paste0(available_silos$SiloCode, " - ", available_silos$SiloName)
+          available_silos$SiloName
         ))
       }
 
@@ -1318,7 +1451,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
 
       list(
         fields = list(
-          field("SiloCode", "text", title="Code", column = 1, required = TRUE),
           field("SiloName", "text", title="Name", column = 1, required = TRUE),
           field("VolumeM3", "number", title="Volume (m³)", min=0, column = 1, required = TRUE),
           field("IsActive", "checkbox", title="Active", column = 1, default = TRUE),
@@ -1354,7 +1486,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       }
 
       list(
-        SiloCode = "",
         SiloName = "",
         VolumeM3 = 100,
         IsActive = TRUE,
@@ -1445,7 +1576,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
               # Get silo info for label
               silos <- silos_data()
               silo <- silos[silos$SiloID == as.integer(data$SiloID), ]
-              silo_code <- if (nrow(silo) > 0) silo$SiloCode[1] else paste0("S", data$SiloID)
+              silo_code <- if (nrow(silo) > 0) silo$SiloName[1] else paste0("Silo", data$SiloID)
 
               # Build updated shape
               updated_shape <- if (shape_type == "CIRCLE") {
@@ -1662,12 +1793,18 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
             mod_html_form_ui(ns("form"), max_width = "100%", margin = "0"),
             # Move and Duplicate buttons at bottom left
             div(style = "margin-top: 1rem; padding: 0 1rem; display: flex; gap: 0.5rem;",
-              actionButton(ns("panel_move"), "Move", icon = icon("arrows-alt"),
-                          class = "btn-sm btn-info",
-                          style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
-              actionButton(ns("panel_duplicate"), "Duplicate", icon = icon("copy"),
-                          class = "btn-sm btn-secondary",
-                          style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+              tags$button(
+                id = ns("panel_move"),
+                list(icon("arrows alternate"), "Move"),
+                class = "ui labeled icon button",
+                style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"
+              ),
+              tags$button(
+                id = ns("panel_duplicate"),
+                list(icon("copy"), "Duplicate"),
+                class = "ui labeled icon button",
+                style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"
+              )
             )
           ),
           # Read-only view (hidden when edit mode ON)
@@ -1675,17 +1812,20 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
             style = if (!edit_mode_state()) "" else "visibility: hidden; position: absolute; z-index: -1;",
             # Object selector
             div(style = "padding: 1rem;",
-              # Checkboxes
-              checkboxInput(ns("show_inactive"), "Show inactive silos", value = FALSE),
-              checkboxInput(ns("search_all_sites"), "Search other sites and areas", value = FALSE),
+              # Checkboxes (stacked vertically)
+              div(style = "display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;",
+                checkboxInput(ns("show_inactive"), "Show inactive silos", value = FALSE),
+                checkboxInput(ns("search_all_sites"), "Search other sites and areas", value = FALSE)
+              ),
 
               # Searchable dropdown
-              shiny::selectInput(
+              tags$label("Select placement:", style = "margin-bottom: 0.5rem; display: block;"),
+              shiny.semantic::dropdown_input(
                 ns("object_selector"),
-                "Select placement:",
-                choices = c(),
-                width = "100%",
-                selectize = TRUE
+                choices = c("Loading..."),
+                choices_value = c(""),
+                value = "",
+                type = "selection fluid search"
               )
             ),
 
@@ -1728,7 +1868,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       query <- paste0("
         SELECT
           s.SiloID,
-          s.SiloCode,
           s.SiloName,
           s.IsActive,
           si.SiteID,
@@ -1769,18 +1908,26 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         query <- paste0(query, " WHERE ", paste(where_clauses, collapse = " AND "))
       }
 
-      query <- paste0(query, " ORDER BY si.SiteName, sa.AreaName, s.SiloCode")
+      query <- paste0(query, " ORDER BY si.SiteName, sa.AreaName, s.SiloName")
 
       all_silos <- try(DBI::dbGetQuery(db_pool(), query), silent = FALSE)
 
       if (inherits(all_silos, "try-error")) {
         cat("[Object Selector] Query error:", as.character(all_silos), "\n")
-        updateSelectInput(session, "object_selector", choices = c("No silos found" = ""))
+        shiny.semantic::update_dropdown_input(
+          session, "object_selector",
+          choices = c("No silos found"),
+          choices_value = c("")
+        )
         return()
       }
 
       if (nrow(all_silos) == 0) {
-        updateSelectInput(session, "object_selector", choices = c("No silos found" = ""))
+        shiny.semantic::update_dropdown_input(
+          session, "object_selector",
+          choices = c("No silos found"),
+          choices_value = c("")
+        )
         return()
       }
 
@@ -1791,12 +1938,12 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         current_site_id <- current_layout_data$SiteID[1]
       }
 
-      # Build choices: "SiteName / AreaName / SiloCode - SiloName"
+      # Build choices: "SiteName / AreaName / SiloName"
       # Mark items not from current site or without placement with brackets
       choice_labels <- sapply(1:nrow(all_silos), function(i) {
         site_name <- if (!is.na(all_silos$SiteName[i])) all_silos$SiteName[i] else "Unknown Site"
         area_part <- if (!is.na(all_silos$AreaName[i])) paste0(" / ", all_silos$AreaName[i]) else ""
-        silo_part <- paste0(" / ", all_silos$SiloCode[i], " - ", all_silos$SiloName[i])
+        silo_part <- paste0(" / ", all_silos$SiloName[i])
 
         base_label <- paste0(site_name, area_part, silo_part)
 
@@ -1826,21 +1973,28 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         }
       })
 
-      choices <- setNames(choice_values, choice_labels)
-
       # Determine which selection to use (isolate dropdown to avoid circular updates)
       current_selection <- isolate(input$object_selector)
 
-      if (!is.null(canvas_pid) && !is.na(canvas_pid) && as.character(canvas_pid) %in% choices) {
+      # Fomantic dropdown: prepend "Select..." option
+      all_labels <- c("Select...", choice_labels)
+      all_values <- c("", choice_values)
+
+      selected_value <- ""
+      if (!is.null(canvas_pid) && !is.na(canvas_pid) && as.character(canvas_pid) %in% choice_values) {
         # Use canvas selection if available
-        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = as.character(canvas_pid))
-      } else if (!is.null(current_selection) && current_selection != "" && current_selection %in% choices) {
+        selected_value <- as.character(canvas_pid)
+      } else if (!is.null(current_selection) && current_selection != "" && current_selection %in% choice_values) {
         # Keep current dropdown selection if canvas selection is not available
-        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices), selected = current_selection)
-      } else {
-        # No valid selection
-        updateSelectInput(session, "object_selector", choices = c("Select..." = "", choices))
+        selected_value <- current_selection
       }
+
+      shiny.semantic::update_dropdown_input(
+        session, "object_selector",
+        choices = all_labels,
+        choices_value = all_values,
+        value = selected_value
+      )
     })
 
     # Handle object selector selection (when dropdown changed)
@@ -1947,7 +2101,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         # Get silo details only
         query <- sprintf("
           SELECT
-            s.SiloCode,
             s.SiloName,
             s.VolumeM3,
             s.Notes AS SiloNotes,
@@ -1974,7 +2127,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         return(tagList(
           # Silo details (no placement info)
           div(style = "padding: 0.5rem 1rem; border-left: 3px solid #dee2e6; margin-bottom: 1rem;",
-            tags$h4(paste0(data$SiloCode, " - ", data$SiloName)),
+            tags$h4(data$SiloName),
             tags$p(tags$strong("Site: "), ifelse(!is.na(data$SiteName), data$SiteName, "N/A")),
             tags$p(tags$strong("Area: "), ifelse(!is.na(data$AreaName), data$AreaName, "N/A")),
             tags$p(tags$strong("Type: "), paste0(data$ContainerTypeCode, " - ", data$ContainerTypeName)),
@@ -1991,7 +2144,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         SELECT
           p.CenterX,
           p.CenterY,
-          s.SiloCode,
           s.SiloName,
           s.VolumeM3,
           s.Notes AS SiloNotes,
@@ -2038,7 +2190,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
             "Silo"
           ),
           div(style = "padding: 0.5rem 1rem; border-left: 3px solid #dee2e6; margin-bottom: 1rem;",
-            tags$p(tags$strong("Code: "), data$SiloCode),
             tags$p(tags$strong("Name: "), data$SiloName),
             tags$p(tags$strong("Container Type: "), data$ContainerTypeName),
             tags$p(tags$strong("Volume (m³): "), data$VolumeM3),
@@ -2082,12 +2233,18 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
         ),
         div(
           style = "display: flex; gap: 0.5rem;",
-          actionButton(ns("create_silo_btn"), "Create New Silo",
-                      class = "btn-sm btn-primary",
-                      style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
-          actionButton(ns("cancel_warning_btn"), "Cancel",
-                      class = "btn-sm btn-secondary",
-                      style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+          tags$button(
+            id = ns("create_silo_btn"),
+            "Create New Silo",
+            class = "ui button primary",
+            style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"
+          ),
+          tags$button(
+            id = ns("cancel_warning_btn"),
+            "Cancel",
+            class = "ui button",
+            style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"
+          )
         )
       )
     })
@@ -2172,12 +2329,18 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
           # Buttons on right
           div(
             class = "move-buttons",
-            actionButton(ns("move_reset"), "Reset (Esc)",
-                        class = "btn-sm btn-secondary",
-                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"),
-            actionButton(ns("move_confirm"), "Confirm Placement",
-                        class = "btn-sm btn-primary",
-                        style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;")
+            tags$button(
+              id = ns("move_reset"),
+              "Reset (Esc)",
+              class = "ui button",
+              style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"
+            ),
+            tags$button(
+              id = ns("move_confirm"),
+              "Confirm Placement",
+              class = "ui button primary",
+              style = "height: 28px; padding: 0.25rem 0.75rem; font-size: 12px;"
+            )
           )
         ),
         # JavaScript for Enter key handling and Escape key
@@ -3111,7 +3274,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       # Get silo info for label
       silos <- silos_data()
       silo <- silos[silos$SiloID == placement$SiloID, ]
-      silo_code <- if (nrow(silo) > 0) silo$SiloCode[1] else paste0("S", placement$SiloID)
+      silo_code <- if (nrow(silo) > 0) silo$SiloName[1] else paste0("Silo", placement$SiloID)
 
       # Build updated shape
       if (shape_type == "CIRCLE") {
@@ -3207,6 +3370,17 @@ run_siloplacements_canvas_test <- function() {
         .ui.dropdown .text,
         .ui.dropdown .menu .item {
           font-size: 13px;
+        }
+        .ui.dropdown .text {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          max-width: 100% !important;
+        }
+        .ui.dropdown .menu .item {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
         }
       "))
     ),

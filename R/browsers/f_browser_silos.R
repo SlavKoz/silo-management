@@ -13,7 +13,7 @@ browser_silos_ui <- function(id) {
             compact_list_ui(
               ns("list"),
               show_filter = TRUE,
-              filter_placeholder = "Filter by code/name…"
+              filter_placeholder = "Filter by name…"
             )
         ),
 
@@ -40,19 +40,24 @@ browser_silos_server <- function(id, pool, route = NULL) {
       df <- try(
         list_silos(
           area_id = NULL,
-          code_like = NULL,
+          name_like = NULL,
           active = NULL,
-          order_col = "SiloCode",
+          order_col = "SiloName",
           limit     = 2000
-        ), silent = TRUE
+        ), silent = FALSE
       )
-      if (inherits(df, "try-error") || is.null(df)) df <- data.frame()
+      if (inherits(df, "try-error") || is.null(df)) {
+        cat("[Silos Browser] Error loading silos:", conditionMessage(attr(df, "condition")), "\n")
+        df <- data.frame()
+      }
+      cat("[Silos Browser] Retrieved", nrow(df), "silos\n")
       df
     })
 
     # Transform data for compact list (id, icon, title, description)
     list_items <- reactive({
       df <- raw_silos()
+      cat("[Silos Browser] Transforming", nrow(df), "silos for list display\n")
       if (!nrow(df)) {
         return(data.frame(
           id = character(0),
@@ -72,13 +77,15 @@ browser_silos_server <- function(id, pool, route = NULL) {
         paste(c(parts, paste0("Vol: ", round(df$VolumeM3[i], 1), "m³")), collapse=" · ")
       }, character(1))
 
-      data.frame(
+      result <- data.frame(
         id = df$SiloID,
         icon = "",  # No icon for now
-        title = toupper(df$SiloCode),
+        title = df$SiloName,
         description = descriptions,
         stringsAsFactors = FALSE
       )
+      cat("[Silos Browser] Built list with", nrow(result), "items\n")
+      result
     })
 
     # Use compact list module
@@ -147,7 +154,6 @@ browser_silos_server <- function(id, pool, route = NULL) {
       list(
         fields = list(
           # Column 1 - Basic Info
-          field("SiloCode", "text",     title="Code", column = 1, required = TRUE),
           field("SiloName", "text",     title="Name", column = 1, required = TRUE),
           field("VolumeM3", "number",   title="Volume (m³)", min=0, column = 1, required = TRUE),
           field("IsActive", "checkbox", title="Active", column = 1, default = TRUE),
@@ -180,7 +186,6 @@ browser_silos_server <- function(id, pool, route = NULL) {
       # No selection - return empty data
       if (is.null(sid)) {
         return(list(
-          SiloCode = "",
           SiloName = "",
           VolumeM3 = NULL,
           IsActive = TRUE,
@@ -200,7 +205,6 @@ browser_silos_server <- function(id, pool, route = NULL) {
       # New record
       if (is.na(sid)) {
         return(list(
-          SiloCode = "",
           SiloName = "",
           VolumeM3 = NULL,
           IsActive = TRUE,
@@ -226,7 +230,6 @@ browser_silos_server <- function(id, pool, route = NULL) {
       # Transform to nested format
       list(
         SiloID = as.integer(f_or(df1$SiloID, 0)),
-        SiloCode = f_or(df1$SiloCode, ""),
         SiloName = f_or(df1$SiloName, ""),
         VolumeM3 = if (!is.null(df1$VolumeM3) && !is.na(df1$VolumeM3)) as.numeric(df1$VolumeM3) else NULL,
         IsActive = as.logical(f_or(df1$IsActive, TRUE)),
@@ -250,7 +253,7 @@ browser_silos_server <- function(id, pool, route = NULL) {
       id = "form",
       schema_config = schema_config,
       form_data = form_data,
-      title_field = "SiloCode",
+      title_field = "SiloName",
       show_header = TRUE,
       show_delete_button = TRUE,
       on_save = function(data) {
@@ -278,15 +281,7 @@ browser_silos_server <- function(id, pool, route = NULL) {
           field_to_clear <- NULL
           user_msg <- NULL
 
-          if (grepl("UNIQUE KEY constraint.*UQ_Silos_SiloCode", error_msg, ignore.case = TRUE)) {
-            field_to_clear <- "SiloCode"
-            if (grepl("duplicate key value is \\(([^)]+)\\)", error_msg, ignore.case = TRUE)) {
-              dup_value <- gsub(".*duplicate key value is \\(([^)]+)\\).*", "\\1", error_msg, ignore.case = TRUE)
-              user_msg <- paste0("Cannot save: Silo code '", dup_value, "' already exists. Please use a different code.")
-            } else {
-              user_msg <- "Cannot save: This silo code already exists. Please use a different code."
-            }
-          } else if (grepl("CK_Silos_Volume_Positive", error_msg, ignore.case = TRUE)) {
+          if (grepl("CK_Silos_Volume_Positive", error_msg, ignore.case = TRUE)) {
             user_msg <- "Cannot save: Volume must be a positive value."
           } else if (grepl("NULL", error_msg, ignore.case = TRUE) && grepl("cannot insert", error_msg, ignore.case = TRUE)) {
             user_msg <- "Cannot save: Required field is missing."
@@ -338,18 +333,17 @@ browser_silos_server <- function(id, pool, route = NULL) {
 
         if (length(parts) >= 1 && parts[1] == "siloes") {
           if (length(parts) >= 2) {
-            silo_code <- parts[2]
+            silo_id <- as.integer(parts[2])
 
             df <- raw_silos()
             if (!nrow(df)) return()
 
-            row <- df[df$SiloCode == silo_code, ]
+            row <- df[df$SiloID == silo_id, ]
             if (nrow(row) == 0) {
-              showNotification(paste0("Silo '", silo_code, "' not found"), type = "warning", duration = 2)
+              showNotification(paste0("Silo ID '", silo_id, "' not found"), type = "warning", duration = 2)
               return()
             }
 
-            silo_id <- as.integer(row$SiloID[1])
             current_selected <- selected_id()
 
             if (is.null(current_selected) || current_selected != silo_id) {
@@ -366,17 +360,10 @@ browser_silos_server <- function(id, pool, route = NULL) {
         sid <- selected_id()
         if (is.null(sid) || is.na(sid)) return()
 
-        df <- raw_silos()
-        if (!nrow(df)) return()
-
-        row <- df[df$SiloID == sid, ]
-        if (nrow(row) == 0) return()
-
-        silo_code <- as.character(row$SiloCode[1])
-        expected_parts <- c("siloes", silo_code)
+        expected_parts <- c("siloes", as.character(sid))
 
         if (!identical(parts, expected_parts)) {
-          session$sendCustomMessage("set-hash", list(h = paste0("#/siloes/", silo_code)))
+          session$sendCustomMessage("set-hash", list(h = paste0("#/siloes/", sid)))
         }
       })
     }

@@ -40,7 +40,6 @@
 "dbo","Silos","FK_Silos_SiteAreas","FOREIGN KEY","AreaID",1,"PK__SiteArea__70B82028F6181180","dbo","SiteAreas","AreaID"
 "dbo","Silos","FK_Silos_Sites","FOREIGN KEY","SiteID",1,"PK__Sites__B9DCB9034E614C4C","dbo","Sites","SiteID"
 "dbo","Silos","PK__Silos__6B33E3855976CCCD","PRIMARY KEY","SiloID",1,NA,NA,NA,NA
-"dbo","Silos","UQ_Silos_SiloCode","UNIQUE","SiloCode",1,NA,NA,NA,NA
 "dbo","SiteAreas","FK_SiteAreas_Sites","FOREIGN KEY","SiteID",1,"PK__Sites__B9DCB9034E614C4C","dbo","Sites","SiteID"
 "dbo","SiteAreas","PK__SiteArea__70B82028F6181180","PRIMARY KEY","AreaID",1,NA,NA,NA,NA
 "dbo","SiteAreas","UQ_SiteAreas_Site_AreaCode","UNIQUE","SiteID",1,NA,NA,NA,NA
