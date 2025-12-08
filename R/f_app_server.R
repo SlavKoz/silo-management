@@ -30,14 +30,21 @@ f_app_server <- function(input, output, session) {
       return()
     }
 
-    # Extract ID from label if format is "ID - Name"
-    # This handles datalist selections like "BULKTANK - Bulk tank"
+    # Extract ID/Name from label based on format
     search_term <- query
+
+    # Handle "ID - Name" format (e.g., "BULKTANK - Bulk tank")
     if (grepl(" - ", query)) {
       parts <- strsplit(query, " - ", fixed = TRUE)[[1]]
       if (length(parts) >= 2) {
         search_term <- parts[1]  # Use just the ID part
       }
+    }
+
+    # Handle "Name (SiteCode)" format for layouts (e.g., "Overview (CAMBRIDGE)")
+    if (category == "layouts" && grepl(" \\(.*\\)$", query)) {
+      # Extract just the name part before the parentheses
+      search_term <- sub(" \\(.*\\)$", "", query)
     }
 
     # Get search results
@@ -114,6 +121,8 @@ f_app_server <- function(input, output, session) {
   # --- Router helpers ---
   parse_route <- function(h) {
     h <- sub("^#/", "", f_or(h, "home"))
+    # Strip query parameters (everything after ?)
+    h <- sub("\\?.*$", "", h)
     parts <- strsplit(h, "/", fixed = TRUE)[[1]]
     parts[nzchar(parts)]
   }

@@ -12,6 +12,7 @@ SEARCH_FORMS <- list(
   list(id = "icons",        label = "Icons",            category = "forms", route = "#/icons"),
   list(id = "containers",   label = "Containers",       category = "forms", route = "#/containers"),
   list(id = "placements",   label = "Placements",       category = "forms", route = "#/placements"),
+  list(id = "layouts",      label = "Layouts",          category = "forms", route = "#/placements"),
   list(id = "canvases",     label = "Canvases",         category = "forms", route = "#/canvases")
 )
 
@@ -229,6 +230,47 @@ f_get_search_items <- function(category = "forms", query = "", pool = NULL, limi
           })
         }
       }
+
+      else if (category == "layouts") {
+        # Fetch canvas layouts with site information for better labels
+        if (nzchar(query)) {
+          safe_query <- gsub("'", "''", query)
+          sql <- sprintf(
+            "SELECT TOP %d l.LayoutID, l.LayoutName, s.SiteCode
+             FROM SiloOps.dbo.CanvasLayouts l
+             LEFT JOIN SiloOps.dbo.Sites s ON l.SiteID = s.SiteID
+             WHERE l.LayoutName LIKE '%%%s%%'
+             ORDER BY l.LayoutName, s.SiteCode",
+            limit, safe_query
+          )
+        } else {
+          sql <- sprintf(
+            "SELECT TOP %d l.LayoutID, l.LayoutName, s.SiteCode
+             FROM SiloOps.dbo.CanvasLayouts l
+             LEFT JOIN SiloOps.dbo.Sites s ON l.SiteID = s.SiteID
+             ORDER BY l.LayoutName, s.SiteCode",
+            limit
+          )
+        }
+        df <- DBI::dbGetQuery(pool, sql)
+
+        if (nrow(df) > 0) {
+          items <- lapply(1:nrow(df), function(i) {
+            # Build descriptive label: "LayoutName" or "LayoutName (SiteCode)" if site exists
+            label <- df$LayoutName[i]
+            if (!is.null(df$SiteCode) && !is.na(df$SiteCode[i]) && nzchar(df$SiteCode[i])) {
+              label <- paste0(df$LayoutName[i], " (", df$SiteCode[i], ")")
+            }
+
+            list(
+              id = df$LayoutID[i],
+              label = label,
+              category = "layouts",
+              route = paste0("#/placements/", df$LayoutID[i])
+            )
+          })
+        }
+      }
     }, error = function(e) {
       warning("Search query error: ", conditionMessage(e))
     })
@@ -251,6 +293,7 @@ f_get_search_categories <- function() {
     list(value = "siloes",     label = "Siloes"),
     list(value = "sites",      label = "Sites"),
     list(value = "areas",      label = "Areas"),
-    list(value = "operations", label = "Operations")
+    list(value = "operations", label = "Operations"),
+    list(value = "layouts",    label = "Layouts")
   )
 }

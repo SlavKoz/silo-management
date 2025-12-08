@@ -587,8 +587,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    cat("[DEBUG] Server started with initial_layout_id:", initial_layout_id, "\n")
-
     notify_error <- function(prefix, e, duration = NULL) {
       message(sprintf("[siloplacements] %s: %s", prefix, conditionMessage(e)))
       if (!is.null(e$call)) {
@@ -621,7 +619,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
     pending_placement <- reactiveVal(NULL)  # Store pending placement data before DB insert
     canvas_shapes <- reactiveVal(list())
     current_layout_id <- reactiveVal(initial_layout_id)  # Set from parameter
-    cat("[DEBUG] current_layout_id initialized to:", initial_layout_id, "\n")
     background_image <- reactiveVal(NULL)
     layouts_refresh <- reactiveVal(0)  # Trigger to refresh layouts list
     bg_offset <- reactiveVal(list(x = 0, y = 0))  # Track current background offset from pan mode
@@ -633,6 +630,7 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
     silos_refresh <- reactiveVal(0)  # Trigger to refresh silos list after creating new silo
     canvases_refresh <- reactiveVal(0)  # Trigger to refresh canvases list after updating area
     show_silo_warning <- reactiveVal(FALSE)  # Track whether to show "no silos" warning
+
     initial_load_complete <- reactiveVal(FALSE)  # Track whether initial layout load is complete
     move_mode_state <- reactiveVal(FALSE)  # Track whether move mode is active
     move_original_position <- reactiveVal(NULL)  # Store original position before moving (list with x, y, id)
@@ -721,13 +719,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
     # ---- Load layouts ----
     layouts_data <- reactive({
       layouts_refresh()  # Depend on refresh trigger
-      cat("[DEBUG] layouts_data reactive triggered\n")
       df <- try(list_canvas_layouts(limit = 100), silent = FALSE)  # Show errors
       if (inherits(df, "try-error") || is.null(df)) {
-        cat("[ERROR] layouts_data failed\n")
         return(data.frame())
       }
-      cat("[DEBUG] layouts_data returned", nrow(df), "rows\n")
       df
     })
 
@@ -738,16 +733,10 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       req(length(route()) > 0 && route()[1] == "placements")
 
       layouts <- layouts_data()
-      cat("[DEBUG] Populate layouts observe triggered\n")
-      cat("[DEBUG] Layouts rows:", nrow(layouts), "\n")
 
       if (nrow(layouts) > 0) {
         # Real data from database
         current_id <- isolate(current_layout_id())
-
-        cat("[DEBUG] current_layout_id:", current_id, "\n")
-        cat("[DEBUG] Layout choices:", paste(layouts$LayoutName, collapse=", "), "\n")
-        cat("[DEBUG] Layout IDs:", paste(layouts$LayoutID, collapse=", "), "\n")
 
         tryCatch({
           shiny.semantic::update_dropdown_input(
@@ -757,7 +746,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
             choices_value = layouts$LayoutID,
             value = current_id
           )
-          cat("[DEBUG] update_dropdown_input completed successfully\n")
         }, error = function(e) {
           cat("[ERROR] update_dropdown_input failed:", e$message, "\n")
           print(e)
@@ -877,17 +865,73 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
     # Handle layout selection from dropdown
     observeEvent(input$layout_id, {
       selected_value <- input$layout_id
-      cat("[DEBUG] input$layout_id changed to:", selected_value, "type:", class(selected_value), "\n")
 
       if (!is.null(selected_value) && selected_value != "") {
-        cat("[DEBUG] Setting current_layout_id to:", as.integer(selected_value), "\n")
         current_layout_id(as.integer(selected_value))
         # Reset initial load flag so new layout's area is populated
         initial_load_complete(FALSE)
-      } else {
-        cat("[DEBUG] Skipped setting current_layout_id - value is null or empty\n")
       }
     }, ignoreInit = TRUE)
+
+    # ---- Hash-based deep linking for layouts ----
+    if (!is.null(route)) {
+      # Handle route changes - select layout from URL
+      observeEvent(route(), {
+        parts <- route()
+
+        # Only handle if we're on the placements page
+        if (length(parts) >= 1 && parts[1] == "placements") {
+          # If there's a layout ID in the route, select it
+          if (length(parts) >= 2) {
+            layout_id_str <- parts[2]
+
+            # Look up LayoutID for this value (could be numeric ID)
+            df <- layouts_data()
+            if (!nrow(df)) return()
+
+            # Try to match by LayoutID (numeric)
+            layout_id <- suppressWarnings(as.integer(layout_id_str))
+            if (!is.na(layout_id)) {
+              row <- df[df$LayoutID == layout_id, ]
+              if (nrow(row) == 0) {
+                showNotification(paste0("Layout '", layout_id_str, "' not found"), type = "warning", duration = 2)
+                return()
+              }
+
+              # Select the layout by its numeric ID
+              layout_id_value <- as.integer(row$LayoutID[1])
+              current_selected <- current_layout_id()
+
+              # Only update if different from current selection
+              if (is.null(current_selected) || current_selected != layout_id_value) {
+                # Update the dropdown to trigger selection
+                shiny.semantic::update_dropdown_input(session, "layout_id", value = as.character(layout_id_value))
+              }
+            }
+          }
+        }
+      }, ignoreInit = TRUE)
+
+      # Update URL when layout selection changes - BUT ONLY if we're on the placements page
+      observeEvent(current_layout_id(), {
+        # Use isolate to check route without creating dependency on it
+        parts <- isolate(route())
+
+        # Only update URL if we're currently on the placements page
+        if (length(parts) < 1 || parts[1] != "placements") return()
+
+        lid <- current_layout_id()
+        if (is.null(lid) || is.na(lid)) return()
+
+        # Check if we need to update the route
+        expected_parts <- c("placements", as.character(lid))
+
+        if (!identical(parts, expected_parts)) {
+          # Send message to update hash
+          session$sendCustomMessage("set-hash", list(h = paste0("#/placements/", lid)))
+        }
+      }, ignoreInit = TRUE)
+    }
 
     # Handle site selection - update layout in database
     # Note: Placements/silos/areas will auto-refresh via reactive dependencies on input$layout_site_id
@@ -965,8 +1009,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
       # Real data from database
       if (nrow(sites) > 0) {
         site_labels <- paste0(sites$SiteCode, " - ", sites$SiteName)
-        cat("[DEBUG] Site choices:", paste(site_labels, collapse=", "), "\n")
-        cat("[DEBUG] Site IDs:", paste(sites$SiteID, collapse=", "), "\n")
 
         shiny.semantic::update_dropdown_input(
           session,
@@ -974,8 +1016,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
           choices = site_labels,
           choices_value = sites$SiteID
         )
-      } else {
-        cat("[DEBUG] No sites available\n")
       }
     })
 
@@ -1076,7 +1116,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
 
       # Update site selection
       site_id <- if (is.null(layout$SiteID) || is.na(layout$SiteID)) "" else as.character(layout$SiteID)
-      cat("[DEBUG] Setting site dropdown to site_id:", site_id, "for layout:", layout$LayoutID, "\n")
       shiny.semantic::update_dropdown_input(session, "layout_site_id", value = site_id)
 
       # Update background rotation control

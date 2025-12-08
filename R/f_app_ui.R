@@ -167,7 +167,8 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
                         tags$option(value = "siloes", "Siloes"),
                         tags$option(value = "sites", "Sites"),
                         tags$option(value = "areas", "Areas"),
-                        tags$option(value = "operations", "Operations")
+                        tags$option(value = "operations", "Operations"),
+                        tags$option(value = "layouts", "Layouts")
                     ),
                     div(class = "ui mini icon button", id = "global_search_btn",
                         style = "font-size: 11px; padding: 0.4rem 0.6rem;",
