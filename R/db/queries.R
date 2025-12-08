@@ -59,6 +59,17 @@ list_silos <- function(site_id = NULL,
   db_query_params(sql, c(params, list(as.integer(offset), as.integer(limit))))
 }
 
+# Get layouts where a silo is placed
+get_silo_layouts <- function(silo_id) {
+  db_query_params("
+    SELECT DISTINCT l.LayoutID, l.LayoutName
+    FROM SiloOps.dbo.SiloPlacements p
+    INNER JOIN SiloOps.dbo.CanvasLayouts l ON p.LayoutID = l.LayoutID
+    WHERE p.SiloID = ?
+    ORDER BY l.LayoutName
+  ", list(as.integer(silo_id)))
+}
+
 get_silo_by_id <- function(silo_id) {
   db_query_params("
     SELECT s.SiloID, s.SiloName,

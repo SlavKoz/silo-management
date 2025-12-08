@@ -163,13 +163,17 @@ browser_silos_server <- function(id, pool, route = NULL) {
           field("AreaID",          "select",   title="Area", enum=area_choices, column = 2, group="Location"),
           field("ContainerTypeID", "select",   title="Container Type", enum=type_choices, column = 2, group="Type", required = TRUE),
 
+          # Column 2 - Layouts (read-only HTML display)
+          field("Layouts", "html", title="Placed on Layouts", column = 2, group="Placements"),
+
           # Column 2 - Notes
           field("Notes", "textarea", title="Notes", column = 2, group="Notes")
         ),
         groups = list(
-          group("Location",    title="Location", collapsible=FALSE, collapsed=FALSE, column=2),
-          group("Type",        title="Type",     collapsible=FALSE, collapsed=FALSE, column=2),
-          group("Notes",       title="Notes",    collapsible=TRUE,  collapsed=TRUE,  column=2)
+          group("Location",    title="Location",   collapsible=FALSE, collapsed=FALSE, column=2),
+          group("Type",        title="Type",       collapsible=FALSE, collapsed=FALSE, column=2),
+          group("Placements",  title="Placements", collapsible=FALSE, collapsed=FALSE, column=2),
+          group("Notes",       title="Notes",      collapsible=TRUE,  collapsed=TRUE,  column=2)
         ),
         columns = 2,
         static_fields = character(0)
@@ -196,6 +200,9 @@ browser_silos_server <- function(id, pool, route = NULL) {
           Type = list(
             ContainerTypeID = ""
           ),
+          Placements = list(
+            Layouts = '<span style="color: #999; font-style: italic;">Not placed on any layout</span>'
+          ),
           Notes = list(
             Notes = ""
           )
@@ -215,6 +222,9 @@ browser_silos_server <- function(id, pool, route = NULL) {
           Type = list(
             ContainerTypeID = ""
           ),
+          Placements = list(
+            Layouts = '<span style="color: #999; font-style: italic;">Not placed on any layout</span>'
+          ),
           Notes = list(
             Notes = ""
           )
@@ -225,6 +235,21 @@ browser_silos_server <- function(id, pool, route = NULL) {
       df1 <- try(get_silo_by_id(sid), silent = TRUE)
       if (inherits(df1, "try-error") || is.null(df1) || !nrow(df1)) {
         return(list())
+      }
+
+      # Fetch layouts where this silo is placed
+      layouts <- try(get_silo_layouts(sid), silent = TRUE)
+      layouts_html <- ""
+      if (!inherits(layouts, "try-error") && !is.null(layouts) && nrow(layouts) > 0) {
+        # Build HTML links for each layout
+        layout_links <- vapply(seq_len(nrow(layouts)), function(i) {
+          sprintf('<a href="#/placements/%d" target="_self" style="margin-right: 0.5rem; display: inline-block;">%s</a>',
+                  layouts$LayoutID[i],
+                  layouts$LayoutName[i])
+        }, character(1))
+        layouts_html <- paste(layout_links, collapse = "")
+      } else {
+        layouts_html <- '<span style="color: #999; font-style: italic;">Not placed on any layout</span>'
       }
 
       # Transform to nested format
@@ -239,6 +264,9 @@ browser_silos_server <- function(id, pool, route = NULL) {
         ),
         Type = list(
           ContainerTypeID = as.character(f_or(df1$ContainerTypeID, ""))
+        ),
+        Placements = list(
+          Layouts = layouts_html
         ),
         Notes = list(
           Notes = f_or(df1$Notes, "")

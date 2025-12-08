@@ -14,7 +14,7 @@ f_app_server <- function(input, output, session) {
     category <- input$global_search_category
     query <- input$global_search_input
 
-    if (is.null(category)) category <- "forms"
+    if (is.null(category)) category <- "all"
     if (is.null(query) || !nzchar(trimws(query))) {
       showNotification("Please enter a search term", type = "warning", duration = 1)
       return()
@@ -33,18 +33,27 @@ f_app_server <- function(input, output, session) {
     # Extract ID/Name from label based on format
     search_term <- query
 
+    # Strip "[Category]" suffix if present (from "All" category search)
+    # e.g., "Overview (CAMBRIDGE) [Layouts]" -> "Overview (CAMBRIDGE)"
+    if (grepl(" \\[[^\\]]+\\]$", query)) {
+      search_term <- sub(" \\[[^\\]]+\\]$", "", search_term)
+    }
+
     # Handle "ID - Name" format (e.g., "BULKTANK - Bulk tank")
-    if (grepl(" - ", query)) {
-      parts <- strsplit(query, " - ", fixed = TRUE)[[1]]
+    if (grepl(" - ", search_term)) {
+      parts <- strsplit(search_term, " - ", fixed = TRUE)[[1]]
       if (length(parts) >= 2) {
         search_term <- parts[1]  # Use just the ID part
       }
     }
 
     # Handle "Name (SiteCode)" format for layouts (e.g., "Overview (CAMBRIDGE)")
-    if (category == "layouts" && grepl(" \\(.*\\)$", query)) {
+    if (category == "layouts" && grepl(" \\(.*\\)$", search_term)) {
       # Extract just the name part before the parentheses
-      search_term <- sub(" \\(.*\\)$", "", query)
+      search_term <- sub(" \\(.*\\)$", "", search_term)
+    } else if (category == "all" && grepl(" \\(.*\\)$", search_term)) {
+      # For "all" category, also handle layout-style names
+      search_term <- sub(" \\(.*\\)$", "", search_term)
     }
 
     # Get search results
@@ -82,7 +91,7 @@ f_app_server <- function(input, output, session) {
     category <- input$global_search_category
     query <- input$global_search_input
 
-    if (is.null(category)) category <- "forms"
+    if (is.null(category)) category <- "all"
     if (is.null(query) || nchar(query) < 2) return(list())
 
     # Get suggestions

@@ -163,15 +163,9 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
                     uiOutput("search_datalist"),
                     shiny.semantic::dropdown_input(
                       input_id = "global_search_category",
-                      choices = c("Forms" = "forms",
-                                  "Containers" = "containers",
-                                  "Shapes" = "shapes",
-                                  "Siloes" = "siloes",
-                                  "Sites" = "sites",
-                                  "Areas" = "areas",
-                                  "Operations" = "operations",
-                                  "Layouts" = "layouts"),
-                      value = "forms",
+                      choices = c("All", "Forms", "Containers", "Shapes", "Siloes", "Sites", "Areas", "Operations", "Layouts"),
+                      choices_value = c("all", "forms", "containers", "shapes", "siloes", "sites", "areas", "operations", "layouts"),
+                      value = "all",
                       type = "compact selection"
                     ),
                     shiny.semantic::action_button(
@@ -208,35 +202,52 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
           });
 
           // Check for matching suggestions and turn red if none found
+          // Also auto-navigate when selecting from datalist
+          var searchTimeout;
           $('#global_search_input').on('input', function(){
-            var inputVal = $(this).val().toLowerCase();
+            var $input = $(this);
+            var inputVal = $input.val();
+
             if (!inputVal) {
-              $(this).css('color', '');
+              $input.css('color', '');
               return;
             }
 
             // Get datalist options
             var datalist = $('#search_suggestions');
             if (!datalist.length) {
-              $(this).css('color', '');
+              $input.css('color', '');
               return;
             }
 
-            // Check if any option matches
-            var hasMatch = false;
+            // Check if input matches a datalist option exactly
+            var exactMatch = false;
+            var hasPartialMatch = false;
+
             datalist.find('option').each(function(){
-              var optionVal = $(this).val().toLowerCase();
-              if (optionVal.indexOf(inputVal) !== -1) {
-                hasMatch = true;
+              var optionVal = $(this).val();
+              if (optionVal === inputVal) {
+                exactMatch = true;
                 return false; // break
+              }
+              if (optionVal.toLowerCase().indexOf(inputVal.toLowerCase()) !== -1) {
+                hasPartialMatch = true;
               }
             });
 
+            // If exact match from datalist selection, auto-navigate after short delay
+            if (exactMatch) {
+              clearTimeout(searchTimeout);
+              searchTimeout = setTimeout(function(){
+                $('#global_search_btn').click();
+              }, 150);
+            }
+
             // Set color based on match
-            if (hasMatch) {
-              $(this).css('color', '');
+            if (hasPartialMatch) {
+              $input.css('color', '');
             } else {
-              $(this).css('color', '#db2828'); // Semantic UI red
+              $input.css('color', '#db2828'); // Semantic UI red
             }
           });
         });

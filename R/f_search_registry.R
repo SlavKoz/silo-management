@@ -21,6 +21,45 @@ SEARCH_FORMS <- list(
 f_get_search_items <- function(category = "forms", query = "", pool = NULL, limit = 50) {
   items <- list()
 
+  # "All" category - search across all categories
+  if (category == "all") {
+    if (!is.null(pool) && nzchar(query)) {
+      # Search across all dynamic categories
+      all_categories <- c("containers", "shapes", "siloes", "sites", "areas", "operations", "layouts")
+
+      for (cat in all_categories) {
+        cat_items <- f_get_search_items(
+          category = cat,
+          query = query,
+          pool = pool,
+          limit = 10  # Limit per category
+        )
+
+        # Add category label to each item
+        cat_items <- lapply(cat_items, function(item) {
+          item$label <- paste0(item$label, " [", toupper(substring(cat, 1, 1)), substring(cat, 2), "]")
+          item
+        })
+
+        items <- c(items, cat_items)
+      }
+
+      # Also search forms
+      form_items <- Filter(function(x) grepl(query, x$label, ignore.case = TRUE), SEARCH_FORMS)
+      form_items <- lapply(form_items, function(item) {
+        item$label <- paste0(item$label, " [Form]")
+        item
+      })
+      items <- c(items, form_items)
+
+      # Limit total results
+      if (length(items) > limit) {
+        items <- items[1:limit]
+      }
+    }
+    return(items)
+  }
+
   # Forms category - return static form list
   if (category == "forms") {
     items <- SEARCH_FORMS
@@ -287,6 +326,7 @@ f_get_search_items <- function(category = "forms", query = "", pool = NULL, limi
 # Get available categories for the search dropdown
 f_get_search_categories <- function() {
   list(
+    list(value = "all",        label = "All"),
     list(value = "forms",      label = "Forms"),
     list(value = "containers", label = "Containers"),
     list(value = "shapes",     label = "Shapes"),
