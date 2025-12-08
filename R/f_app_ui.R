@@ -88,9 +88,12 @@ f_app_ui <- function() {
   .pane-header { background:#0d6efd; color:#fff; padding:.75rem 1rem; border-radius:.5rem; display:flex; align-items:center; justify-content:space-between; margin:.5rem 0 1rem; }
   .pane-title { margin:0; font-weight:600; font-size:1.15rem; }
 
-  /* Search palette dropdown menu items */
+  /* Search bar components */
+  #global_search_category { font-size: 11px !important; min-height: 1.8rem !important; }
   #global_search_category + .menu { font-size: 11px !important; }
   #global_search_category + .menu .item { font-size: 11px !important; padding: 0.5rem 0.8rem !important; }
+  #global_search_btn { font-size: 11px !important; padding: 0.4rem 0.6rem !important; }
+  #global_search_btn i { font-size: 11px !important; }
 
   /* ======================
      Tooltips (collapsed)
@@ -150,7 +153,7 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         div(class = "pane-header",
             h4(class = "pane-title", textOutput("f_page_title", inline = TRUE)),
             div(class = "header-actions",
-                div(class = "ui mini action input", style = "width: 280px;",
+                div(class = "ui action input", style = "width: 280px;",
                     tags$input(type = "text",
                               placeholder = "Search...",
                               id = "global_search_input",
@@ -158,21 +161,23 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
                               autocomplete = "off",
                               style = "font-size: 11px; padding: 0.4rem 0.6rem;"),
                     uiOutput("search_datalist"),
-                    tags$select(class = "ui compact selection dropdown",
-                                id = "global_search_category",
-                                style = "font-size: 11px; min-height: 1.8rem;",
-                        tags$option(value = "forms", selected = "selected", "Forms"),
-                        tags$option(value = "containers", "Containers"),
-                        tags$option(value = "shapes", "Shapes"),
-                        tags$option(value = "siloes", "Siloes"),
-                        tags$option(value = "sites", "Sites"),
-                        tags$option(value = "areas", "Areas"),
-                        tags$option(value = "operations", "Operations"),
-                        tags$option(value = "layouts", "Layouts")
+                    shiny.semantic::dropdown_input(
+                      input_id = "global_search_category",
+                      choices = c("Forms" = "forms",
+                                  "Containers" = "containers",
+                                  "Shapes" = "shapes",
+                                  "Siloes" = "siloes",
+                                  "Sites" = "sites",
+                                  "Areas" = "areas",
+                                  "Operations" = "operations",
+                                  "Layouts" = "layouts"),
+                      value = "forms",
+                      type = "compact selection"
                     ),
-                    div(class = "ui mini icon button", id = "global_search_btn",
-                        style = "font-size: 11px; padding: 0.4rem 0.6rem;",
-                        tags$i(class = "search icon", style = "font-size: 11px;")
+                    shiny.semantic::action_button(
+                      input_id = "global_search_btn",
+                      label = icon("search"),
+                      class = "icon"
                     )
                 )
             )
@@ -183,14 +188,16 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
     # ------ Router + collapse + collapsible groups ------
     tags$script(HTML("
       (function(){
-        // Initialize Fomantic UI dropdown for search category
         $(document).ready(function(){
-          $('#global_search_category').dropdown({
-            onChange: function(value, text, $selectedItem) {
-              // Clear search input when category changes
-              $('#global_search_input').val('').css('color', '');
-            }
-          });
+          // Wait for shiny.semantic dropdown initialization, then extend with custom behavior
+          setTimeout(function() {
+            $('#global_search_category').dropdown({
+              onChange: function(value, text, $selectedItem) {
+                // Clear search input when category changes
+                $('#global_search_input').val('').css('color', '');
+              }
+            });
+          }, 100);
 
           // Handle Enter key in search input
           $('#global_search_input').on('keypress', function(e){
