@@ -164,7 +164,7 @@ browser_silos_server <- function(id, pool, route = NULL) {
           field("ContainerTypeID", "select",   title="Container Type", enum=type_choices, column = 2, group="Type", required = TRUE),
 
           # Column 2 - Layouts (read-only HTML display)
-          field("Layouts", "html", title="Placed on Layouts", column = 2, group="Placements"),
+          field("Layouts", "html", title="Visible on Layouts", column = 2, group="Placements"),
 
           # Column 2 - Notes
           field("Notes", "textarea", title="Notes", column = 2, group="Notes")

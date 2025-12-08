@@ -212,6 +212,19 @@ render_input <- function(name, schema, ui, value, is_plaintext, ns_prefix, is_re
   # Convert value to string
   val_str <- if (!is.null(value)) as.character(value) else ""
 
+  
+  # Custom HTML display field (non-editable)
+  if (type == "html") {
+    content <- if (nzchar(val_str)) HTML(val_str) else NULL
+    
+    return(div(
+      class = "form-static-value",
+      style = "padding: 0.375rem 0; color: #6c757d; font-size: 10px !important; line-height: 1.25rem; background: transparent;",
+      `data-static` = "true",
+      content
+    ))
+  }
+  
   # Build conditional required data attribute
   required_if_attr <- if (!is.null(required_if) && is.list(required_if)) {
     # Convert to JSON string for JS to parse
