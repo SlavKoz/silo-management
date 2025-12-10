@@ -286,6 +286,16 @@ f_app_server <- function(input, output, session) {
       server = function() {
         if (exists("f_browser_canvas_server")) f_browser_canvas_server("canvases", pool)
       }
+    ),
+    "variants" = list(
+      title = "Variants",
+      ui    = function() {
+        if (exists("f_browser_variants_ui")) f_browser_variants_ui("variants")
+        else div(class = "p-3", h3("Variants"), p("Placeholder: Variants browser will go here."))
+      },
+      server = function() {
+        if (exists("f_browser_variants_server")) f_browser_variants_server("variants", pool, route = current)
+      }
     )
   )
   
@@ -301,7 +311,8 @@ f_app_server <- function(input, output, session) {
     "icons"                  = "icons",
     "containers"             = "boxes",
     "placements"             = "map marker alternate",
-    "canvases"               = "image outline"
+    "canvases"               = "image outline",
+    "variants"               = "tags"
   )
   
 
@@ -340,7 +351,8 @@ f_app_server <- function(input, output, session) {
     list( key="icons@single",     title="Icons",     items=c("icons") ),
     list( key="containers@single",title="Containers",items=c("containers") ),
     list( key="placements@single",title="Placements",items=c("placements") ),
-    list( key="canvases@single",  title="Canvases",  items=c("canvases") )
+    list( key="canvases@single",  title="Canvases",  items=c("canvases") ),
+    list( key="variants@single",  title="Variants",  items=c("variants") )
   )
   
   build_menu <- function(active_key) {

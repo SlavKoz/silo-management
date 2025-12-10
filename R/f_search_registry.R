@@ -13,7 +13,8 @@ SEARCH_FORMS <- list(
   list(id = "containers",   label = "Containers",       category = "forms", route = "#/containers"),
   list(id = "placements",   label = "Placements",       category = "forms", route = "#/placements"),
   list(id = "layouts",      label = "Layouts",          category = "forms", route = "#/placements"),
-  list(id = "canvases",     label = "Canvases",         category = "forms", route = "#/canvases")
+  list(id = "canvases",     label = "Canvases",         category = "forms", route = "#/canvases"),
+  list(id = "variants",     label = "Variants",         category = "forms", route = "#/variants")
 )
 
 # Get search items based on category and optional query filter
@@ -28,7 +29,7 @@ f_get_search_items <- function(category = "all", query = "", pool = NULL, limit 
   if (category == "all") {
     if (!is.null(pool)) {
       # Search across all dynamic categories
-      all_categories <- c("containers", "shapes", "siloes", "sites", "areas", "operations", "layouts")
+      all_categories <- c("containers", "shapes", "siloes", "sites", "areas", "operations", "layouts", "variants")
 
       for (cat in all_categories) {
         cat_items <- f_get_search_items(
@@ -295,6 +296,49 @@ f_get_search_items <- function(category = "all", query = "", pool = NULL, limit 
           })
         }
       }
+
+      else if (category == "variants") {
+        # Fetch variants with grain group and commodity info
+        if (nzchar(query)) {
+          safe_query <- gsub("'", "''", query)
+          sql <- sprintf(
+            "SELECT TOP %d VariantID, VariantNo, GrainGroup, Commodity
+             FROM SiloOps.dbo.vw_Variants
+             WHERE IsActive = 1
+               AND (VariantNo LIKE '%%%s%%'
+                    OR GrainGroup LIKE '%%%s%%'
+                    OR Commodity LIKE '%%%s%%')
+             ORDER BY Commodity, GrainGroup, VariantNo",
+            limit, safe_query, safe_query, safe_query
+          )
+        } else {
+          sql <- sprintf(
+            "SELECT TOP %d VariantID, VariantNo, GrainGroup, Commodity
+             FROM SiloOps.dbo.vw_Variants
+             WHERE IsActive = 1
+             ORDER BY Commodity, GrainGroup, VariantNo",
+            limit
+          )
+        }
+        df <- DBI::dbGetQuery(pool, sql)
+
+        if (nrow(df) > 0) {
+          items <- lapply(1:nrow(df), function(i) {
+            # Build label with variant number and grain group
+            label <- df$VariantNo[i]
+            if (!is.null(df$GrainGroup) && !is.na(df$GrainGroup[i]) && nzchar(df$GrainGroup[i])) {
+              label <- paste0(label, " (", df$GrainGroup[i], ")")
+            }
+
+            list(
+              id = df$VariantID[i],
+              label = label,
+              category = "variants",
+              route = paste0("#/variants/", df$VariantID[i])
+            )
+          })
+        }
+      }
     }, error = function(e) {
       warning("Search query error: ", conditionMessage(e))
     })
@@ -315,6 +359,7 @@ f_get_search_categories <- function() {
     list(value = "sites",      label = "Sites"),
     list(value = "areas",      label = "Areas"),
     list(value = "operations", label = "Operations"),
-    list(value = "layouts",    label = "Layouts")
+    list(value = "layouts",    label = "Layouts"),
+    list(value = "variants",   label = "Variants")
   )
 }
