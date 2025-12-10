@@ -9,10 +9,10 @@ f_app_server <- function(input, output, session) {
   session$userData$icons_version <- 0
   session$userData$areas_version <- 0
 
-  # --- Test Search (simple grouped search) ---
+  # --- Search (grouped search) ---
   observeEvent(input$test_search_input, {
     selected <- input$test_search_input
-    cat(sprintf("[TestSearch] Selected: %s\n", f_or(selected, "NULL")))
+    cat(sprintf("[Search] Selected: %s\n", f_or(selected, "NULL")))
     flush.console()
 
     if (is.null(selected) || !nzchar(selected)) return()
@@ -25,29 +25,25 @@ f_app_server <- function(input, output, session) {
     }
   })
 
-  output$test_search_output <- renderText({
-    f_or(input$test_search_input, "(nothing selected yet)")
-  })
-
-  # Monitor test search query typing
+  # Monitor search query typing
   observeEvent(input$test_search_query, {
-    cat(sprintf("[TestSearch][query] \"%s\" (len=%d)\n",
+    cat(sprintf("[Search][query] \"%s\" (len=%d)\n",
                 f_or(input$test_search_query, ""), nchar(f_or(input$test_search_query, ""))))
     flush.console()
   }, ignoreInit = FALSE)
 
-  # Get search items for test search
+  # Get search items
   test_search_items <- reactive({
     category <- f_or(input$global_search_category, "all")
     query <- f_or(input$test_search_query, "")
-    cat(sprintf("[TestSearch][reactive] category=%s query=\"%s\" len=%d pool=%s\n",
+    cat(sprintf("[Search][reactive] category=%s query=\"%s\" len=%d pool=%s\n",
                 category, query, nchar(query), if (is.null(pool)) "NULL" else "OK"))
     flush.console()
 
     # For "all" require 3+ characters
     # For specific category, allow empty query (show all items)
     if (category == "all" && nchar(query) < 3) {
-      cat("[TestSearch] All category needs 3+ chars; returning empty\n")
+      cat("[Search] All category needs 3+ chars; returning empty\n")
       flush.console()
       return(list())
     }
@@ -59,12 +55,12 @@ f_app_server <- function(input, output, session) {
       pool = pool,
       limit = 100
     )
-    cat(sprintf("[TestSearch] fetched %d items\n", length(results)))
+    cat(sprintf("[Search] fetched %d items\n", length(results)))
     flush.console()
     results
   })
 
-  # Store route mappings for test search selections
+  # Store route mappings for search selections
   test_search_route_map <- reactive({
     items <- test_search_items()
     if (length(items) == 0) return(list())
@@ -74,8 +70,7 @@ f_app_server <- function(input, output, session) {
     as.list(routes)
   })
 
-  # Update test search dropdown with real data
-  # Using observe with explicit dependencies instead of observeEvent
+  # Update search dropdown with real data
   observe({
     # Explicit dependencies
     items <- test_search_items()
@@ -85,7 +80,7 @@ f_app_server <- function(input, output, session) {
     category <- f_or(category, "all")
     query <- f_or(query, "")
 
-    cat(sprintf("[TestSearch][observer] category=%s query=\"%s\" items=%d\n",
+    cat(sprintf("[Search][observer] category=%s query=\"%s\" items=%d\n",
                 category, query, length(items)))
     flush.console()
 
@@ -105,7 +100,7 @@ f_app_server <- function(input, output, session) {
       categories <- sapply(items, function(x) x$category)
 
       # Debug: print category breakdown
-      cat(sprintf("[TestSearch] Category breakdown:\n"))
+      cat(sprintf("[Search] Category breakdown:\n"))
       for (cat_name in unique(categories)) {
         count <- sum(categories == cat_name)
         cat(sprintf("  - %s: %d items\n", cat_name, count))
@@ -114,7 +109,7 @@ f_app_server <- function(input, output, session) {
 
       # If specific category selected, don't show category headers
       if (category != "all") {
-        cat("[TestSearch] Specific category - hiding headers\n")
+        cat("[Search] Specific category - hiding headers\n")
         flush.console()
         session$sendCustomMessage("test-search-menu", list(
           groups = list(list(name = "", items = as.list(labels))),
@@ -129,7 +124,7 @@ f_app_server <- function(input, output, session) {
         grouped <- split(labels, groups)
 
         # Debug: print grouped structure
-        cat(sprintf("[TestSearch] Grouped structure:\n"))
+        cat(sprintf("[Search] Grouped structure:\n"))
         for (g in names(grouped)) {
           cat(sprintf("  - %s: %d items\n", g, length(grouped[[g]])))
         }
@@ -154,134 +149,6 @@ f_app_server <- function(input, output, session) {
     }
   })
 
-  # --- Global Search Logic ---
-  observeEvent(input$global_search_input, {
-    selected <- input$global_search_input
-
-    if (is.null(selected) || !nzchar(selected)) return()
-
-    # Find the route for the selected item
-    route_map <- search_route_map()
-    if (!is.null(route_map[[selected]])) {
-      route <- route_map[[selected]]
-      session$sendCustomMessage("set-hash", list(h = route))
-    }
-  })
-
-  # Debug: log search query typing and category changes
-  observeEvent(input$global_search_query, {
-    cat(sprintf("[GlobalSearch][event] query changed -> \"%s\" (len=%d)\n",
-                f_or(input$global_search_query, ""), nchar(f_or(input$global_search_query, ""))))
-    flush.console()
-  }, ignoreInit = FALSE)
-
-  observeEvent(input$global_search_category, {
-    cat(sprintf("[GlobalSearch][event] category changed -> %s\n",
-                f_or(input$global_search_category, "")))
-    flush.console()
-  }, ignoreInit = FALSE)
-
-  # Get all search items for the current category
-  search_items <- reactive({
-    category <- f_or(input$global_search_category, "all")
-    query <- f_or(input$global_search_query, "")
-    cat(sprintf("[GlobalSearch] category=%s query=\"%s\" len=%d pool=%s\n",
-                category, query, nchar(query), if (is.null(pool)) "NULL" else "OK"))
-    flush.console()
-
-    # Avoid huge result sets when searching across all categories
-    if (identical(category, "all") && nchar(query) < 3) {
-      cat("[GlobalSearch] All category, <3 chars; returning empty\n")
-      flush.console()
-      return(list())
-    }
-
-    # Get items for this category using the current query (if any)
-    results <- f_get_search_items(
-      category = category,
-      query = query,
-      pool = pool,
-      limit = 100
-    )
-    cat(sprintf("[GlobalSearch] fetched %d items\n", length(results)))
-    flush.console()
-    results
-  })
-
-  # Update dropdown choices without re-rendering the input control (prevents losing typed text)
-  observeEvent(search_items(), {
-    items <- search_items()
-    category <- f_or(input$global_search_category, "all")
-    query <- f_or(input$global_search_query, "")
-
-    needs_more_chars <- identical(category, "all") && nchar(query) < 3
-
-    # Don't clobber the user's typing when still below 3 chars in "all"
-    if (needs_more_chars) {
-      session$sendCustomMessage("global-search-menu", list(
-        groups = list(list(name = "Type 3+ chars to search all", items = character(0))),
-        query  = query,
-        placeholder = "Type 3+ chars to search all..."
-      ))
-      return()
-    }
-
-    if (length(items) > 0) {
-      labels <- sapply(items, function(x) x$label)
-      values <- labels
-      shiny.semantic::update_dropdown_input(
-        session,
-        input_id = "global_search_input",
-        choices = labels,
-        choices_value = values,
-        value = ""
-      )
-
-      # Build grouped menu data for client rendering
-      if (category == "all") {
-        groups <- sapply(items, function(x) {
-          paste0(toupper(substring(x$category, 1, 1)), substring(x$category, 2))
-        })
-        grouped <- split(labels, groups)
-      } else {
-        grouped <- list()
-        grouped[[paste0(toupper(substring(category, 1, 1)), substring(category, 2))]] <- labels
-      }
-
-      session$sendCustomMessage("global-search-menu", list(
-        groups = lapply(names(grouped), function(g) {
-          list(name = g, items = unname(grouped[[g]]))
-        }),
-        query = query,
-        placeholder = if (category == "all") "Search all..." else paste0("Search ", category, "...")
-      ))
-      session$sendCustomMessage("global-search-restore", list(q = query))
-    } else {
-      shiny.semantic::update_dropdown_input(
-        session,
-        input_id = "global_search_input",
-        choices = character(0),
-        choices_value = character(0),
-        value = ""
-      )
-      session$sendCustomMessage("global-search-menu", list(
-        groups = list(list(name = "No items available", items = character(0))),
-        query = query,
-        placeholder = "No items available"
-      ))
-      session$sendCustomMessage("global-search-restore", list(q = query))
-    }
-  }, ignoreInit = FALSE)
-
-  # Store route mappings for search selections
-  search_route_map <- reactive({
-    items <- search_items()
-    if (length(items) == 0) return(list())
-
-    routes <- sapply(items, function(item) item$route)
-    names(routes) <- sapply(items, function(item) item$label)
-    as.list(routes)
-  })
 
   # --- Router helpers ---
   parse_route <- function(h) {

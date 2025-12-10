@@ -1,0 +1,234 @@
+,case t.[Ticket Status] when 0 then 'Arrived' --hardcoded - is there a lookup table?
+						when 1 then 'Processed'
+						when 2 then 'Confirmed'
+						when 3 then 'Cancelled'
+						when 4 then ''
+						else ''
+ end							as [Ticket Status]
+,case m.[Movement Status] when 0 then 'Unallocated' --hardcoded - is there a lookup table? 
+							when 1 then 'Allocated'
+							when 2 then 'In Progress'
+							when 3 then 'Loading'
+							when 4 then 'Collected'
+							when 5 then 'Collection Confirmed'
+							when 6 then 'Tipping'
+							when 7 then 'Delivered'
+							when 8 then 'Delivery Confirmed'
+							when 9 then 'Completed'
+							when 10 then 'Cancelled'
+							else 'Unknown'
+							
+ review of tickets without location
+SELECT  *
+     
+  FROM [query].[dbo].[vw_Ops_Weighbridge_Tickets]
+  where year([Ticket Date]) = 2025 and [Storage Location 1 (new)] ='' and [Ticket Status] =2 and no_ not like 'W%'
+  and [Registration Plate] <> 'ANY' and not (Type = 1 and [Delivery Location] in ( 'Turney', 'NOR-PIPE')) 
+  and not (Type = 0 and [Collection Location]  in ( 'Turney', 'NOR-PIPE','PX-FARM'))
+  and [Contract No_] <> 'A01552' --returns
+  and not [Delivery Location] in ( 'HOVIS','SUDBURY')
+
+and type = 0
+order by [Ticket Date]
+
+list of locations with tickets
+SELECT  count(*) as Q,
+      [Storage Location 1 (new)]
+     
+  FROM [query].[dbo].[vw_Ops_Weighbridge_Tickets]
+  where year([Ticket Date]) = 2025
+  group by [Storage Location 1 (new)]
+
+
+list of variants
+
+SELECT TOP (1000) [timestamp]
+      ,[No_]
+      ,[Item Type]
+      ,[Specification Template Name]
+  FROM [Franklin].[dbo].[Operations$Item$8b6fdf3b-96c5-4155-a8ab-3cb5b3b53b81]
+  where [Item Type] = 2
+
+variant link to commodity and grain group
+SELECT TOP (1000) [timestamp]
+      ,[Table ID]
+      ,[No_]
+      ,[Dimension Code]
+      ,[Dimension Value Code]
+      ,[Value Posting]
+      ,[Multi Selection Action]
+      ,[ParentId]
+      ,[DimensionId]
+      ,[DimensionValueId]
+  FROM [Franklin].[dbo].[Operations$Default Dimension]
+  where [Table ID] = 27
+
+list of locations
+SELECT TOP (1000) [timestamp]
+      ,[Type]
+      ,[Code]
+      ,[Description]
+      ,[Blocked]
+  FROM [Franklin].[dbo].[Operations$CTMS Dictionary$8b6fdf3b-96c5-4155-a8ab-3cb5b3b53b81]
+  where  type = 10
+
+list of grain groups and comodities
+
+SELECT TOP (1000) [timestamp]
+      ,[Dimension Code]
+      ,[Code]
+      ,[Name]
+      ,[Dimension Value Type]
+      ,[Totaling]
+      ,[Blocked]
+      ,[Consolidation Code]
+      ,[Indentation]
+      ,[Global Dimension No_]
+      ,[Map-to IC Dimension Code]
+      ,[Map-to IC Dimension Value Code]
+      ,[Dimension Value ID]
+      ,[Id]
+      ,[Last Modified Date Time]
+  FROM [Franklin].[dbo].[Operations$Dimension Value]
+
+
+list of items
+
+SELECT  [timestamp]
+      ,[No_]
+      ,[No_ 2]
+      ,[Description]
+      ,[Search Description]
+      ,[Description 2]
+      ,[Base Unit of Measure]
+      ,[Price Unit Conversion]
+      ,[Type]
+      ,[Inventory Posting Group]
+      ,[Shelf No_]
+      ,[Item Disc_ Group]
+      ,[Allow Invoice Disc_]
+      ,[Statistics Group]
+      ,[Commission Group]
+      ,[Unit Price]
+      ,[Price_Profit Calculation]
+      ,[Profit _]
+      ,[Costing Method]
+      ,[Unit Cost]
+      ,[Standard Cost]
+      ,[Last Direct Cost]
+      ,[Indirect Cost _]
+      ,[Cost is Adjusted]
+      ,[Allow Online Adjustment]
+      ,[Vendor No_]
+      ,[Vendor Item No_]
+      ,[Lead Time Calculation]
+      ,[Reorder Point]
+      ,[Maximum Inventory]
+      ,[Reorder Quantity]
+      ,[Alternative Item No_]
+      ,[Unit List Price]
+      ,[Duty Due _]
+      ,[Duty Code]
+      ,[Gross Weight]
+      ,[Net Weight]
+      ,[Units per Parcel]
+      ,[Unit Volume]
+      ,[Durability]
+      ,[Freight Type]
+      ,[Tariff No_]
+      ,[Duty Unit Conversion]
+      ,[Country_Region Purchased Code]
+      ,[Budget Quantity]
+      ,[Budgeted Amount]
+      ,[Budget Profit]
+      ,[Blocked]
+      ,[Block Reason]
+      ,[Last DateTime Modified]
+      ,[Last Date Modified]
+      ,[Last Time Modified]
+      ,[Price Includes VAT]
+      ,[VAT Bus_ Posting Gr_ (Price)]
+      ,[Gen_ Prod_ Posting Group]
+      ,[Picture]
+      ,[Country_Region of Origin Code]
+      ,[Automatic Ext_ Texts]
+      ,[No_ Series]
+      ,[Tax Group Code]
+      ,[VAT Prod_ Posting Group]
+      ,[Reserve]
+      ,[Global Dimension 1 Code]
+      ,[Global Dimension 2 Code]
+      ,[Stockout Warning]
+      ,[Prevent Negative Inventory]
+      ,[Application Wksh_ User ID]
+      ,[Assembly Policy]
+      ,[GTIN]
+      ,[Default Deferral Template Code]
+      ,[Low-Level Code]
+      ,[Lot Size]
+      ,[Serial Nos_]
+      ,[Last Unit Cost Calc_ Date]
+      ,[Rolled-up Material Cost]
+      ,[Rolled-up Capacity Cost]
+      ,[Scrap _]
+      ,[Inventory Value Zero]
+      ,[Discrete Order Quantity]
+      ,[Minimum Order Quantity]
+      ,[Maximum Order Quantity]
+      ,[Safety Stock Quantity]
+      ,[Order Multiple]
+      ,[Safety Lead Time]
+      ,[Flushing Method]
+      ,[Replenishment System]
+      ,[Rounding Precision]
+      ,[Sales Unit of Measure]
+      ,[Purch_ Unit of Measure]
+      ,[Time Bucket]
+      ,[Reordering Policy]
+      ,[Include Inventory]
+      ,[Manufacturing Policy]
+      ,[Rescheduling Period]
+      ,[Lot Accumulation Period]
+      ,[Dampener Period]
+      ,[Dampener Quantity]
+      ,[Overflow Level]
+      ,[Manufacturer Code]
+      ,[Item Category Code]
+      ,[Created From Nonstock Item]
+      ,[Product Group Code]
+      ,[Service Item Group]
+      ,[Item Tracking Code]
+      ,[Lot Nos_]
+      ,[Expiration Calculation]
+      ,[Warehouse Class Code]
+      ,[Special Equipment Code]
+      ,[Put-away Template Code]
+      ,[Put-away Unit of Measure Code]
+      ,[Phys Invt Counting Period Code]
+      ,[Last Counting Period Update]
+      ,[Use Cross-Docking]
+      ,[Next Counting Start Date]
+      ,[Next Counting End Date]
+      ,[Id]
+      ,[Unit of Measure Id]
+      ,[Tax Group Id]
+      ,[Sales Blocked]
+      ,[Purchasing Blocked]
+      ,[Item Category Id]
+      ,[Reverse Charge Applies]
+      ,[Routing No_]
+      ,[Production BOM No_]
+      ,[Single-Level Material Cost]
+      ,[Single-Level Capacity Cost]
+      ,[Single-Level Subcontrd_ Cost]
+      ,[Single-Level Cap_ Ovhd Cost]
+      ,[Single-Level Mfg_ Ovhd Cost]
+      ,[Overhead Rate]
+      ,[Rolled-up Subcontracted Cost]
+      ,[Rolled-up Mfg_ Ovhd Cost]
+      ,[Rolled-up Cap_ Overhead Cost]
+      ,[Order Tracking Policy]
+      ,[Critical]
+      ,[Common Item No_]
+  FROM [Franklin].[dbo].[Operations$Item]
+  
