@@ -7,7 +7,11 @@
       "Bash(tasklist:*)",
       "Bash(findstr:*)",
       "Bash(netstat:*)",
-      "Bash(cmd //c \"tasklist /FI \"\"PID eq 5956\"\"\")"
+      "Bash(cmd //c \"tasklist /FI \"\"PID eq 5956\"\"\")",
+      "Bash(cp:*)",
+      "Bash(ls:*)",
+      "Bash(git restore:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []
