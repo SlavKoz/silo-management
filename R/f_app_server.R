@@ -44,10 +44,10 @@ f_app_server <- function(input, output, session) {
                 category, query, nchar(query), if (is.null(pool)) "NULL" else "OK"))
     flush.console()
 
-    # Require at least 3 characters for "all", or 1+ character for specific category
-    min_chars <- if (category == "all") 3 else 1
-    if (nchar(query) < min_chars) {
-      cat(sprintf("[TestSearch] <%d chars; returning empty\n", min_chars))
+    # For "all" require 3+ characters
+    # For specific category, allow empty query (show all items)
+    if (category == "all" && nchar(query) < 3) {
+      cat("[TestSearch] All category needs 3+ chars; returning empty\n")
       flush.console()
       return(list())
     }
@@ -89,14 +89,10 @@ f_app_server <- function(input, output, session) {
                 category, query, length(items)))
     flush.console()
 
-    min_chars <- if (category == "all") 3 else 1
-    needs_more_chars <- nchar(query) < min_chars
-
-    # Don't update if we need more characters
-    if (needs_more_chars) {
-      msg <- if (category == "all") "Type 3+ chars..." else "Start typing..."
+    # For "all" require 3+ chars, for specific category show all items
+    if (category == "all" && nchar(query) < 3) {
       session$sendCustomMessage("test-search-menu", list(
-        groups = list(list(name = msg, items = list())),
+        groups = list(list(name = "Type 3+ chars...", items = list())),
         query  = query,
         show_categories = FALSE
       ))

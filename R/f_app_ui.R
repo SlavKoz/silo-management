@@ -275,12 +275,7 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
             '<input type=\"hidden\" name=\"test_search\">' +
             '<i class=\"dropdown icon\"></i>' +
             '<div class=\"default text\">Type 3+ chars...</div>' +
-            '<div class=\"menu\">' +
-              '<div class=\"category\">' +
-                '<div class=\"name\">Type 3+ chars...</div>' +
-                '<div class=\"results\"></div>' +
-              '</div>' +
-            '</div>' +
+            '<div class=\"menu\"></div>' +
             '</div>'
           );
 
@@ -291,6 +286,17 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
               console.log('[TestSearch] Selected:', value, text);
               if (window.Shiny) {
                 Shiny.setInputValue('test_search_input', value, {priority: 'event'});
+              }
+            },
+            onShow: function() {
+              // When dropdown opens, if category is not "all" and query is empty, trigger fetch
+              var category = $('#global_search_category').dropdown('get value') || 'all';
+              var currentQuery = lastTestSearchQuery || '';
+              console.log('[TestSearch] Dropdown opened, category:', category, 'query:', currentQuery);
+
+              if (category !== 'all' && currentQuery === '') {
+                // Trigger a fetch with empty query to show all items
+                pushTestSearchQuery('');
               }
             }
           });
@@ -313,17 +319,26 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
               var $searchInput = $testSearch.find('input.search');
               $searchInput.val('');
               $testSearch.find('input[type=hidden]').val('');
-              $testSearch.find('.text').text('Type 3+ chars...').addClass('default');
 
-              // Clear menu
+              // Update placeholder based on category
+              var placeholder = (event.value === 'all') ? 'Type 3+ chars...' : 'Search or browse all...';
+              $testSearch.find('.text').text(placeholder).addClass('default');
+
+              // Clear menu temporarily
               $testSearch.find('.menu').empty().append(
-                '<div class=\"category\"><div class=\"name\">Type 3+ chars...</div><div class=\"results\"></div></div>'
+                '<div class=\"category\"><div class=\"name\">' + placeholder + '</div><div class=\"results\"></div></div>'
               );
 
               if (window.Shiny) {
-                // Send empty query for test search
+                // Send empty query for test search - this will trigger fetching all items for specific category
                 Shiny.setInputValue('test_search_query', '', {priority: 'event'});
                 Shiny.setInputValue('test_search_input', '', {priority: 'event'});
+              }
+
+              // If changing to a specific category, immediately fetch all items
+              if (event.value !== 'all') {
+                console.log('[TestSearch] Specific category selected, fetching all items');
+                pushTestSearchQuery('');
               }
 
               console.log('[TestSearch] Category change complete. Cleared query.');
