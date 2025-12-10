@@ -109,13 +109,71 @@ f_app_ui <- function() {
   }
   #global_search_input .menu { font-size: 11px !important; max-height: 400px; overflow-y: auto; }
   #global_search_input .menu .item { font-size: 11px !important; padding: 0.5rem 0.8rem !important; }
-  #global_search_input .menu .item.header { font-weight: 700; color: #2185d0; background: #f8f9fa; }
-  #global_search_input .results .category > .name {
+
+  /* Grouped search results styling */
+  #global_search_input .menu .category {
+    margin: 0;
+  }
+  #global_search_input .menu .category > .name {
     font-weight: 700;
     color: #2185d0;
-    padding: 6px 8px;
+    background: #f8f9fa;
+    padding: 6px 12px;
+    font-size: 11px !important;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  #global_search_input .menu .category .results {
+    padding: 0;
+  }
+  #global_search_input .menu .category .result {
+    font-size: 11px !important;
+    padding: 0.5rem 0.8rem !important;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  #global_search_input .menu .category .result:hover {
+    background: rgba(0,0,0,0.05);
+  }
+
+  /* Test search dropdown styling */
+  #test_search {
+    font-size: 11px !important;
+    min-height: 1.8rem !important;
+    width: 200px !important;
+  }
+  #test_search .text {
     font-size: 11px !important;
   }
+  #test_search .menu {
+    font-size: 11px !important;
+  }
+  #test_search .menu .category > .name {
+    font-weight: 700;
+    color: #2185d0;
+    background: #f8f9fa;
+    padding: 6px 12px;
+    font-size: 11px !important;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  #test_search .menu .category .result {
+    font-size: 11px !important;
+    padding: 0.5rem 0.8rem !important;
+  }
+  /* Results without category wrapper (specific category mode) */
+  #test_search .menu > .result {
+    font-size: 11px !important;
+    padding: 0.5rem 0.8rem !important;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  #test_search .menu > .result:hover {
+    background: rgba(0,0,0,0.05);
+  }
+
+  /* Test search category selector */
+  #test_search_category { font-size: 11px !important; min-height: 1.8rem !important; min-width: 140px !important; }
+  #test_search_category + .menu { font-size: 11px !important; }
+  #test_search_category + .menu .item { font-size: 11px !important; padding: 0.5rem 0.8rem !important; }
 
   /* ======================
      Tooltips (collapsed)
@@ -175,7 +233,7 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
         div(class = "pane-header",
             h4(class = "pane-title", textOutput("f_page_title", inline = TRUE)),
             div(class = "header-actions",
-                div(style = "display: flex; gap: 0.5rem; width: 400px;",
+                div(style = "display: flex; gap: 0.5rem; width: 600px;",
                     shiny.semantic::dropdown_input(
                       input_id = "global_search_input",
                       choices = character(0),
@@ -184,6 +242,7 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
                       type = "selection fluid search",
                       default_text = "Type 3+ chars to search all..."
                     ),
+                    tags$div(id = "test_search_wrapper"),
                     shiny.semantic::dropdown_input(
                       input_id = "global_search_category",
                       choices = c("All", "Containers", "Shapes", "Siloes", "Sites", "Areas", "Operations", "Layouts"),
@@ -194,6 +253,10 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
                 )
             )
         ),
+        div(style = "padding: 0.5rem 1rem; background: #f8f9fa; margin-bottom: 1rem; border-radius: 0.3rem;",
+            tags$strong("Test Search Selected: "),
+            textOutput("test_search_output", inline = TRUE)
+        ),
         uiOutput("f_route_outlet")
     ),
     
@@ -201,6 +264,208 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
     tags$script(HTML("
       (function(){
         $(document).ready(function(){
+          // Initialize simple test search dropdown with grouped results
+          // Track last query sent to server
+          var lastTestSearchQuery = '';
+          var lastSentTestSearchQuery = '';
+          var testSearchDebounce = null;
+
+          $('#test_search_wrapper').html(
+            '<div class=\"ui selection search dropdown\" id=\"test_search\">' +
+            '<input type=\"hidden\" name=\"test_search\">' +
+            '<i class=\"dropdown icon\"></i>' +
+            '<div class=\"default text\">Type 3+ chars...</div>' +
+            '<div class=\"menu\">' +
+              '<div class=\"category\">' +
+                '<div class=\"name\">Type 3+ chars...</div>' +
+                '<div class=\"results\"></div>' +
+              '</div>' +
+            '</div>' +
+            '</div>'
+          );
+
+          // Initialize the dropdown
+          $('#test_search').dropdown({
+            fullTextSearch: true,
+            onChange: function(value, text, $selectedItem) {
+              console.log('[TestSearch] Selected:', value, text);
+              if (window.Shiny) {
+                Shiny.setInputValue('test_search_input', value, {priority: 'event'});
+              }
+            }
+          });
+
+          // Listen for global category changes to clear test search
+          $(document).on('shiny:inputchanged', function(event) {
+            if (event.name === 'global_search_category') {
+              console.log('[TestSearch] Category changed to:', event.value);
+              var $testSearch = $('#test_search');
+
+              // Reset tracking variables FIRST
+              lastTestSearchQuery = '';
+              lastSentTestSearchQuery = '';
+
+              // Fully reset the dropdown
+              $testSearch.dropdown('clear');
+              $testSearch.dropdown('restore defaults');
+
+              // Clear all input fields
+              var $searchInput = $testSearch.find('input.search');
+              $searchInput.val('');
+              $testSearch.find('input[type=hidden]').val('');
+              $testSearch.find('.text').text('Type 3+ chars...').addClass('default');
+
+              // Clear menu
+              $testSearch.find('.menu').empty().append(
+                '<div class=\"category\"><div class=\"name\">Type 3+ chars...</div><div class=\"results\"></div></div>'
+              );
+
+              if (window.Shiny) {
+                // Send empty query for test search
+                Shiny.setInputValue('test_search_query', '', {priority: 'event'});
+                Shiny.setInputValue('test_search_input', '', {priority: 'event'});
+              }
+
+              console.log('[TestSearch] Category change complete. Cleared query.');
+            }
+          });
+
+          var pushTestSearchQuery = function(val) {
+            var next = val || '';
+            if (next === lastSentTestSearchQuery) {
+              lastTestSearchQuery = next;
+              return;
+            }
+            console.log('[TestSearch][push] sending to Shiny:', next);
+            lastTestSearchQuery = next;
+            lastSentTestSearchQuery = next;
+            if (window.Shiny) {
+              Shiny.setInputValue('test_search_query', next, {priority: 'event'});
+            }
+          };
+
+          // Capture typing in test search
+          $(document).on('input', '#test_search input.search', function(e) {
+            var val = e.target.value || '';
+            console.log('[TestSearch][input] val=', val, 'lastSent=', lastSentTestSearchQuery);
+            clearTimeout(testSearchDebounce);
+            testSearchDebounce = setTimeout(function(){ pushTestSearchQuery(val); }, 120);
+          });
+
+          // Custom message handler to update test search menu from server
+          if (window.Shiny && window.Shiny.addCustomMessageHandler) {
+            Shiny.addCustomMessageHandler('test-search-menu', function(msg) {
+              console.log('[TestSearch] Received message:', msg);
+              var $dd = $('#test_search');
+              if (!$dd.length || !$dd.dropdown) return;
+              var $menu = $dd.find('.menu');
+              if (!$menu.length) return;
+
+              $menu.empty();
+
+              var showCategories = msg.show_categories !== false; // default to true
+
+              if (!msg || !msg.groups || !msg.groups.length) {
+                $menu.append('<div class=\"category\"><div class=\"name\">No items</div><div class=\"results\"></div></div>');
+              } else {
+                console.log('[TestSearch] Processing', msg.groups.length, 'groups, show_categories:', showCategories);
+                msg.groups.forEach(function(g, idx) {
+                  if (!g) {
+                    console.log('[TestSearch] Group', idx, 'is null/undefined');
+                    return;
+                  }
+                  var grpName = g.name || '';
+                  var items = g.items || [];
+                  console.log('[TestSearch] Group', idx, ':', grpName, 'with', items.length, 'items');
+
+                  if (showCategories) {
+                    // Create category container with header
+                    var $category = $('<div class=\"category\"></div>');
+
+                    // Add category name header
+                    if (grpName) {
+                      $category.append($('<div class=\"name\"></div>').text(grpName));
+                    }
+
+                    // Add results container for this category
+                    var $results = $('<div class=\"results\"></div>');
+                    items.forEach(function(it) {
+                      var $item = $('<div class=\"result\"></div>').attr('data-value', it).text(it);
+                      $results.append($item);
+                    });
+
+                    $category.append($results);
+                    $menu.append($category);
+                    console.log('[TestSearch] Appended category:', grpName);
+                  } else {
+                    // No categories - add items directly as plain results
+                    items.forEach(function(it) {
+                      var $item = $('<div class=\"result\"></div>').attr('data-value', it).text(it);
+                      $menu.append($item);
+                    });
+                    console.log('[TestSearch] Appended', items.length, 'items without category');
+                  }
+                });
+              }
+
+              console.log('[TestSearch] Final menu HTML:', $menu.html().substring(0, 500));
+              $dd.dropdown('refresh');
+
+              // Restore search box text only if not empty or if current value is empty
+              var el = document.querySelector('#test_search input.search');
+              if (el && msg && typeof msg.query === 'string') {
+                console.log('[TestSearch] Message wants to restore query to:', msg.query, 'current value:', el.value);
+                // Only restore if the server query matches what we expect
+                if (msg.query === lastTestSearchQuery || el.value === '') {
+                  lastTestSearchQuery = msg.query;
+                  lastSentTestSearchQuery = msg.query;
+                  if (el.value !== msg.query) {
+                    el.value = msg.query;
+                    console.log('[TestSearch] Restored input to:', msg.query);
+                  }
+                } else {
+                  console.log('[TestSearch] Skipping restore - mismatch');
+                }
+              }
+            });
+          }
+
+
+          // Handle Enter key to select if only one result
+          $(document).on('keydown', '#test_search input.search', function(e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+              e.preventDefault();
+              var $visibleResults = $('#test_search .menu .result:visible');
+
+              if ($visibleResults.length === 1) {
+                $visibleResults.first().click();
+              }
+            }
+          });
+
+          // Handle clicks on result items manually
+          $(document).on('click', '#test_search .result', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var value = $(this).attr('data-value');
+            var text = $(this).text();
+
+            // Update the hidden input and display text
+            $('#test_search').dropdown('set selected', value);
+            $('#test_search .text').text(text).removeClass('default');
+
+            // Update the search input box to show selected text
+            $('#test_search input.search').val(text);
+
+            // Hide the dropdown menu
+            $('#test_search').dropdown('hide');
+
+            console.log('[TestSearch] Clicked:', value, text);
+            if (window.Shiny) {
+              Shiny.setInputValue('test_search_input', value, {priority: 'event'});
+            }
+          });
+
           // Wait for shiny.semantic dropdown initialization, then extend with custom behavior
           setTimeout(function() {
             $('#global_search_category').dropdown({
@@ -262,6 +527,27 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
           gsDebounce = setTimeout(function(){ pushGlobalSearchQuery(val); }, 120);
         });
 
+        // Handle clicks on grouped search results
+        $(document).on('click', '#global_search_input .menu .category .result', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          var value = $(this).attr('data-value') || $(this).text();
+          var $dd = $('#global_search_input');
+
+          // Update the dropdown's visible text
+          $dd.find('.text').text(value).removeClass('default');
+
+          // Hide the menu
+          $dd.dropdown('hide');
+
+          // Send the selection to Shiny
+          if (window.Shiny) {
+            Shiny.setInputValue('global_search_input', value, {priority: 'event'});
+          }
+
+          console.log('[GlobalSearch][click] selected:', value);
+        });
+
         // Ensure dropdown stays searchable and retains text after updates
         $(document).on('shiny:inputchanged', function(event){
           if (event.name === 'global_search_input') {
@@ -302,13 +588,24 @@ body:not(.sb-collapsed) .sb-rail .item[data-tip]:hover::after {
                 if (!g) return;
                 var grpName = g.name || '';
                 var items = g.items || [];
+
+                // Create category container
+                var $category = $('<div class=\"category\"></div>');
+
+                // Add category name header
                 if (grpName) {
-                  $menu.append($('<div class=\"item header disabled\"></div>').text(grpName));
+                  $category.append($('<div class=\"name\"></div>').text(grpName));
                 }
+
+                // Add results container for this category
+                var $results = $('<div class=\"results\"></div>');
                 items.forEach(function(it){
-                  var $item = $('<div class=\"item\"></div>').attr('data-value', it).text(it);
-                  $menu.append($item);
+                  var $item = $('<div class=\"result\"></div>').attr('data-value', it).text(it);
+                  $results.append($item);
                 });
+
+                $category.append($results);
+                $menu.append($category);
               });
             }
             $dd.dropdown('refresh');

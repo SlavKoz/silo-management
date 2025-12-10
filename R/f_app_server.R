@@ -9,6 +9,155 @@ f_app_server <- function(input, output, session) {
   session$userData$icons_version <- 0
   session$userData$areas_version <- 0
 
+  # --- Test Search (simple grouped search) ---
+  observeEvent(input$test_search_input, {
+    selected <- input$test_search_input
+    cat(sprintf("[TestSearch] Selected: %s\n", f_or(selected, "NULL")))
+    flush.console()
+
+    if (is.null(selected) || !nzchar(selected)) return()
+
+    # Find the route for the selected item
+    route_map_test <- test_search_route_map()
+    if (!is.null(route_map_test[[selected]])) {
+      route <- route_map_test[[selected]]
+      session$sendCustomMessage("set-hash", list(h = route))
+    }
+  })
+
+  output$test_search_output <- renderText({
+    f_or(input$test_search_input, "(nothing selected yet)")
+  })
+
+  # Monitor test search query typing
+  observeEvent(input$test_search_query, {
+    cat(sprintf("[TestSearch][query] \"%s\" (len=%d)\n",
+                f_or(input$test_search_query, ""), nchar(f_or(input$test_search_query, ""))))
+    flush.console()
+  }, ignoreInit = FALSE)
+
+  # Get search items for test search
+  test_search_items <- reactive({
+    category <- f_or(input$global_search_category, "all")
+    query <- f_or(input$test_search_query, "")
+    cat(sprintf("[TestSearch][reactive] category=%s query=\"%s\" len=%d pool=%s\n",
+                category, query, nchar(query), if (is.null(pool)) "NULL" else "OK"))
+    flush.console()
+
+    # Require at least 3 characters for "all", or 1+ character for specific category
+    min_chars <- if (category == "all") 3 else 1
+    if (nchar(query) < min_chars) {
+      cat(sprintf("[TestSearch] <%d chars; returning empty\n", min_chars))
+      flush.console()
+      return(list())
+    }
+
+    # Search with selected category
+    results <- f_get_search_items(
+      category = category,
+      query = query,
+      pool = pool,
+      limit = 100
+    )
+    cat(sprintf("[TestSearch] fetched %d items\n", length(results)))
+    flush.console()
+    results
+  })
+
+  # Store route mappings for test search selections
+  test_search_route_map <- reactive({
+    items <- test_search_items()
+    if (length(items) == 0) return(list())
+
+    routes <- sapply(items, function(item) item$route)
+    names(routes) <- sapply(items, function(item) item$label)
+    as.list(routes)
+  })
+
+  # Update test search dropdown with real data
+  # Using observe with explicit dependencies instead of observeEvent
+  observe({
+    # Explicit dependencies
+    items <- test_search_items()
+    category <- input$global_search_category
+    query <- input$test_search_query
+
+    category <- f_or(category, "all")
+    query <- f_or(query, "")
+
+    cat(sprintf("[TestSearch][observer] category=%s query=\"%s\" items=%d\n",
+                category, query, length(items)))
+    flush.console()
+
+    min_chars <- if (category == "all") 3 else 1
+    needs_more_chars <- nchar(query) < min_chars
+
+    # Don't update if we need more characters
+    if (needs_more_chars) {
+      msg <- if (category == "all") "Type 3+ chars..." else "Start typing..."
+      session$sendCustomMessage("test-search-menu", list(
+        groups = list(list(name = msg, items = list())),
+        query  = query,
+        show_categories = FALSE
+      ))
+      return()
+    }
+
+    if (length(items) > 0) {
+      # Group items by category
+      labels <- sapply(items, function(x) x$label)
+      categories <- sapply(items, function(x) x$category)
+
+      # Debug: print category breakdown
+      cat(sprintf("[TestSearch] Category breakdown:\n"))
+      for (cat_name in unique(categories)) {
+        count <- sum(categories == cat_name)
+        cat(sprintf("  - %s: %d items\n", cat_name, count))
+      }
+      flush.console()
+
+      # If specific category selected, don't show category headers
+      if (category != "all") {
+        cat("[TestSearch] Specific category - hiding headers\n")
+        flush.console()
+        session$sendCustomMessage("test-search-menu", list(
+          groups = list(list(name = "", items = as.list(labels))),
+          query = query,
+          show_categories = FALSE
+        ))
+      } else {
+        # Show grouped with category headers for "all"
+        groups <- sapply(items, function(x) {
+          paste0(toupper(substring(x$category, 1, 1)), substring(x$category, 2))
+        })
+        grouped <- split(labels, groups)
+
+        # Debug: print grouped structure
+        cat(sprintf("[TestSearch] Grouped structure:\n"))
+        for (g in names(grouped)) {
+          cat(sprintf("  - %s: %d items\n", g, length(grouped[[g]])))
+        }
+        flush.console()
+
+        # Send grouped data to client
+        session$sendCustomMessage("test-search-menu", list(
+          groups = lapply(names(grouped), function(g) {
+            # Ensure items is always a list/array, even with 1 element
+            list(name = g, items = as.list(unname(grouped[[g]])))
+          }),
+          query = query,
+          show_categories = TRUE
+        ))
+      }
+    } else {
+      session$sendCustomMessage("test-search-menu", list(
+        groups = list(list(name = "No results", items = list())),
+        query = query,
+        show_categories = FALSE
+      ))
+    }
+  })
+
   # --- Global Search Logic ---
   observeEvent(input$global_search_input, {
     selected <- input$global_search_input
