@@ -27,8 +27,8 @@
 "dbo","OfflineReasonTypes","UQ__OfflineR__E2867CE3690CBA31","UNIQUE","ReasonTypeCode",1,NA,NA,NA,NA
 "dbo","Operations","PK__Operatio__A4F5FC64C1609DD9","PRIMARY KEY","OperationID",1,NA,NA,NA,NA
 "dbo","Operations","UQ__Operatio__969D67200FF9336B","UNIQUE","OpCode",1,NA,NA,NA,NA
-"dbo","PatternTypes","PK__PatternT__0A631B3286A828F5","PRIMARY KEY","PatternID",1,NA,NA,NA,NA
-"dbo","PatternTypes","UQ__PatternT__F50B7D12FF1C72D6","UNIQUE","PatternCode",1,NA,NA,NA,NA
+"dbo","PatternTypes","PK__PatternT__0A631B32C4BE34F8","PRIMARY KEY","PatternID",1,NA,NA,NA,NA
+"dbo","PatternTypes","UQ__PatternT__F50B7D121D100460","UNIQUE","PatternCode",1,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK__ShapeTemp__Shape__787EE5A0","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK_ShapeTemplates_Geom","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK_ShapeTemplates_Positive","CHECK",NA,NA,NA,NA,NA,NA

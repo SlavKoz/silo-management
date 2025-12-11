@@ -74,7 +74,6 @@ SELECT
     v.GrainGroup,
     v.Commodity,
     v.IsActive,
-    v.LastSyncDate,
 
     -- Variant attributes (pattern only, no color)
     va.Pattern,
@@ -163,18 +162,30 @@ GO
 
 -- Insert standard pattern types
 INSERT INTO dbo.PatternTypes (PatternCode, PatternName, Description, DisplayOrder) VALUES
-('solid',       'Solid',        'No pattern - solid color fill',                   1),
-('striped',     'Striped',      'Horizontal stripes',                               2),
-('v-striped',   'Vertical Striped', 'Vertical stripes',                             3),
-('dotted',      'Dotted',       'Small dots/stippling',                             4),
-('checkered',   'Checkered',    'Checkered/grid pattern',                           5),
-('diagonal',    'Diagonal',     'Diagonal lines (45°)',                             6),
-('crosshatch',  'Crosshatch',   'Crossed diagonal lines',                           7),
-('wavy',        'Wavy',         'Wavy/undulating lines',                            8),
-('zigzag',      'Zigzag',       'Zigzag pattern',                                   9),
-('herringbone', 'Herringbone',  'V-shaped weaving pattern',                         10),
-('brick',       'Brick',        'Brick-like offset pattern',                        11),
-('honeycomb',   'Honeycomb',    'Hexagonal honeycomb pattern',                      12);
+('solid',              'Solid',                 'No pattern - solid fill',                          1),
+('striped',            'Striped (Horizontal)',  'Horizontal stripes',                               2),
+('v-striped',          'Striped (Vertical)',    'Vertical stripes',                                 3),
+('diagonal',           'Striped (Diagonal)',    'Diagonal lines (45deg)',                           4),
+('crosshatch',         'Crosshatch',            'Crossed diagonal lines',                           5),
+('checkered',          'Checkered',             'Checkered/grid pattern',                           6),
+('grid',               'Grid',                  'Even grid lines',                                  7),
+('brick',              'Brick',                 'Brick-like offset pattern',                        8),
+('plaid',              'Plaid',                 'Multi-directional stripes (tartan/plaid)',         9),
+('chevron',            'Chevron',               'Chevron or V-shaped stripes',                      10),
+('herringbone',        'Herringbone',           'V-shaped weaving pattern',                         11),
+('zigzag',             'Zigzag',                'Zigzag pattern',                                   12),
+('wavy',               'Wavy',                  'Wavy/undulating lines',                            13),
+('dotted',             'Dotted (Fine)',         'Small dots/stippling',                             14),
+('dotted-bold',        'Dotted (Bold)',         'Larger spaced dots',                               15),
+('speckle',            'Speckle',               'Random speckled dots',                             16),
+('honeycomb',          'Honeycomb',             'Hexagonal honeycomb pattern',                      17),
+('triangle',           'Triangles',             'Repeating triangle tessellation',                  18),
+('diamond',            'Diamonds',              'Diamond shapes pattern',                           19),
+('circle',             'Circles',               'Repeating circles',                                20),
+('square',             'Squares',               'Repeating squares',                                21),
+('dash',               'Dashed',                'Short dashes',                                     22),
+('dash-dot',           'Dash-Dot',              'Dash-dot sequence',                                23),
+('weave',              'Weave',                 'Over-under weave texture',                         24);
 GO
 
 PRINT 'Variants updated - colors removed, patterns only';

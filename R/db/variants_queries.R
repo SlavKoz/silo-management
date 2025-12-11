@@ -23,8 +23,7 @@ list_variants <- function(pool = db_pool(),
       EffectiveColour,
       MissingPattern,
       Notes,
-      IsActive,
-      LastSyncDate
+      IsActive
     FROM dbo.vw_Variants
     WHERE 1=1
   "
@@ -83,8 +82,7 @@ get_variant <- function(variant_id, pool = db_pool()) {
       GrainGroupColourName,
       EffectiveColour,
       Notes,
-      IsActive,
-      LastSyncDate
+      IsActive
     FROM dbo.vw_Variants
     WHERE VariantID = ?
   "
@@ -123,6 +121,21 @@ count_variants_missing_pattern <- function(pool = db_pool()) {
 
   df <- DBI::dbGetQuery(pool, sql)
   df$MissingCount[1]
+}
+
+# Get active pattern types for dropdowns (returns named vector: labels = PatternName, values = PatternCode)
+list_pattern_types <- function(pool = db_pool()) {
+  sql <- "
+    SELECT PatternCode, PatternName
+    FROM dbo.PatternTypes
+    WHERE IsActive = 1
+    ORDER BY ISNULL(DisplayOrder, 9999), PatternName
+  "
+
+  df <- DBI::dbGetQuery(pool, sql)
+  if (!nrow(df)) return(character(0))
+
+  setNames(df$PatternCode, df$PatternName)
 }
 
 # Get unique commodities

@@ -98,6 +98,11 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
       }
     })
 
+    pattern_types <- reactive({
+      trigger_refresh()
+      list_pattern_types(pool)
+    })
+
     # Commodity filter dropdown
     output$commodity_filter_ui <- renderUI({
       commodities <- commodities_list()
@@ -149,7 +154,8 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
       trigger_refresh()
       commodity <- selected_commodity()
       grain_group <- selected_grain_group()
-      missing_only <- input$missing_pattern_only
+      # Only filter missing patterns when explicitly checked
+      missing_only <- isTRUE(input$missing_pattern_only)
 
       df <- try(
         list_variants(
@@ -157,7 +163,7 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
           commodity = commodity,
           grain_group = grain_group,
           active_only = TRUE,
-          missing_pattern = if(!is.null(missing_only) && missing_only) TRUE else NULL,
+          missing_pattern = if (missing_only) TRUE else NULL,
           order_col = "MissingPattern DESC, Commodity, GrainGroup, VariantNo",
           limit = 2000
         ), silent = FALSE
@@ -187,7 +193,7 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
         ))
       }
 
-      # Build description with Grain Group, Commodity, and warning for missing colour
+      # Build description with Grain Group, Commodity, and warning for missing pattern
       descriptions <- vapply(seq_len(nrow(df)), function(i) {
         parts <- c()
         if (!is.na(df$Commodity[i]) && nzchar(df$Commodity[i])) {
@@ -196,9 +202,9 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
         if (!is.na(df$GrainGroup[i]) && nzchar(df$GrainGroup[i])) {
           parts <- c(parts, paste0("Group: ", df$GrainGroup[i]))
         }
-        # Add warning if missing BaseColour
-        if (!is.na(df$MissingBaseColour[i]) && df$MissingBaseColour[i] == 1) {
-          parts <- c(parts, "⚠️ No Base Colour")
+        # Add warning if missing Pattern
+        if (!is.na(df$MissingPattern[i]) && df$MissingPattern[i] == 1) {
+          parts <- c(parts, "Missing Pattern")
         }
         if (length(parts) == 0) return("")
         paste(parts, collapse = " · ")
@@ -228,12 +234,14 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
 
     # ---- Schema configuration ----
     schema_config <- reactive({
+      pattern_options <- pattern_types()
+
       list(
         fields = list(
           field("VariantNo", "text", title = "Variant Number"),
           field("Commodity", "text", title = "Commodity"),
           field("GrainGroup", "text", title = "Grain Group"),
-          field("BaseColour", "text", title = "Base Colour"),
+          field("Pattern", "select", title = "Pattern", enum = pattern_options),
           field("Notes", "textarea", title = "Notes")
         ),
         columns = 1,
@@ -270,11 +278,11 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
           return(FALSE)
         }
 
-        # Only update custom attributes (BaseColour, Notes)
+        # Only update custom attributes (Pattern, Notes)
         result <- try(
           update_variant_attributes(
             variant_id = as.integer(id),
-            base_colour = values$BaseColour,
+            pattern = values$Pattern,
             notes = values$Notes,
             pool = pool
           ),
@@ -296,5 +304,48 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
       },
       on_delete = NULL  # No delete - variants come from Franklin
     )
+
+    # ---- Deep-linking support ----
+    if (!is.null(route) && shiny::is.reactive(route)) {
+      observeEvent(route(), {
+        parts <- route()
+
+        # Only handle if we're on the variants page
+        if (length(parts) >= 1 && parts[1] == "variants") {
+          if (length(parts) >= 2) {
+            variant_id <- suppressWarnings(as.integer(parts[2]))
+            if (is.na(variant_id)) return()
+
+            df <- raw_variants()
+            if (!nrow(df)) return()
+
+            row <- df[df$VariantID == variant_id, ]
+            if (nrow(row) == 0) {
+              showNotification(paste0("Variant ID '", variant_id, "' not found"), type = "warning", duration = 2)
+              return()
+            }
+
+            current_selected <- selected_id()
+            if (is.null(current_selected) || current_selected != variant_id) {
+              list_result$select_item(variant_id)
+            }
+          }
+        }
+      }, ignoreInit = TRUE)
+
+      # Update URL when selection changes (only while on variants page)
+      observe({
+        parts <- route()
+        if (length(parts) < 1 || parts[1] != "variants") return()
+
+        vid <- selected_id()
+        if (is.null(vid) || is.na(vid)) return()
+
+        expected_parts <- c("variants", as.character(vid))
+        if (!identical(parts, expected_parts)) {
+          session$sendCustomMessage("set-hash", list(h = paste0("#/variants/", vid)))
+        }
+      })
+    }
   })
 }
