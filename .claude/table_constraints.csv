@@ -6,6 +6,10 @@
 "dbo","CanvasLayouts","FK_CanvasLayouts_Sites","FOREIGN KEY","SiteID",1,"PK__Sites__B9DCB9034E614C4C","dbo","Sites","SiteID"
 "dbo","CanvasLayouts","PK__CanvasLa__203586F5DD18DD84","PRIMARY KEY","LayoutID",1,NA,NA,NA,NA
 "dbo","CanvasLayouts","UQ__CanvasLa__81CBB024A8C64EE5","UNIQUE","LayoutName",1,NA,NA,NA,NA
+"dbo","Commodities","PK__Commodit__5C5A915A5E43573C","PRIMARY KEY","CommodityID",1,NA,NA,NA,NA
+"dbo","Commodities","UQ__Commodit__70CCB0F250D8E3EE","UNIQUE","CommodityCode",1,NA,NA,NA,NA
+"dbo","CommodityAttributes","FK_CommodityAttributes_Commodity","FOREIGN KEY","CommodityID",1,"PK__Commodit__5C5A915A5E43573C","dbo","Commodities","CommodityID"
+"dbo","CommodityAttributes","PK__Commodit__5C5A915A07124791","PRIMARY KEY","CommodityID",1,NA,NA,NA,NA
 "dbo","ContainerTypeOperations","FK__Container__Conta__398D8EEE","FOREIGN KEY","ContainerTypeID",1,"PK__Containe__46FA6FF9E285AB8F","dbo","ContainerTypes","ContainerTypeID"
 "dbo","ContainerTypeOperations","FK__Container__Opera__3A81B327","FOREIGN KEY","OperationID",1,"PK__Operatio__A4F5FC64C1609DD9","dbo","Operations","OperationID"
 "dbo","ContainerTypeOperations","PK__Containe__1CB5303FF0C206DA","PRIMARY KEY","ContainerTypeID",1,NA,NA,NA,NA
@@ -13,11 +17,18 @@
 "dbo","ContainerTypes","CK_ContainerTypes_BottomType","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ContainerTypes","PK__Containe__46FA6FF9E285AB8F","PRIMARY KEY","ContainerTypeID",1,NA,NA,NA,NA
 "dbo","ContainerTypes","UQ__Containe__3E1CDC7CB4B3F41A","UNIQUE","TypeCode",1,NA,NA,NA,NA
+"dbo","GrainGroupAttributes","FK_GrainGroupAttributes_GrainGroup","FOREIGN KEY","GrainGroupID",1,"PK__GrainGro__F19E27A77B42A213","dbo","GrainGroups","GrainGroupID"
+"dbo","GrainGroupAttributes","PK__GrainGro__F19E27A7C211E2CE","PRIMARY KEY","GrainGroupID",1,NA,NA,NA,NA
+"dbo","GrainGroups","FK_GrainGroups_Commodity","FOREIGN KEY","CommodityID",1,"PK__Commodit__5C5A915A5E43573C","dbo","Commodities","CommodityID"
+"dbo","GrainGroups","PK__GrainGro__F19E27A77B42A213","PRIMARY KEY","GrainGroupID",1,NA,NA,NA,NA
+"dbo","GrainGroups","UQ__GrainGro__D570B449A1635180","UNIQUE","GrainGroupCode",1,NA,NA,NA,NA
 "dbo","Icons","PK__Icons__3213E83F4F3430AC","PRIMARY KEY","id",1,NA,NA,NA,NA
 "dbo","OfflineReasonTypes","PK__OfflineR__B87FDA26D204ACC2","PRIMARY KEY","ReasonTypeID",1,NA,NA,NA,NA
 "dbo","OfflineReasonTypes","UQ__OfflineR__E2867CE3690CBA31","UNIQUE","ReasonTypeCode",1,NA,NA,NA,NA
 "dbo","Operations","PK__Operatio__A4F5FC64C1609DD9","PRIMARY KEY","OperationID",1,NA,NA,NA,NA
 "dbo","Operations","UQ__Operatio__969D67200FF9336B","UNIQUE","OpCode",1,NA,NA,NA,NA
+"dbo","PatternTypes","PK__PatternT__0A631B3286A828F5","PRIMARY KEY","PatternID",1,NA,NA,NA,NA
+"dbo","PatternTypes","UQ__PatternT__F50B7D12FF1C72D6","UNIQUE","PatternCode",1,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK__ShapeTemp__Shape__787EE5A0","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK_ShapeTemplates_Geom","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK_ShapeTemplates_Positive","CHECK",NA,NA,NA,NA,NA,NA
@@ -48,3 +59,8 @@
 "dbo","SiteAreas","UQ_SiteAreas_Site_AreaName","UNIQUE","AreaName",2,NA,NA,NA,NA
 "dbo","Sites","PK__Sites__B9DCB9034E614C4C","PRIMARY KEY","SiteID",1,NA,NA,NA,NA
 "dbo","Sites","UQ__Sites__A12A336788CF80C8","UNIQUE","SiteCode",1,NA,NA,NA,NA
+"dbo","SyncLog","PK__SyncLog__7E50DEA6F6642ED5","PRIMARY KEY","SyncID",1,NA,NA,NA,NA
+"dbo","VariantAttributes","FK_VariantAttributes_Variants","FOREIGN KEY","VariantID",1,"PK__Variants__0EA233E4F0564818","dbo","Variants","VariantID"
+"dbo","VariantAttributes","PK__VariantA__C189298AC4F66843","PRIMARY KEY","AttributeID",1,NA,NA,NA,NA
+"dbo","Variants","PK__Variants__0EA233E4F0564818","PRIMARY KEY","VariantID",1,NA,NA,NA,NA
+"dbo","Variants","UQ__Variants__0EA27A917BB508A8","UNIQUE","VariantNo",1,NA,NA,NA,NA

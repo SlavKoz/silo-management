@@ -7,7 +7,7 @@ list_variants <- function(pool = db_pool(),
                          grain_group = NULL,
                          variant_no_like = NULL,
                          active_only = TRUE,
-                         missing_base_colour = NULL,
+                         missing_pattern = NULL,
                          order_col = "VariantNo",
                          limit = 1000) {
 
@@ -17,10 +17,11 @@ list_variants <- function(pool = db_pool(),
       VariantNo,
       GrainGroup,
       Commodity,
-      BaseColour,
-      DefaultColour,
+      Pattern,
+      GrainGroupColour,
+      GrainGroupColourName,
       EffectiveColour,
-      MissingBaseColour,
+      MissingPattern,
       Notes,
       IsActive,
       LastSyncDate
@@ -49,9 +50,9 @@ list_variants <- function(pool = db_pool(),
     params <- c(params, list(paste0("%", variant_no_like, "%")))
   }
 
-  # Filter by missing BaseColour
-  if (!is.null(missing_base_colour) && missing_base_colour == TRUE) {
-    sql <- paste0(sql, " AND MissingBaseColour = 1")
+  # Filter by missing Pattern
+  if (!is.null(missing_pattern) && missing_pattern == TRUE) {
+    sql <- paste0(sql, " AND MissingPattern = 1")
   }
 
   # Order and limit
@@ -77,10 +78,10 @@ get_variant <- function(variant_id, pool = db_pool()) {
       VariantNo,
       GrainGroup,
       Commodity,
-      BaseColour,
-      DefaultColour,
+      Pattern,
+      GrainGroupColour,
+      GrainGroupColourName,
       EffectiveColour,
-      MissingBaseColour,
       Notes,
       IsActive,
       LastSyncDate
@@ -94,22 +95,13 @@ get_variant <- function(variant_id, pool = db_pool()) {
 }
 
 # Update variant attributes
-update_variant_attributes <- function(variant_id, base_colour = NULL, default_colour = NULL, notes = NULL, pool = db_pool()) {
-  sql <- "
-    UPDATE dbo.VariantAttributes
-    SET
-      BaseColour = ?,
-      DefaultColour = ?,
-      Notes = ?,
-      ModifiedDate = GETDATE()
-    WHERE VariantID = ?
-  "
+update_variant_attributes <- function(variant_id, pattern = NULL, notes = NULL, pool = db_pool()) {
+  sql <- "EXEC dbo.sp_UpdateVariantAttributes @VariantID = ?, @Pattern = ?, @Notes = ?"
 
   params <- list(
-    if(is.null(base_colour)) NA_character_ else as.character(base_colour),
-    if(is.null(default_colour)) "Yellow" else as.character(default_colour),
-    if(is.null(notes)) NA_character_ else as.character(notes),
-    as.integer(variant_id)
+    as.integer(variant_id),
+    if(is.null(pattern)) NA_character_ else as.character(pattern),
+    if(is.null(notes)) NA_character_ else as.character(notes)
   )
 
   result <- try(DBI::dbExecute(pool, sql, params = params), silent = TRUE)
@@ -121,12 +113,12 @@ update_variant_attributes <- function(variant_id, base_colour = NULL, default_co
   list(success = TRUE, message = "Variant attributes updated successfully")
 }
 
-# Get count of variants without BaseColour
-count_variants_missing_base_colour <- function(pool = db_pool()) {
+# Get count of variants without Pattern
+count_variants_missing_pattern <- function(pool = db_pool()) {
   sql <- "
     SELECT COUNT(*) AS MissingCount
     FROM dbo.vw_Variants
-    WHERE IsActive = 1 AND MissingBaseColour = 1
+    WHERE IsActive = 1 AND MissingPattern = 1
   "
 
   df <- DBI::dbGetQuery(pool, sql)

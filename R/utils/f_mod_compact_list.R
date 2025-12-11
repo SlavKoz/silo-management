@@ -5,7 +5,8 @@
 #' @param id Module ID
 #' @param show_filter Show filter input (default TRUE)
 #' @param filter_placeholder Placeholder text for filter
-compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter...") {
+#' @param add_new_item Show add new button (default TRUE)
+compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter...", add_new_item = TRUE) {
   ns <- NS(id)
 
   tagList(
@@ -191,13 +192,15 @@ compact_list_ui <- function(id, show_filter = TRUE, filter_placeholder = "Filter
                     id = ns("filter"),
                     placeholder = filter_placeholder
                   ),
-                  tags$button(
-                    class = "ui button",
-                    id = ns("add_new_btn"),
-                    type = "button",
-                    tags$i(class = "plus icon", style = "margin: 0;"),
-                    "Add New"
-                  )
+                  if (add_new_item) {
+                    tags$button(
+                      class = "ui button",
+                      id = ns("add_new_btn"),
+                      type = "button",
+                      tags$i(class = "plus icon", style = "margin: 0;"),
+                      "Add New"
+                    )
+                  }
               )
           )
         },

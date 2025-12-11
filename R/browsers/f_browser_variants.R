@@ -26,8 +26,8 @@ f_browser_variants_ui <- function(id) {
                 div(class = "field",
                     div(class = "ui checkbox",
                         checkboxInput(
-                          ns("missing_colour_only"),
-                          "Show only variants without Base Colour",
+                          ns("missing_pattern_only"),
+                          "Show only variants without Pattern",
                           value = FALSE
                         )
                     )
@@ -37,7 +37,8 @@ f_browser_variants_ui <- function(id) {
             compact_list_ui(
               ns("list"),
               show_filter = TRUE,
-              filter_placeholder = "Filter by variant number…"
+              filter_placeholder = "Filter by variant number…",
+              add_new_item = FALSE
             )
         ),
 
@@ -61,20 +62,20 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
     selected_commodity <- reactiveVal(NULL)
     selected_grain_group <- reactiveVal(NULL)
 
-    # Warning banner for missing colours
+    # Warning banner for missing patterns
     output$missing_colour_warning <- renderUI({
       trigger_refresh()  # Refresh when data changes
 
-      count <- try(count_variants_missing_base_colour(pool), silent = TRUE)
+      count <- try(count_variants_missing_pattern(pool), silent = TRUE)
       if (inherits(count, "try-error") || is.null(count) || count == 0) {
         return(NULL)
       }
 
-      div(class = "ui warning message", style = "margin: 0.5rem 0 1rem 0;",
-          tags$i(class = "exclamation triangle icon"),
-          div(class = "header", "Missing Base Colour Data"),
+      div(class = "ui info message", style = "margin: 0.5rem 0 1rem 0;",
+          tags$i(class = "info circle icon"),
+          div(class = "header", "Missing Pattern Data"),
           tags$p(
-            sprintf("%d variant%s missing Base Colour. ", count, if (count == 1) " is" else "s are"),
+            sprintf("%d variant%s missing Pattern. ", count, if (count == 1) " is" else "s are"),
             "Use the checkbox below to view and edit them."
           )
       )
@@ -148,7 +149,7 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
       trigger_refresh()
       commodity <- selected_commodity()
       grain_group <- selected_grain_group()
-      missing_only <- input$missing_colour_only
+      missing_only <- input$missing_pattern_only
 
       df <- try(
         list_variants(
@@ -156,8 +157,8 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
           commodity = commodity,
           grain_group = grain_group,
           active_only = TRUE,
-          missing_base_colour = if(!is.null(missing_only) && missing_only) TRUE else NULL,
-          order_col = "MissingBaseColour DESC, Commodity, GrainGroup, VariantNo",
+          missing_pattern = if(!is.null(missing_only) && missing_only) TRUE else NULL,
+          order_col = "MissingPattern DESC, Commodity, GrainGroup, VariantNo",
           limit = 2000
         ), silent = FALSE
       )
@@ -228,38 +229,15 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
     # ---- Schema configuration ----
     schema_config <- reactive({
       list(
-        VariantNo = list(
-          type = "text",
-          label = "Variant Number",
-          readonly = TRUE,
-          help = "From Franklin (read-only)"
+        fields = list(
+          field("VariantNo", "text", title = "Variant Number"),
+          field("Commodity", "text", title = "Commodity"),
+          field("GrainGroup", "text", title = "Grain Group"),
+          field("BaseColour", "text", title = "Base Colour"),
+          field("Notes", "textarea", title = "Notes")
         ),
-        Commodity = list(
-          type = "text",
-          label = "Commodity",
-          readonly = TRUE,
-          help = "From Franklin (read-only)"
-        ),
-        GrainGroup = list(
-          type = "text",
-          label = "Grain Group",
-          readonly = TRUE,
-          help = "From Franklin (read-only)"
-        ),
-        BaseColour = list(
-          type = "text",
-          label = "Base Colour",
-          placeholder = "e.g., Brown, Yellow, White",
-          required = FALSE,
-          help = "Custom attribute - stored in SiloOps"
-        ),
-        Notes = list(
-          type = "textarea",
-          label = "Notes",
-          placeholder = "Additional notes about this variant",
-          required = FALSE,
-          help = "Custom notes"
-        )
+        columns = 1,
+        static_fields = c("VariantNo", "Commodity", "GrainGroup")
       )
     })
 
