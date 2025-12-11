@@ -13,6 +13,8 @@ SEARCH_FORMS <- list(
   list(id = "containers",   label = "Containers",       category = "forms", route = "#/containers"),
   list(id = "placements",   label = "Placements",       category = "forms", route = "#/placements"),
   list(id = "layouts",      label = "Layouts",          category = "forms", route = "#/placements"),
+  list(id = "commodities",  label = "Commodities",      category = "forms", route = "#/commodities"),
+  list(id = "graingroups",  label = "Grain Groups",     category = "forms", route = "#/graingroups"),
   list(id = "canvases",     label = "Canvases",         category = "forms", route = "#/canvases"),
   list(id = "variants",     label = "Variants",         category = "forms", route = "#/variants")
 )
@@ -29,7 +31,7 @@ f_get_search_items <- function(category = "all", query = "", pool = NULL, limit 
   if (category == "all") {
     if (!is.null(pool)) {
       # Search across all dynamic categories
-      all_categories <- c("containers", "shapes", "siloes", "sites", "areas", "operations", "layouts", "variants")
+      all_categories <- c("containers", "shapes", "siloes", "sites", "areas", "operations", "layouts", "commodities", "graingroups", "variants")
 
       for (cat in all_categories) {
         cat_items <- f_get_search_items(
@@ -297,6 +299,87 @@ f_get_search_items <- function(category = "all", query = "", pool = NULL, limit 
         }
       }
 
+      else if (category == "commodities") {
+        if (nzchar(query)) {
+          safe_query <- gsub("'", "''", query)
+          sql <- sprintf(
+            "SELECT TOP %d CommodityCode, CommodityName
+             FROM SiloOps.dbo.vw_Commodities
+             WHERE CommodityCode LIKE '%%%s%%' OR CommodityName LIKE '%%%s%%'
+             ORDER BY CommodityCode",
+            limit, safe_query, safe_query
+          )
+        } else {
+          sql <- sprintf(
+            "SELECT TOP %d CommodityCode, CommodityName
+             FROM SiloOps.dbo.vw_Commodities
+             ORDER BY CommodityCode",
+            limit
+          )
+        }
+        df <- DBI::dbGetQuery(pool, sql)
+
+        if (nrow(df) > 0) {
+          items <- lapply(1:nrow(df), function(i) {
+            label <- df$CommodityCode[i]
+            if (!is.na(df$CommodityName[i]) && nzchar(df$CommodityName[i])) {
+              label <- paste0(label, " - ", df$CommodityName[i])
+            }
+            list(
+              id = df$CommodityCode[i],
+              label = label,
+              category = "commodities",
+              route = paste0("#/commodities/", df$CommodityCode[i])
+            )
+          })
+        }
+      }
+
+      else if (category == "graingroups") {
+        if (nzchar(query)) {
+          safe_query <- gsub("'", "''", query)
+          sql <- sprintf(
+            "SELECT TOP %d GrainGroupCode, GrainGroupName, CommodityCode
+             FROM SiloOps.dbo.vw_GrainGroups
+             WHERE GrainGroupCode LIKE '%%%s%%'
+                OR GrainGroupName LIKE '%%%s%%'
+                OR CommodityCode LIKE '%%%s%%'
+             ORDER BY CommodityCode, GrainGroupCode",
+            limit, safe_query, safe_query, safe_query
+          )
+        } else {
+          sql <- sprintf(
+            "SELECT TOP %d GrainGroupCode, GrainGroupName, CommodityCode
+             FROM SiloOps.dbo.vw_GrainGroups
+             ORDER BY CommodityCode, GrainGroupCode",
+            limit
+          )
+        }
+        df <- DBI::dbGetQuery(pool, sql)
+
+        if (nrow(df) > 0) {
+          items <- lapply(1:nrow(df), function(i) {
+            label <- df$GrainGroupCode[i]
+            parts <- c()
+            if (!is.na(df$GrainGroupName[i]) && nzchar(df$GrainGroupName[i])) {
+              parts <- c(parts, df$GrainGroupName[i])
+            }
+            if (!is.na(df$CommodityCode[i]) && nzchar(df$CommodityCode[i])) {
+              parts <- c(parts, df$CommodityCode[i])
+            }
+            if (length(parts)) {
+              label <- paste0(label, " - ", paste(parts, collapse = " / "))
+            }
+            list(
+              id = df$GrainGroupCode[i],
+              label = label,
+              category = "graingroups",
+              route = paste0("#/graingroups/", df$GrainGroupCode[i])
+            )
+          })
+        }
+      }
+
       else if (category == "variants") {
         # Fetch variants with grain group and commodity info
         if (nzchar(query)) {
@@ -360,6 +443,8 @@ f_get_search_categories <- function() {
     list(value = "areas",      label = "Areas"),
     list(value = "operations", label = "Operations"),
     list(value = "layouts",    label = "Layouts"),
+    list(value = "commodities",label = "Commodities"),
+    list(value = "graingroups",label = "Grain Groups"),
     list(value = "variants",   label = "Variants")
   )
 }

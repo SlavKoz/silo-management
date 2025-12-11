@@ -277,6 +277,26 @@ f_app_server <- function(input, output, session) {
         if (exists("browser_siloplacements_server")) browser_siloplacements_server("placements", pool, route = current)
       }
     ),
+    "commodities" = list(
+      title = "Commodities",
+      ui    = function() {
+        if (exists("f_browser_commodities_ui")) f_browser_commodities_ui("commodities")
+        else div(class="p-3", h3("Commodities"), p("Placeholder: Commodities browser will go here."))
+      },
+      server = function() {
+        if (exists("f_browser_commodities_server")) f_browser_commodities_server("commodities", pool, route = current)
+      }
+    ),
+    "graingroups" = list(
+      title = "Grain Groups",
+      ui    = function() {
+        if (exists("f_browser_graingroups_ui")) f_browser_graingroups_ui("graingroups")
+        else div(class="p-3", h3("Grain Groups"), p("Placeholder: Grain Groups browser will go here."))
+      },
+      server = function() {
+        if (exists("f_browser_graingroups_server")) f_browser_graingroups_server("graingroups", pool, route = current)
+      }
+    ),
     "canvases" = list(
       title = "Canvases",
       ui    = function() {
@@ -311,6 +331,8 @@ f_app_server <- function(input, output, session) {
     "icons"                  = "icons",
     "containers"             = "boxes",
     "placements"             = "map marker alternate",
+    "commodities"            = "tint",
+    "graingroups"            = "tree",
     "canvases"               = "image outline",
     "variants"               = "tags"
   )
@@ -351,6 +373,8 @@ f_app_server <- function(input, output, session) {
     list( key="icons@single",     title="Icons",     items=c("icons") ),
     list( key="containers@single",title="Containers",items=c("containers") ),
     list( key="placements@single",title="Placements",items=c("placements") ),
+    list( key="commodities@single",title="Commodities",items=c("commodities") ),
+    list( key="graingroups@single",title="Grain Groups",items=c("graingroups") ),
     list( key="canvases@single",  title="Canvases",  items=c("canvases") ),
     list( key="variants@single",  title="Variants",  items=c("variants") )
   )
