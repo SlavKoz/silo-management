@@ -291,10 +291,18 @@ compact_list_server <- function(id, items, add_new_item = TRUE,
           classes <- c("cl-item")
           if (is_active) classes <- c(classes, "cl-active")
 
+          icon_html <- df$icon[i]
+          # If icon contains HTML, render directly; otherwise treat as class name
+          icon_node <- if (grepl("^<", icon_html)) {
+            HTML(icon_html)
+          } else {
+            tags$i(class = paste(icon_html, "icon"))
+          }
+
           item_list[[length(item_list) + 1]] <- tags$div(
             class = paste(classes, collapse = " "),
             `data-value` = id_chr,
-            div(class = "cl-icon", HTML(df$icon[i])),
+            div(class = "cl-icon", icon_node),
             div(class = "cl-content",
                 div(class = "cl-item-title", df$title[i]),
                 if (nzchar(df$description[i])) {

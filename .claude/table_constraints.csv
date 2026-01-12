@@ -17,6 +17,7 @@
 "dbo","ContainerTypes","CK_ContainerTypes_BottomType","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ContainerTypes","PK__Containe__46FA6FF9E285AB8F","PRIMARY KEY","ContainerTypeID",1,NA,NA,NA,NA
 "dbo","ContainerTypes","UQ__Containe__3E1CDC7CB4B3F41A","UNIQUE","TypeCode",1,NA,NA,NA,NA
+"dbo","CropYears","PK__CropYear__233DD033956580FC","PRIMARY KEY","CropYearID",1,NA,NA,NA,NA
 "dbo","GrainGroupAttributes","FK_GrainGroupAttributes_GrainGroup","FOREIGN KEY","GrainGroupID",1,"PK__GrainGro__F19E27A77B42A213","dbo","GrainGroups","GrainGroupID"
 "dbo","GrainGroupAttributes","PK__GrainGro__F19E27A7C211E2CE","PRIMARY KEY","GrainGroupID",1,NA,NA,NA,NA
 "dbo","GrainGroups","FK_GrainGroups_Commodity","FOREIGN KEY","CommodityID",1,"PK__Commodit__5C5A915A5E43573C","dbo","Commodities","CommodityID"
@@ -29,6 +30,7 @@
 "dbo","Operations","UQ__Operatio__969D67200FF9336B","UNIQUE","OpCode",1,NA,NA,NA,NA
 "dbo","PatternTypes","PK__PatternT__0A631B32C4BE34F8","PRIMARY KEY","PatternID",1,NA,NA,NA,NA
 "dbo","PatternTypes","UQ__PatternT__F50B7D121D100460","UNIQUE","PatternCode",1,NA,NA,NA,NA
+"dbo","Pools","PK__Pools__EEFA8ACF1F9E40F2","PRIMARY KEY","PoolID",1,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK__ShapeTemp__Shape__787EE5A0","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK_ShapeTemplates_Geom","CHECK",NA,NA,NA,NA,NA,NA
 "dbo","ShapeTemplates","CK_ShapeTemplates_Positive","CHECK",NA,NA,NA,NA,NA,NA

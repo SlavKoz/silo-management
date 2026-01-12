@@ -6,9 +6,15 @@ f_browser_variants_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
-    # Warning banner at top
-    uiOutput(ns("missing_colour_warning")),
-
+    tags$head(tags$style(HTML("
+      .ui.dropdown,
+      .ui.dropdown .text,
+      .ui.dropdown .menu .item { font-size: 13px; }
+      /* Make labeled dropdown full width (match Aux) */
+      .ui.right.labeled.input { display: flex; align-items: stretch; width: 100%; }
+      .ui.right.labeled.input > .ui.dropdown { flex: 1 1 auto; min-width: 0; width: 100%; }
+      .ui.right.labeled.input > .label { flex: 0 0 auto; }
+    "))),
     div(class = "ui grid stackable",
 
         # LEFT — compact list (33%)
@@ -16,12 +22,16 @@ f_browser_variants_ui <- function(id) {
             # Filter dropdowns
             div(class = "ui form", style = "margin-bottom: 1rem;",
                 div(class = "field",
-                    tags$label("Commodity"),
-                    uiOutput(ns("commodity_filter_ui"))
+                    div(class = "ui right labeled input", style = "width:100%;",
+                        uiOutput(ns("commodity_filter_ui")),
+                        div(class = "ui basic label", "Commodity")
+                    )
                 ),
                 div(class = "field",
-                    tags$label("Grain Group"),
-                    uiOutput(ns("grain_group_filter_ui"))
+                    div(class = "ui right labeled input", style = "width:100%;",
+                        uiOutput(ns("grain_group_filter_ui")),
+                        div(class = "ui basic label", "Grain Group")
+                    )
                 ),
                 div(class = "field",
                     div(class = "ui checkbox",
@@ -62,25 +72,6 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
     selected_commodity <- reactiveVal(NULL)
     selected_grain_group <- reactiveVal(NULL)
 
-    # Warning banner for missing patterns
-    output$missing_colour_warning <- renderUI({
-      trigger_refresh()  # Refresh when data changes
-
-      count <- try(count_variants_missing_pattern(pool), silent = TRUE)
-      if (inherits(count, "try-error") || is.null(count) || count == 0) {
-        return(NULL)
-      }
-
-      div(class = "ui info message", style = "margin: 0.5rem 0 1rem 0;",
-          tags$i(class = "info circle icon"),
-          div(class = "header", "Missing Pattern Data"),
-          tags$p(
-            sprintf("%d variant%s missing Pattern. ", count, if (count == 1) " is" else "s are"),
-            "Use the checkbox below to view and edit them."
-          )
-      )
-    })
-
     # ---- Reference data for filters ----
     commodities_list <- reactive({
       trigger_refresh()  # Refresh when data changes
@@ -103,36 +94,62 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
       list_pattern_types(pool)
     })
 
+    commodity_lookup <- reactive({
+      trigger_refresh()
+      df <- try(list_commodities_full(pool = pool, active_only = TRUE, limit = 2000), silent = TRUE)
+      if (inherits(df, "try-error") || is.null(df) || !nrow(df)) return(list())
+      setNames(df$CommodityName, df$CommodityCode)
+    })
+
+    grain_group_lookup <- reactive({
+      trigger_refresh()
+      df <- try(list_grain_groups_full(pool = pool, active_only = TRUE, limit = 3000), silent = TRUE)
+      if (inherits(df, "try-error") || is.null(df) || !nrow(df)) return(list())
+      setNames(df$GrainGroupName, df$GrainGroupCode)
+    })
+
     # Commodity filter dropdown
     output$commodity_filter_ui <- renderUI({
       commodities <- commodities_list()
       choices <- c("All" = "")
+      values  <- c("")
       if (length(commodities) > 0) {
         choices <- c(choices, setNames(commodities, commodities))
+        values  <- c(values, commodities)
       }
 
-      selectInput(
-        ns("commodity_filter"),
-        label = NULL,
-        choices = choices,
-        selected = selected_commodity() %||% ""
+      di <- shiny.semantic::dropdown_input(
+        input_id = ns("commodity_filter"),
+        choices = unname(choices),
+        choices_value = values,
+        value = selected_commodity() %||% "",
+        type = "selection"
       )
+      di$attribs$class <- paste(di$attribs$class, "fluid")
+      di$attribs$style <- paste(di$attribs$style %||% "", "width:100%;")
+      di
     })
 
     # Grain group filter dropdown
     output$grain_group_filter_ui <- renderUI({
       grain_groups <- grain_groups_list()
       choices <- c("All" = "")
+      values  <- c("")
       if (length(grain_groups) > 0) {
         choices <- c(choices, setNames(grain_groups, grain_groups))
+        values  <- c(values, grain_groups)
       }
 
-      selectInput(
-        ns("grain_group_filter"),
-        label = NULL,
-        choices = choices,
-        selected = selected_grain_group() %||% ""
+      di <- shiny.semantic::dropdown_input(
+        input_id = ns("grain_group_filter"),
+        choices = unname(choices),
+        choices_value = values,
+        value = selected_grain_group() %||% "",
+        type = "selection"
       )
+      di$attribs$class <- paste(di$attribs$class, "fluid")
+      di$attribs$style <- paste(di$attribs$style %||% "", "width:100%;")
+      di
     })
 
     # Update filter states
@@ -193,14 +210,22 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
         ))
       }
 
-      # Build description with Grain Group, Commodity, and warning for missing pattern
+      # Build description with Grain Group, Commodity (use names), and warning for missing pattern
       descriptions <- vapply(seq_len(nrow(df)), function(i) {
         parts <- c()
-        if (!is.na(df$Commodity[i]) && nzchar(df$Commodity[i])) {
-          parts <- c(parts, paste0("Commodity: ", df$Commodity[i]))
+        comm_code <- df$Commodity[i]
+        comm_name <- if (!is.null(comm_code) && !is.na(comm_code) && nzchar(comm_code)) {
+          commodity_lookup()[[comm_code]] %||% comm_code
+        } else ""
+        if (nzchar(comm_name)) {
+          parts <- c(parts, paste0("Commodity: ", comm_name))
         }
-        if (!is.na(df$GrainGroup[i]) && nzchar(df$GrainGroup[i])) {
-          parts <- c(parts, paste0("Group: ", df$GrainGroup[i]))
+        gg_code <- df$GrainGroup[i]
+        gg_name <- if (!is.null(gg_code) && !is.na(gg_code) && nzchar(gg_code)) {
+          grain_group_lookup()[[gg_code]] %||% gg_code
+        } else ""
+        if (nzchar(gg_name)) {
+          parts <- c(parts, paste0("Group: ", gg_name))
         }
         # Add warning if missing Pattern
         if (!is.na(df$MissingPattern[i]) && df$MissingPattern[i] == 1) {
@@ -239,8 +264,8 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
       list(
         fields = list(
           field("VariantNo", "text", title = "Variant Number"),
-          field("Commodity", "text", title = "Commodity"),
-          field("GrainGroup", "text", title = "Grain Group"),
+          field("Commodity", "html", title = "Commodity"),
+          field("GrainGroup", "html", title = "Grain Group"),
           field("Pattern", "select", title = "Pattern", enum = pattern_options),
           field("Notes", "textarea", title = "Notes")
         ),
@@ -261,6 +286,39 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
         return(NULL)
       }
 
+      # Link Commodity and Grain Group to their browsers
+      commodity_code <- variant$Commodity
+      if (is.null(commodity_code) || is.na(commodity_code)) commodity_code <- ""
+      grain_group_code <- variant$GrainGroup
+      if (is.null(grain_group_code) || is.na(grain_group_code)) grain_group_code <- ""
+
+      commodity_name <- if (nzchar(commodity_code)) {
+        commodity_lookup()[[commodity_code]] %||% commodity_code
+      } else ""
+      grain_group_name <- if (nzchar(grain_group_code)) {
+        grain_group_lookup()[[grain_group_code]] %||% grain_group_code
+      } else ""
+
+      variant$Commodity <- if (nzchar(commodity_code)) {
+        sprintf(
+          '<a href="#/commodities/%s" target="_self">%s</a>',
+          htmltools::htmlEscape(commodity_code),
+          htmltools::htmlEscape(commodity_name)
+        )
+      } else {
+        ""
+      }
+
+      variant$GrainGroup <- if (nzchar(grain_group_code)) {
+        sprintf(
+          '<a href="#/graingroups/%s" target="_self">%s</a>',
+          htmltools::htmlEscape(grain_group_code),
+          htmltools::htmlEscape(grain_group_name)
+        )
+      } else {
+        ""
+      }
+
       cat("[Variants Browser] Loaded variant:", variant$VariantNo, "\n")
       variant
     })
@@ -270,6 +328,7 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
       "form",
       schema_config = schema_config,
       form_data = form_data,
+      title_field = "VariantNo",
       show_delete_button = FALSE,  # No delete - variants come from Franklin
       on_save = function(values) {
         id <- selected_id()

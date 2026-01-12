@@ -6,8 +6,10 @@ f_app_server <- function(input, output, session) {
   pool <- NULL
   try({ if (exists("db_pool")) pool <- db_pool() }, silent = TRUE)
 
-  session$userData$icons_version <- 0
-  session$userData$areas_version <- 0
+  session$userData$icons_version <- reactiveVal(0)
+  session$userData$areas_version <- reactiveVal(0)
+  session$userData$commodities_version <- reactiveVal(0)
+  session$userData$graingroups_version <- reactiveVal(0)
 
   # --- Search (grouped search) ---
   observeEvent(input$test_search_input, {
@@ -316,6 +318,18 @@ f_app_server <- function(input, output, session) {
       server = function() {
         if (exists("f_browser_variants_server")) f_browser_variants_server("variants", pool, route = current)
       }
+    ),
+
+    # Aux Data (Crop Years, Pools)
+    "auxdata" = list(
+      title = "Aux Data",
+      ui    = function() {
+        if (exists("f_browser_aux_data_ui")) f_browser_aux_data_ui("auxdata")
+        else div(class = "p-3", h3("Aux Data"), p("Placeholder: Auxiliary data browser"))
+      },
+      server = function() {
+        if (exists("f_browser_aux_data_server")) f_browser_aux_data_server("auxdata", pool)
+      }
     )
   )
   
@@ -334,7 +348,8 @@ f_app_server <- function(input, output, session) {
     "commodities"            = "tint",
     "graingroups"            = "tree",
     "canvases"               = "image outline",
-    "variants"               = "tags"
+    "variants"               = "tags",
+    "auxdata"                = "database"
   )
   
 
@@ -376,7 +391,8 @@ f_app_server <- function(input, output, session) {
     list( key="commodities@single",title="Commodities",items=c("commodities") ),
     list( key="graingroups@single",title="Grain Groups",items=c("graingroups") ),
     list( key="canvases@single",  title="Canvases",  items=c("canvases") ),
-    list( key="variants@single",  title="Variants",  items=c("variants") )
+    list( key="variants@single",  title="Variants",  items=c("variants") ),
+    list( key="auxdata@single",   title="Aux Data", items=c("auxdata") )
   )
   
   build_menu <- function(active_key) {

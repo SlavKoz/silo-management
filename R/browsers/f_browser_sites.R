@@ -418,7 +418,8 @@ browser_sites_server <- function(id, pool, route = NULL) {
         if (length(parts) >= 1 && parts[1] == "sites") {
           # If there's an item ID, select it
           if (length(parts) >= 2) {
-            site_code <- parts[2]
+            # URL-decode the site code to handle spaces and special characters
+            site_code <- utils::URLdecode(parts[2])
 
             # Look up SiteID for this SiteCode
             df <- raw_sites()
@@ -461,12 +462,14 @@ browser_sites_server <- function(id, pool, route = NULL) {
 
         site_code <- as.character(row$SiteCode[1])
 
-        # Check if we need to update the route
-        expected_parts <- c("sites", site_code)
+        # URL-decode the current route part for comparison
+        current_code <- if (length(parts) >= 2) utils::URLdecode(parts[2]) else NULL
 
-        if (!identical(parts, expected_parts)) {
-          # Send message to update hash
-          session$sendCustomMessage("set-hash", list(h = paste0("#/sites/", site_code)))
+        # Check if we need to update the route (compare decoded values)
+        if (is.null(current_code) || current_code != site_code) {
+          # URL-encode the site code for the URL
+          encoded_code <- utils::URLencode(site_code, reserved = TRUE)
+          session$sendCustomMessage("set-hash", list(h = paste0("#/sites/", encoded_code)))
         }
       })
     }

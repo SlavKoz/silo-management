@@ -297,7 +297,8 @@ browser_shapes_server <- function(id, pool, route = NULL) {
         if (length(parts) >= 1 && parts[1] == "shapes") {
           # If there's an item ID, select it
           if (length(parts) >= 2) {
-            template_code <- parts[2]
+            # URL-decode the template code to handle spaces and special characters
+            template_code <- utils::URLdecode(parts[2])
 
             # Look up ShapeTemplateID for this TemplateCode
             df <- raw_shapes()
@@ -340,12 +341,15 @@ browser_shapes_server <- function(id, pool, route = NULL) {
 
         template_code <- as.character(row$TemplateCode[1])
 
-        # Check if we need to update the route
-        expected_parts <- c("shapes", template_code)
+        # URL-decode the current route part for comparison (to handle encoded characters)
+        current_code <- if (length(parts) >= 2) utils::URLdecode(parts[2]) else NULL
 
-        if (!identical(parts, expected_parts)) {
+        # Check if we need to update the route (compare decoded values)
+        if (is.null(current_code) || current_code != template_code) {
+          # URL-encode the template code for the URL
+          encoded_code <- utils::URLencode(template_code, reserved = TRUE)
           # Send message to update hash
-          session$sendCustomMessage("set-hash", list(h = paste0("#/shapes/", template_code)))
+          session$sendCustomMessage("set-hash", list(h = paste0("#/shapes/", encoded_code)))
         }
       })
     }

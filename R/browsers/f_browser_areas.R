@@ -246,7 +246,8 @@ browser_areas_server <- function(id, pool, route = NULL) {
         if (length(parts) >= 1 && parts[1] == "areas") {
           # If there's an item ID, select it
           if (length(parts) >= 2) {
-            area_code <- parts[2]
+            # URL-decode the area code to handle spaces and special characters
+            area_code <- utils::URLdecode(parts[2])
 
             # Look up AreaID for this composite code (SITECODE-AREACODE)
             df <- raw_areas()
@@ -302,12 +303,14 @@ browser_areas_server <- function(id, pool, route = NULL) {
 
         composite_code <- paste0(row$SiteCode[1], "-", row$AreaCode[1])
 
-        # Check if we need to update the route
-        expected_parts <- c("areas", composite_code)
+        # URL-decode the current route part for comparison
+        current_code <- if (length(parts) >= 2) utils::URLdecode(parts[2]) else NULL
 
-        if (!identical(parts, expected_parts)) {
-          # Send message to update hash
-          session$sendCustomMessage("set-hash", list(h = paste0("#/areas/", composite_code)))
+        # Check if we need to update the route (compare decoded values)
+        if (is.null(current_code) || current_code != composite_code) {
+          # URL-encode the composite code for the URL
+          encoded_code <- utils::URLencode(composite_code, reserved = TRUE)
+          session$sendCustomMessage("set-hash", list(h = paste0("#/areas/", encoded_code)))
         }
       })
     }
