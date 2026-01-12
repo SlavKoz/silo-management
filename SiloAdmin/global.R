@@ -63,14 +63,14 @@ source_dir <- function(path, pattern = "\\.R$", recursive = FALSE,
 }
 
 # ----------------------------- Load order ---------------------------------------
-# 1) utils (core first; f_* helpers will load automatically after legacy ones)
-source_dir("R/utils", first = c("helper_core.R"))
+# 1) Shared utils (core first; f_* helpers will load automatically after legacy ones)
+source_dir("../shared/R/utils", first = c("helper_core.R"))
 
-# 2) DB (credentials/wrappers before queries; f_* overrides load last automatically)
-source_dir("R/db", first = c("creds_public.R", "connect_wrappers.R"), last = c("queries.R"))
+# 2) Shared DB (credentials/wrappers before queries; f_* overrides load last automatically)
+source_dir("../shared/R/db", first = c("creds_public.R", "connect_wrappers.R"), last = c("queries.R"))
 
-# 3) React table shared
-source_dir("R/react_table",
+# 3) Shared React table
+source_dir("../shared/R/react_table",
            first = c("react_table_dsl.R", "react_table_helpers.R"),
            last  = c("html_form_renderer.R", "mod_html_form.R", "mod_react_table.R", "react_table_auto.R"))
 

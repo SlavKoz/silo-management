@@ -9,7 +9,10 @@ suppressPackageStartupMessages({
 })
 
 # ---- Load public (no-password) config from inside Silo ----
-source(file.path("R", "db", "creds_public.R"), local = TRUE)
+# This file should be in the same directory, so just source it relatively
+if (!exists("get_public_db_config")) {
+  source("creds_public.R", local = TRUE)
+}
 
 # ---- Load password from outside Silo (preferred), fallback to env ----
 # Expected file: ../secrets/db_password.R  exporting get_db_password()
@@ -46,12 +49,12 @@ source(file.path("R", "db", "creds_public.R"), local = TRUE)
 }
 
 .get_password <- function() {
-  # 1) Plain text file: ../secrets/db_password.txt
-  pw <- .read_pw_file(file.path("..", "secrets", "db_password.txt"))
+  # 1) Plain text file: ../../secrets/db_password.txt (up to Silo, then to MyRProjects, then secrets)
+  pw <- .read_pw_file(file.path("..", "..", "secrets", "db_password.txt"))
   if (nzchar(pw)) return(pw)
-  
-  # 2) Back-compat: ../secrets/db_password.R exporting get_db_password()
-  rpath <- file.path("..", "secrets", "db_password.R")
+
+  # 2) Back-compat: ../../secrets/db_password.R exporting get_db_password()
+  rpath <- file.path("..", "..", "secrets", "db_password.R")
   if (file.exists(rpath)) {
     env <- new.env(parent = emptyenv())
     ok <- try(sys.source(rpath, envir = env), silent = TRUE)
@@ -68,8 +71,8 @@ source(file.path("R", "db", "creds_public.R"), local = TRUE)
   pw <- Sys.getenv("MSSQL_PWD", "")
   if (nzchar(pw)) return(pw)
   
-  stop("[DB] No password found. Expected ../secrets/db_password.txt (preferred), \
-or a valid ../secrets/db_password.R exporting get_db_password(), or env var MSSQL_PWD.", call. = FALSE)
+  stop("[DB] No password found. Expected ../../secrets/db_password.txt (preferred), \
+or a valid ../../secrets/db_password.R exporting get_db_password(), or env var MSSQL_PWD.", call. = FALSE)
 }
 
 
