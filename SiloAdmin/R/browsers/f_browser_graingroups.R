@@ -253,7 +253,7 @@ f_browser_graingroups_server <- function(id, pool, route = NULL) {
     observe({
       df <- graingroups()
       if (!nrow(df)) return()
-      shades <- setNames(df$BaseColour, df$GrainGroupID)
+      shades <- as.list(setNames(df$BaseColour, df$GrainGroupID))
       session$sendCustomMessage("compact-list-set-colours", list(
         id = ns("list"),
         colours = shades

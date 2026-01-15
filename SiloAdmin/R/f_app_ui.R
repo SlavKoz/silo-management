@@ -5,6 +5,7 @@ f_app_ui <- function() {
     shinyjs::useShinyjs(),
     
     tags$head(
+      tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"),
       tags$link(rel = "stylesheet", href = "css/admin.css?v=20251021"),
       tags$link(rel = "stylesheet", href = "css/silo-canvas.css?v=20251021"),
       tags$link(rel = "stylesheet", href = "css/admin-grid.css"),
@@ -55,10 +56,13 @@ f_app_ui <- function() {
 
   /* Menu look & feel */
   .sb-rail .ui.vertical.menu { background: transparent; border:none; box-shadow:none; margin:0; }
+  .sb-rail .ui.vertical.menu .item { display:flex; align-items:center; }
   .sb-rail .item { color:#fff !important; border-radius:.4rem; display:flex; align-items:center; cursor:pointer; padding:.65rem .75rem; position: relative; }
-  .sb-rail .item .item-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sb-rail .item .item-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; min-width: 0; }
   .sb-rail .item.nav-active { background: rgba(255,255,255,0.10); }
-  .sb-rail .item .icon { min-width: 24px; text-align:center; margin-right: .65rem; opacity:.9; }
+  .sb-rail .ui.vertical.menu .item > .icon { min-width: 24px; text-align:center; padding-left: .65rem; opacity:.9; flex-shrink: 0; }
+  .sb-rail .ui.vertical.menu .item > .menu-icon { margin-left: auto !important; margin-right: 0 !important; }
+  .sb-rail .item span.icon { display: inline-block; }
 
   /* Subitem indent (a bit bigger) */
   .sb-rail .subitem { padding-left: 2.25rem !important; }
@@ -81,14 +85,13 @@ f_app_ui <- function() {
   /* -------- Collapsed behaviour -------- */
   /* Items: icons only when collapsed */
   body.sb-collapsed .sb-rail .item { justify-content:center; }
-  body.sb-collapsed .sb-rail .item .icon { margin-right:0; }
+  body.sb-collapsed .sb-rail .item .icon { margin-left:0; padding-left:0; }
   body.sb-collapsed .sb-rail .item .item-label { display:none; }
 
   /* Group headers in collapsed: icon-only, still visually distinct */
   body.sb-collapsed .sb-rail .group-header {
     gap:0; padding:.5rem; justify-content:center;
   }
-  body.sb-collapsed .sb-rail .group-header .icon { margin-right:0; }
   body.sb-collapsed .sb-rail .subitem { padding-left:.85rem !important; } /* slightly larger than before */
   body.sb-collapsed .sb-rail .group-children .item { justify-content:center; }
 

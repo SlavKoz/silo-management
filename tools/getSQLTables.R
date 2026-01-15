@@ -7,6 +7,7 @@
 library(DBI)
 library(odbc)
 library(pool)
+library(here)
 
 # ---- 1. Load existing database connection helpers ----
 # Load helper to get f_or function
@@ -91,13 +92,15 @@ cat("Fetched", nrow(table_constraints), "constraint definitions from",
     length(unique(paste(table_constraints$TABLE_SCHEMA, table_constraints$TABLE_NAME))),
     "tables.\n")
 
-# ---- 5. Save to .claude folder ----
-output_folder <- file.path(getwd(), ".claude")
+# ---- 5. Save to .claude folder (project root) ----
+output_folder <- here::here(".claude")
+
 if (!dir.exists(output_folder)) {
   dir.create(output_folder, recursive = TRUE)
-  cat("Created .claude folder\n")
+  cat("Created .claude folder at project root\n")
 }
-output_file_structures <- file.path(output_folder, "table_structures.csv")
+
+output_file_structures  <- file.path(output_folder, "table_structures.csv")
 output_file_constraints <- file.path(output_folder, "table_constraints.csv")
 
 # ---- 6. Write to CSV ----

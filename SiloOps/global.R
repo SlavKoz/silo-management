@@ -56,7 +56,7 @@ source_dir("../shared/R/db", first = c("creds_public.R", "connect_wrappers.R"), 
 # 3) Shared React table (will be needed for operations forms)
 source_dir("../shared/R/react_table",
            first = c("react_table_dsl.R", "react_table_helpers.R"),
-           last  = c("html_form_renderer.R", "mod_html_form.R", "mod_react_table.R", "react_table_auto.R"))
+           last  = c("react_table_auto.R", "html_form_renderer.R", "mod_html_form.R", "mod_react_table.R"))
 
 # 4) Load app-specific modules
 source("R/f_landing_page.R", local = globalenv())

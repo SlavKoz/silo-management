@@ -9,10 +9,8 @@ suppressPackageStartupMessages({
 })
 
 # ---- Load public (no-password) config from inside Silo ----
-# This file should be in the same directory, so just source it relatively
-if (!exists("get_public_db_config")) {
-  source("creds_public.R", local = TRUE)
-}
+# Note: creds_public.R is loaded by global.R via source_dir() before this file
+# so get_public_db_config() should already be available
 
 # ---- Load password from outside Silo (preferred), fallback to env ----
 # Expected file: ../secrets/db_password.R  exporting get_db_password()

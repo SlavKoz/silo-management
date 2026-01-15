@@ -1,0 +1,94 @@
+  {
+    "model": "gpt-4.1",
+    "instructions": [
+      "You are an expert R/Shiny assistant for a SQL Server-backed app.",
+      "Follow project conventions: any newly created R files/functions must be prefixed with 'f_' (except app.R and global.R).",
+      "Never include secrets in code or output. Treat config.txt/.env as secret and do not open or print them.",
+      "Prefer DBI + odbc with parameterized queries; avoid SQL injection.",
+      "Keep Shiny code modular; avoid heavy work in reactive contexts; use progress indicators for long operations."
+    ],
+    "permissions": {
+      "read": true,
+      "write": true,
+      "shell": true
+    },
+    "features": {
+      "experimental_windows_sandbox": true
+    },
+    "shell": {
+      "allowedCommands": [
+        "R --version",
+        "Rscript -e \"sessionInfo()\"",
+        "Rscript -e \"renv::status()\"",
+        "Rscript -e \"renv::restore(prompt=FALSE)\"",
+        "R CMD check .",
+        "Rscript -e \"testthat::test_dir('tests/testthat')\"",
+        "git status",
+        "git diff",
+        "git diff --stat",
+        "git log -n 5 --oneline",
+        "ls",
+        "pwd"
+      ]
+    },
+    "paths": {
+      "allow": [
+        "SiloAdmin/R/**",
+        "SiloAdmin/www/**",
+        "SiloAdmin/modules/**",
+        "SiloAdmin/tests/**",
+        "SiloAdmin/man/**",
+        "SiloAdmin/inst/**",
+        "SiloAdmin/app.R",
+        "SiloAdmin/global.R",
+        "SiloAdmin/DESCRIPTION",
+        "SiloAdmin/NAMESPACE",
+        "SiloAdmin/renv.lock",
+        "SiloAdmin/renv/**",
+
+        "SiloOps/R/**",
+        "SiloOps/www/**",
+        "SiloOps/modules/**",
+        "SiloOps/tests/**",
+        "SiloOps/man/**",
+        "SiloOps/inst/**",
+        "SiloOps/app.R",
+        "SiloOps/global.R",
+        "SiloOps/DESCRIPTION",
+        "SiloOps/NAMESPACE",
+        "SiloOps/renv.lock",
+        "SiloOps/renv/**",
+
+        "shared/**",
+        "README.md",
+        "*.Rproj"
+      ],
+      "deny": [
+        "**/.env",
+        "**/.Renviron",
+        "**/config.txt",
+        "**/config.yml",
+        "**/*secret*",
+        "**/*token*",
+        "**/*key*",
+        "**/*.pem",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/*.cer",
+        "**/*.crt",
+        "**/rsconnect/**",
+        "**/.Rproj.user/**",
+        "**/.git/**",
+        "**/.github/workflows/**",
+        "**/data/**",
+        "**/*.rds",
+        "**/*.RData"
+      ]
+    },
+    "autonomy": {
+      "confirmBeforeWrite": true,
+      "confirmBeforeShell": true,
+      "maxFileChanges": 10,
+      "maxNewFiles": 5
+    }
+  }

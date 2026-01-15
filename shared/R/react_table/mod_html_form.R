@@ -850,14 +850,8 @@ mod_html_form_server <- function(id, schema_config, form_data,
       rv$edit_refresh_trigger <- rv$edit_refresh_trigger + 1
     }, ignoreInit = TRUE)
 
-    # Load HTML renderer
-    source("R/react_table/html_form_renderer.R", local = TRUE)
-
-    # Load DSL if not already loaded
-    if (!exists("rjsf_auto_compile", mode = "function")) {
-      source("R/react_table/react_table_dsl.R", envir = .GlobalEnv)
-      source("R/react_table/react_table_auto.R", envir = .GlobalEnv)
-    }
+    # Note: HTML renderer and DSL are now loaded by global.R via source_dir()
+    # No need to source them again here - they're already in the environment
 
     # Compile schema (reactive or static)
     compiled_schema <- reactive({

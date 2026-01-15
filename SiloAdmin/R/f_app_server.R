@@ -14,7 +14,7 @@ f_app_server <- function(input, output, session) {
   # --- Search (grouped search) ---
   observeEvent(input$test_search_input, {
     selected <- input$test_search_input
-    cat(sprintf("[Search] Selected: %s\n", f_or(selected, "NULL")))
+    # cat(sprintf("[Search] Selected: %s\n", f_or(selected, "NULL")))
     flush.console()
 
     if (is.null(selected) || !nzchar(selected)) return()
@@ -29,8 +29,8 @@ f_app_server <- function(input, output, session) {
 
   # Monitor search query typing
   observeEvent(input$test_search_query, {
-    cat(sprintf("[Search][query] \"%s\" (len=%d)\n",
-                f_or(input$test_search_query, ""), nchar(f_or(input$test_search_query, ""))))
+    # cat(sprintf("[Search][query] \"%s\" (len=%d)\n",
+    #             f_or(input$test_search_query, ""), nchar(f_or(input$test_search_query, ""))))
     flush.console()
   }, ignoreInit = FALSE)
 
@@ -38,15 +38,15 @@ f_app_server <- function(input, output, session) {
   test_search_items <- reactive({
     category <- f_or(input$global_search_category, "all")
     query <- f_or(input$test_search_query, "")
-    cat(sprintf("[Search][reactive] category=%s query=\"%s\" len=%d pool=%s\n",
-                category, query, nchar(query), if (is.null(pool)) "NULL" else "OK"))
-    flush.console()
+    # cat(sprintf("[Search][reactive] category=%s query=\"%s\" len=%d pool=%s\n",
+    #             category, query, nchar(query), if (is.null(pool)) "NULL" else "OK"))
+    # flush.console()
 
     # For "all" require 3+ characters
     # For specific category, allow empty query (show all items)
     if (category == "all" && nchar(query) < 3) {
-      cat("[Search] All category needs 3+ chars; returning empty\n")
-      flush.console()
+      # cat("[Search] All category needs 3+ chars; returning empty\n")
+      # flush.console()
       return(list())
     }
 
@@ -57,8 +57,8 @@ f_app_server <- function(input, output, session) {
       pool = pool,
       limit = 100
     )
-    cat(sprintf("[Search] fetched %d items\n", length(results)))
-    flush.console()
+    # cat(sprintf("[Search] fetched %d items\n", length(results)))
+    # flush.console()
     results
   })
 
@@ -82,9 +82,9 @@ f_app_server <- function(input, output, session) {
     category <- f_or(category, "all")
     query <- f_or(query, "")
 
-    cat(sprintf("[Search][observer] category=%s query=\"%s\" items=%d\n",
-                category, query, length(items)))
-    flush.console()
+    # cat(sprintf("[Search][observer] category=%s query=\"%s\" items=%d\n",
+    #             category, query, length(items)))
+    # flush.console()
 
     # For "all" require 3+ chars, for specific category show all items
     if (category == "all" && nchar(query) < 3) {
@@ -102,17 +102,17 @@ f_app_server <- function(input, output, session) {
       categories <- sapply(items, function(x) x$category)
 
       # Debug: print category breakdown
-      cat(sprintf("[Search] Category breakdown:\n"))
-      for (cat_name in unique(categories)) {
-        count <- sum(categories == cat_name)
-        cat(sprintf("  - %s: %d items\n", cat_name, count))
-      }
-      flush.console()
+      # cat(sprintf("[Search] Category breakdown:\n"))
+      # for (cat_name in unique(categories)) {
+      #   count <- sum(categories == cat_name)
+      #   cat(sprintf("  - %s: %d items\n", cat_name, count))
+      # }
+      # flush.console()
 
       # If specific category selected, don't show category headers
       if (category != "all") {
-        cat("[Search] Specific category - hiding headers\n")
-        flush.console()
+        # cat("[Search] Specific category - hiding headers\n")
+        # flush.console()
         session$sendCustomMessage("test-search-menu", list(
           groups = list(list(name = "", items = as.list(labels))),
           query = query,
@@ -126,11 +126,11 @@ f_app_server <- function(input, output, session) {
         grouped <- split(labels, groups)
 
         # Debug: print grouped structure
-        cat(sprintf("[Search] Grouped structure:\n"))
-        for (g in names(grouped)) {
-          cat(sprintf("  - %s: %d items\n", g, length(grouped[[g]])))
-        }
-        flush.console()
+        # cat(sprintf("[Search] Grouped structure:\n"))
+        # for (g in names(grouped)) {
+        #   cat(sprintf("  - %s: %d items\n", g, length(grouped[[g]])))
+        # }
+        # flush.console()
 
         # Send grouped data to client
         session$sendCustomMessage("test-search-menu", list(
@@ -345,16 +345,19 @@ f_app_server <- function(input, output, session) {
     "icons"                  = "icons",
     "containers"             = "boxes",
     "placements"             = "map marker alternate",
-    "commodities"            = "tint",
-    "graingroups"            = "tree",
+    "commodities"            = "fas fa-building-wheat",
+    "graingroups"            = "fas fa-jar-wheat",
     "canvases"               = "image outline",
-    "variants"               = "tags",
+    "variants"               = "fas fa-wheat-awn",
     "auxdata"                = "database"
   )
   
 
   header_icon_map <- list(
-    "sites@group"   = "building",
+    "locations@group" = "map marker alternate",
+    "assets@group" = "warehouse",
+    "crops@group" = "fas fa-wheat-awn",
+    "visuals@group" = "palette",
     "actions@group" = "bolt"
   )
   
@@ -369,30 +372,31 @@ f_app_server <- function(input, output, session) {
       title = "Silo",
       items = c("home")
     ),
-    list(                      # Sites group
-      key   = "sites@group",
-      title = "Sites",
-      items = c("sites", "areas")
+    list(                      # Locations group
+      key   = "locations@group",
+      title = "Locations",
+      items = c("placements", "sites", "areas")
     ),
-    list(                      # Siloes single
-      key   = "siloes@single",
-      title = "Siloes",
-      items = c("siloes")
+    list(                      # Assets group
+      key   = "assets@group",
+      title = "Assets",
+      items = c("siloes", "containers")
     ),
     list(                      # Actions group
       key   = "actions@group",
       title = "Actions",
       items = c("actions.offline_reasons", "actions.operations")
     ),
-    list( key="shapes@single",    title="Shapes",    items=c("shapes") ),
-    list( key="icons@single",     title="Icons",     items=c("icons") ),
-    list( key="containers@single",title="Containers",items=c("containers") ),
-    list( key="placements@single",title="Placements",items=c("placements") ),
-    list( key="commodities@single",title="Commodities",items=c("commodities") ),
-    list( key="graingroups@single",title="Grain Groups",items=c("graingroups") ),
-    list( key="canvases@single",  title="Canvases",  items=c("canvases") ),
-    list( key="variants@single",  title="Variants",  items=c("variants") ),
-    list( key="auxdata@single",   title="Aux Data", items=c("auxdata") )
+    list(                      # Crops group
+      key   = "crops@group",
+      title = "Crops",
+      items = c("commodities", "graingroups", "variants", "auxdata")
+    ),
+    list(                      # Visuals group
+      key   = "visuals@group",
+      title = "Visuals",
+      items = c("shapes", "canvases", "icons")
+    )
   )
   
   build_menu <- function(active_key) {
@@ -406,32 +410,51 @@ f_app_server <- function(input, output, session) {
       } else NULL
       
       # ---- group header (with tooltip via title attr) ----
-      header <- if (is_group) div(
-        class = "item group-header",
-        `data-group` = sec$key,
-        `data-tip` = sec$title,
-        `aria-label` = sec$title,
-        tags$i(class = paste(header_icon, "icon")),
-        span(class = "item-label", sec$title)
-      ) else NULL
+      header <- if (is_group) {
+        # Wrap Font Awesome icons in a span with "icon" class for Fomantic UI behavior
+        is_fa_header <- grepl("^fa[srlb]", header_icon)
+        header_icon_element <- if (is_fa_header) {
+          span(class = "icon menu-icon", tags$i(class = header_icon))
+        } else {
+          tags$i(class = paste(header_icon, "icon menu-icon"))
+        }
+
+        div(
+          class = "item group-header",
+          `data-group` = sec$key,
+          `data-tip` = sec$title,
+          `aria-label` = sec$title,
+          span(class = "item-label", sec$title),
+          header_icon_element
+        )
+      } else NULL
       
       # ---- children items ----
       children <- lapply(sec$items, function(key){
         info <- route_map[[key]]
         if (is.null(info)) return(NULL)
-        
+
         href   <- paste0("#/", gsub("\\.", "/", key))
         a_cls  <- if (identical(active_key, key)) "nav-active" else NULL
         icon   <- icon_map[[key]] %||% "circle outline"
         label  <- as.character(info$title %||% key)  # avoid using a var named 'title'
-        
+
+        # All icons go after label and are right-aligned
+        # Wrap Font Awesome icons in a span with "icon" class for Fomantic UI behavior
+        is_fa <- grepl("^fa[srlb]", icon)
+        icon_element <- if (is_fa) {
+          span(class = "icon menu-icon", tags$i(class = icon))
+        } else {
+          tags$i(class = paste(icon, "icon menu-icon"))
+        }
+
         div(
           class = paste("item", if (is_group) "subitem" else NULL, a_cls),
           `data-route` = href,
           `data-tip` = label,
           `aria-label` = label,
-          tags$i(class = paste(icon, "icon")),
-          span(class = "item-label", label)
+          span(class = "item-label", label),
+          icon_element
         )
       })
       
@@ -507,7 +530,7 @@ f_app_server <- function(input, output, session) {
     for (nm in names(route_map)) {
       srv <- route_map[[nm]]$server
       if (!is.null(srv)) {
-        cat("[App Server] Loading route:", nm, "\n")
+        # cat("[App Server] Loading route:", nm, "\n")
         result <- try(srv(), silent = FALSE)
         if (inherits(result, "try-error")) {
           cat("[App Server] ERROR loading route:", nm, "\n")

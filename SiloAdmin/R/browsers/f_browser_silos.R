@@ -50,14 +50,12 @@ browser_silos_server <- function(id, pool, route = NULL) {
         cat("[Silos Browser] Error loading silos:", conditionMessage(attr(df, "condition")), "\n")
         df <- data.frame()
       }
-      cat("[Silos Browser] Retrieved", nrow(df), "silos\n")
       df
     })
 
     # Transform data for compact list (id, icon, title, description)
     list_items <- reactive({
       df <- raw_silos()
-      cat("[Silos Browser] Transforming", nrow(df), "silos for list display\n")
       if (!nrow(df)) {
         return(data.frame(
           id = character(0),
@@ -84,7 +82,6 @@ browser_silos_server <- function(id, pool, route = NULL) {
         description = descriptions,
         stringsAsFactors = FALSE
       )
-      cat("[Silos Browser] Built list with", nrow(result), "items\n")
       result
     })
 

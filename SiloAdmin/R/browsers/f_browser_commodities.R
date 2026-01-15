@@ -211,7 +211,7 @@ f_browser_commodities_server <- function(id, pool, route = NULL) {
     observe({
       df <- commodities()
       if (!nrow(df)) return()
-      shades <- setNames(df$BaseColour, df$CommodityID)
+      shades <- as.list(setNames(df$BaseColour, df$CommodityID))
       session$sendCustomMessage("compact-list-set-colours", list(
         id = ns("list"),
         colours = shades

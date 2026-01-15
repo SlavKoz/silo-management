@@ -33,7 +33,7 @@
     if (!state.selectedShapeTemplate) {
       // Default cursor based on edit mode
       state.canvas.style.cursor = 'grab';
-      
+
       return;
     }
 
@@ -124,7 +124,7 @@
 
   // Canvas initialization function
   function initializeCanvases() {
-    
+    console.log('[Canvas] Starting canvas initialization...');
 
     // Find all canvas elements
     $('canvas[id$="-canvas"]').each(function() {
@@ -135,7 +135,7 @@
       // Get namespace (remove -canvas suffix)
       const ns = canvasId.replace(/-canvas$/, '');
 
-      
+      console.log('[Canvas] Initializing canvas with namespace:', ns);
 
       // Initialize state
       const state = {
@@ -182,7 +182,6 @@
     // Global ESC key handler to deselect shape template (works for all namespaces)
     $(document).on('keydown', function(e) {
       if (e.key === 'Escape') {
-        
 
         // Clear all active canvases
         canvases.forEach((state, canvasId) => {
@@ -201,23 +200,23 @@
 
   // Initialize immediately if Shiny already connected, otherwise wait for event
   if (typeof Shiny !== 'undefined' && Shiny.shinyapp) {
-    
+    console.log('[Canvas] Shiny already connected, initializing immediately...');
     $(function() { initializeCanvases(); });
   } else {
-    
+    console.log('[Canvas] Waiting for shiny:connected event...');
     $(document).on('shiny:connected', initializeCanvases);
   }
 
   // Register all Shiny message handlers for a specific namespace
   function registerMessageHandlers(ns, canvasId, state) {
-    
+    console.log('[Canvas] Registering message handlers for namespace:', ns);
 
     // Custom message handler: set canvas data
     Shiny.addCustomMessageHandler(ns + '-root:setData', function(message) {
       const state = canvases.get(canvasId);
 
       if (!state) {
-        
+        console.warn('[Canvas] State not found for:', canvasId);
         return;
       }
 
@@ -248,7 +247,6 @@
 
       // When turning OFF edit mode, clear shape template
       if (!message.on) {
-        
 
         // Blur dropdown and move focus
         $(nsSelector(ns, 'shape_template_id')).blur();
@@ -319,7 +317,7 @@
         render(state);
       };
       img.onerror = function() {
-        
+        console.error('[Canvas] Failed to load background image');
         state.backgroundImage = null;
         state.backgroundLoaded = false;
       };
@@ -403,19 +401,15 @@
 
     // Custom message handler: set shape cursor
     Shiny.addCustomMessageHandler(ns + '-root:setShapeCursor', function(message) {
-      
       const state = canvases.get(canvasId);
 
       if (!state) {
-        
         return;
       }
 
       if (message.shapeType === 'default') {
-        
         state.selectedShapeTemplate = null;
       } else {
-        
         state.selectedShapeTemplate = message;
       }
 
@@ -553,24 +547,24 @@
       const state = canvases.get(canvasId);
 
       if (!state) {
-        
+        console.warn('[Canvas] State not found for:', canvasId);
         return;
       }
 
       const updatedShape = message.shape;
       if (!updatedShape || !updatedShape.id) {
-        
+        console.warn('[Canvas] Invalid shape data:', message);
         return;
       }
 
       // Find the shape by ID and update it
       const shapeIndex = state.shapes.findIndex(s => s.id === updatedShape.id);
       if (shapeIndex === -1) {
-        
+        console.warn('[Canvas] Shape not found with ID:', updatedShape.id);
         return;
       }
 
-      
+      console.log('[Canvas] Updating shape:', updatedShape.id, 'from', state.shapes[shapeIndex].type, 'to', updatedShape.type);
 
       // Replace the shape with the updated one
       state.shapes[shapeIndex] = updatedShape;
@@ -584,7 +578,7 @@
       const state = canvases.get(canvasId);
 
       if (!state) {
-        
+        console.warn('[Canvas] State not found for:', canvasId);
         return;
       }
 
@@ -594,7 +588,7 @@
       // Find the shape
       const shape = state.shapes.find(s => s.id === shapeId);
       if (!shape) {
-        
+        console.warn('[Canvas] Shape not found with ID:', shapeId);
         return;
       }
 
@@ -609,7 +603,7 @@
       const state = canvases.get(canvasId);
 
       if (!state) {
-        
+        console.warn('[Canvas] State not found for:', canvasId);
         return;
       }
 
@@ -620,7 +614,7 @@
       // Find the shape
       const shape = state.shapes.find(s => s.id === shapeId);
       if (!shape) {
-        
+        console.warn('[Canvas] Shape not found with ID:', shapeId);
         return;
       }
 

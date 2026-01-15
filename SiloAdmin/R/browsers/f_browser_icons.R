@@ -959,7 +959,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
         # Signal global icon change to refresh other modules (e.g., container browser)
         new_version <- f_or(session$userData$icons_version, 0) + 1
         session$userData$icons_version <- new_version
-        cat("[Icon Browser] Incremented icons_version to:", new_version, "\n")
       }
     }, ignoreInit = TRUE)
 
@@ -1025,7 +1024,6 @@ f_browser_icons_server <- function(id, pool = NULL) {
         # Signal global icon change to refresh other modules (e.g., container browser)
         new_version <- f_or(session$userData$icons_version, 0) + 1
         session$userData$icons_version <- new_version
-        cat("[Icon Browser] Incremented icons_version to:", new_version, "\n")
       }
     }, ignoreInit = TRUE)
   })

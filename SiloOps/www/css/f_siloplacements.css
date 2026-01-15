@@ -1,0 +1,294 @@
+/* SiloPlacements Canvas Browser Styles */
+
+/* Body overflow control */
+body {
+  overflow: hidden !important;
+}
+
+/* Main content area (shifts when panel opens) */
+.main-content {
+  margin-left: 0 !important;
+  transition: margin-left 0.5s ease;
+}
+
+.main-content.panel-open {
+  margin-left: 400px;
+}
+
+/* Sliding panel */
+.sliding-panel {
+  position: fixed;
+  top: 0;
+  left: -400px;
+  width: 400px;
+  height: 100vh;
+  background: white;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+  transition: left 0.5s ease;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.sliding-panel.open {
+  left: 0;
+}
+
+/* Panel toggle button */
+.panel-toggle {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 80px;
+  background: #2185d0;
+  color: white;
+  border: none;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  transition: left 0.5s ease;
+  font-size: 18px;
+}
+
+.panel-toggle.panel-open {
+  left: 400px;
+}
+
+.panel-toggle:hover {
+  background: #1678c2;
+}
+
+/* Panel header and content */
+.panel-header {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-content {
+  padding: 1rem;
+}
+
+/* Canvas container */
+.canvas-container {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f8f9fa;
+  padding: 0.5rem;
+}
+
+/* Canvas toolbar */
+.canvas-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 4px;
+}
+
+.canvas-toolbar .form-group {
+  margin-bottom: 0;
+  display: inline-block;
+}
+
+.canvas-toolbar select.form-control {
+  padding: 0.15rem 1.5rem 0.15rem 0.5rem;
+  height: 28px;
+  font-size: 12px;
+  line-height: 1.2;
+  background-position: right 0.3rem center;
+  background-size: 12px;
+}
+
+.canvas-toolbar input[type='text'].form-control {
+  padding: 0.15rem 0.5rem;
+  height: 28px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.canvas-toolbar input[type='number'].form-control {
+  padding: 0.15rem 0.5rem;
+  height: 28px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.text-container-class {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.canvas-toolbar label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: normal;
+}
+
+.canvas-toolbar .btn-sm {
+  height: 28px;
+  padding: 0.25rem 0.4rem;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+/* Canvas viewport */
+.canvas-viewport {
+  position: relative;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Shape labels */
+.shape-label {
+  position: absolute;
+  font-size: 10px;
+  color: #333;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Modal z-index fixes */
+.modal {
+  z-index: 10000 !important;
+}
+
+.modal-backdrop {
+  z-index: 9999 !important;
+}
+
+/* Toolbar grid layouts */
+.toolbar-grid {
+  display: grid;
+  grid-template-columns: 80px 90px 132px 50px 135px 110px 110px 110px 1fr 110px;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.3rem;
+  background: #e9ecef;
+  border-radius: 4px;
+}
+
+.toolbar-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.toolbar-grid-bottom {
+  display: grid;
+  grid-template-columns: 80px 90px 132px 50px 135px 110px 110px 110px 1fr auto auto 80px auto 1fr 100px;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.3rem;
+  background: #e9ecef;
+  border-radius: 4px;
+}
+
+.toolbar-grid-placement {
+  display: grid;
+  grid-template-columns: 80px 90px 132px 50px 135px 110px 110px 110px 1fr auto auto 80px auto 1fr 100px;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.3rem;
+  background: #e9ecef;
+  border-radius: 4px;
+}
+
+.toolbar-grid .form-group,
+.toolbar-grid-bottom .form-group,
+.toolbar-grid-placement .form-group {
+  margin-bottom: 0;
+}
+
+.toolbar-grid label,
+.toolbar-grid-bottom label,
+.toolbar-grid-placement label {
+  text-align: right;
+}
+
+/* Selector inputs: narrow when closed, wider when open */
+.toolbar-grid .selectize-input,
+.toolbar-grid-bottom .selectize-input,
+.toolbar-grid-placement .selectize-input {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-grid .selectize-dropdown,
+.toolbar-grid-bottom .selectize-dropdown,
+.toolbar-grid-placement .selectize-dropdown {
+  min-width: 250px !important;
+  width: auto !important;
+}
+
+/* Toggle button styles */
+.toggle-btn {
+  position: relative;
+  padding-left: 2.5rem;
+  border: 1px solid #ddd !important;
+}
+
+.toggle-btn::before {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.8rem;
+  height: 1rem;
+  background: #ccc;
+  border-radius: 0.5rem;
+  transition: background 0.3s;
+}
+
+.toggle-btn::after {
+  content: '';
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.8rem;
+  height: 0.8rem;
+  background: white;
+  border-radius: 50%;
+  transition: left 0.3s;
+}
+
+.toggle-btn.active {
+  border-color: #28a745 !important;
+}
+
+.toggle-btn.active::before {
+  background: #28a745;
+}
+
+.toggle-btn.active::after {
+  left: 1.3rem;
+}
+
+/* Control group */
+.control-group {
+  display: flex;
+  gap: 0.2rem;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Text container for new layout input */
+.ui.action.input {
+  display: flex;
+  gap: 0.2rem;
+  align-items: center;
+}

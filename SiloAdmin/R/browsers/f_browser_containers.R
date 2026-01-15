@@ -306,7 +306,6 @@ browser_containers_server <- function(id, pool, route = NULL) {
 
     # Refresh dynamic selects (icons, etc.) when edit mode is entered
     observeEvent(form_module$edit_refresh_trigger(), {
-      cat("[Container Browser] Edit mode triggered, refreshing icons...\n")
       icons_data(fetch_icons())
     }, ignoreInit = TRUE)
 

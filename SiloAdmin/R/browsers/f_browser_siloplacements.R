@@ -1,8 +1,8 @@
 # R/browsers/f_browser_siloplacements.R
 # SiloPlacements Canvas Browser
 
-# Source helpers
-source("R/utils/f_siloplacements_helpers.R", local = TRUE)
+# Note: Helpers are loaded by global.R from ../shared/R/utils/
+# No need to source again here
 
 # =========================== UI ===============================================
 browser_siloplacements_ui <- function(id) {
@@ -18,21 +18,43 @@ browser_siloplacements_ui <- function(id) {
     tags$head(
       tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S"))),
       tags$style(HTML("
-        .ui.dropdown,
-        .ui.dropdown .text,
-        .ui.dropdown .menu .item {
+        .toolbar-grid .ui.dropdown,
+        .toolbar-grid-bottom .ui.dropdown,
+        .toolbar-grid-placement .ui.dropdown {
+          min-height: 26px !important;
+          max-height: 26px !important;
+          display: flex !important;
+          align-items: center !important;
           font-size: 13px;
         }
-        .ui.dropdown .text {
+        .toolbar-grid .ui.dropdown > .text,
+        .toolbar-grid-bottom .ui.dropdown > .text,
+        .toolbar-grid-placement .ui.dropdown > .text {
+          padding: 0 0.5rem !important;
+          line-height: 1 !important;
+          font-size: 12px !important;
           white-space: nowrap !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
           max-width: 100% !important;
         }
+        .toolbar-grid .ui.dropdown > .dropdown.icon,
+        .toolbar-grid-bottom .ui.dropdown > .dropdown.icon,
+        .toolbar-grid-placement .ui.dropdown > .dropdown.icon {
+          padding: 0.3rem !important;
+        }
         .ui.dropdown .menu .item {
           white-space: nowrap !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
+          font-size: 13px;
+        }
+        /* Toggle buttons - right align text */
+        .toolbar-grid .toggle-btn,
+        .toolbar-grid-bottom .toggle-btn,
+        .toolbar-grid-placement .toggle-btn {
+          text-align: right !important;
+          padding-right: 0.5rem !important;
         }
       "))
     ),
@@ -147,10 +169,10 @@ browser_siloplacements_ui <- function(id) {
           # Column 9: Empty spacer (pushes Delete to far right)
           div(),
 
-          # Column 10: Delete button (110px - far right, Fomantic native)
+          # Column 10: Delete button (icon only - far right, Fomantic native)
           shiny.semantic::action_button(
-            ns("delete_layout_btn"), "Delete", class = "negative",
-            style = "height: 26px; padding: 0.1rem 0.5rem; font-size: 12px; width: 100%; max-width: 110px;"
+            ns("delete_layout_btn"), icon("trash alternate"), class = "negative icon",
+            style = "height: 26px; padding: 0.4rem; font-size: 14px; width: 100%; max-width: 40px;"
           )
         ),
 
@@ -1300,11 +1322,9 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
     # Update cursor based on selected shape template
     observeEvent(input$shape_template_id, {
       template_id <- input$shape_template_id
-      cat("[Cursor] shape_template_id changed to:", template_id, "\n")
 
       if (is.null(template_id) || template_id == "") {
         # No shape selected - default cursor, disable edit mode
-        cat("[Cursor] Clearing cursor to default (template_id empty)\n")
         session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), list(
           shapeType = "default"
         ))
@@ -1340,7 +1360,6 @@ browser_siloplacements_server <- function(id, pool, route = NULL, initial_layout
           shape_data$radius <- as.numeric(f_or(template$Radius[1], 20))
         }
 
-        cat("[Cursor] Sending setShapeCursor message:", shape_type, "template:", template_id, "\n")
         session$sendCustomMessage(paste0(ns("root"), ":setShapeCursor"), shape_data)
 
         # Auto-enable edit mode when shape selected
@@ -3378,13 +3397,13 @@ run_siloplacements_canvas_test <- function() {
   # Load DSL and queries
   if (!exists("compile_rjsf")) {
     cat("[Test] Loading modules...\n")
-    source("R/utils/f_helper_core.R", local = TRUE)
-    source("R/db/connect_wrappers.R", local = TRUE)
-    source("R/db/queries.R", local = TRUE)
-    source("R/react_table/react_table_dsl.R", local = TRUE)
-    source("R/react_table/react_table_auto.R", local = TRUE)
-    source("R/react_table/html_form_renderer.R", local = TRUE)
-    source("R/react_table/mod_html_form.R", local = TRUE)
+    source("../shared/R/utils/f_helper_core.R", local = TRUE)
+    source("../shared/R/db/connect_wrappers.R", local = TRUE)
+    source("../shared/R/db/queries.R", local = TRUE)
+    source("../shared/R/react_table/react_table_dsl.R", local = TRUE)
+    source("../shared/R/react_table/react_table_auto.R", local = TRUE)
+    source("../shared/R/react_table/html_form_renderer.R", local = TRUE)
+    source("../shared/R/react_table/mod_html_form.R", local = TRUE)
   }
 
   # Respect the same semantic wrapper as the main app when available so the
@@ -3402,21 +3421,43 @@ run_siloplacements_canvas_test <- function() {
     tags$head(
       tags$script(src = paste0("js/f_siloplacements_canvas.js?v=", format(Sys.time(), "%Y%m%d%H%M%S"))),
       tags$style(HTML("
-        .ui.dropdown,
-        .ui.dropdown .text,
-        .ui.dropdown .menu .item {
+        .toolbar-grid .ui.dropdown,
+        .toolbar-grid-bottom .ui.dropdown,
+        .toolbar-grid-placement .ui.dropdown {
+          min-height: 26px !important;
+          max-height: 26px !important;
+          display: flex !important;
+          align-items: center !important;
           font-size: 13px;
         }
-        .ui.dropdown .text {
+        .toolbar-grid .ui.dropdown > .text,
+        .toolbar-grid-bottom .ui.dropdown > .text,
+        .toolbar-grid-placement .ui.dropdown > .text {
+          padding: 0 0.5rem !important;
+          line-height: 1 !important;
+          font-size: 12px !important;
           white-space: nowrap !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
           max-width: 100% !important;
         }
+        .toolbar-grid .ui.dropdown > .dropdown.icon,
+        .toolbar-grid-bottom .ui.dropdown > .dropdown.icon,
+        .toolbar-grid-placement .ui.dropdown > .dropdown.icon {
+          padding: 0.3rem !important;
+        }
         .ui.dropdown .menu .item {
           white-space: nowrap !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
+          font-size: 13px;
+        }
+        /* Toggle buttons - right align text */
+        .toolbar-grid .toggle-btn,
+        .toolbar-grid-bottom .toggle-btn,
+        .toolbar-grid-placement .toggle-btn {
+          text-align: right !important;
+          padding-right: 0.5rem !important;
         }
       "))
     ),

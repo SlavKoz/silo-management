@@ -86,17 +86,22 @@ f_landing_page_ui <- function(id) {
     div(class = "landing-container",
         # Header
         div(class = "landing-header",
-            tags$h1("Silo Operations"),
+            tags$h1("Silo Administration"),
             tags$p("Select a module to get started")
         ),
 
-        # Sites Group
+        # Location Management
         div(class = "landing-group",
             div(class = "landing-group-title",
                 tags$i(class = "map marker alternate icon"),
                 "Location Management"
             ),
             div(class = "landing-cards",
+                tags$a(class = "landing-card", href = "#/placements",
+                       div(class = "landing-card-icon", tags$i(class = "map marker alternate icon")),
+                       tags$h3(class = "landing-card-title", "Placements (Silo Map)"),
+                       tags$p(class = "landing-card-desc", "Configure silo placements and layouts")
+                ),
                 tags$a(class = "landing-card", href = "#/sites",
                        div(class = "landing-card-icon", tags$i(class = "building icon")),
                        tags$h3(class = "landing-card-title", "Sites"),
@@ -110,7 +115,27 @@ f_landing_page_ui <- function(id) {
             )
         ),
 
-        # Actions Group
+        # Assets
+        div(class = "landing-group",
+            div(class = "landing-group-title",
+                tags$i(class = "warehouse icon"),
+                "Assets"
+            ),
+            div(class = "landing-cards",
+                tags$a(class = "landing-card", href = "#/siloes",
+                       div(class = "landing-card-icon", tags$i(class = "warehouse icon")),
+                       tags$h3(class = "landing-card-title", "Siloes"),
+                       tags$p(class = "landing-card-desc", "Manage silo inventory and configurations")
+                ),
+                tags$a(class = "landing-card", href = "#/containers",
+                       div(class = "landing-card-icon", tags$i(class = "boxes icon")),
+                       tags$h3(class = "landing-card-title", "Container Types"),
+                       tags$p(class = "landing-card-desc", "Container types and specifications")
+                )
+            )
+        ),
+
+        # Actions & Operations
         div(class = "landing-group",
             div(class = "landing-group-title",
                 tags$i(class = "cogs icon"),
@@ -130,52 +155,57 @@ f_landing_page_ui <- function(id) {
             )
         ),
 
-        # Storage & Equipment
+        # Crops
         div(class = "landing-group",
             div(class = "landing-group-title",
-                tags$i(class = "warehouse icon"),
-                "Storage & Equipment"
+                tags$i(class = "fas fa-wheat-awn"),
+                "Crops"
             ),
             div(class = "landing-cards",
-                tags$a(class = "landing-card", href = "#/siloes",
-                       div(class = "landing-card-icon", tags$i(class = "warehouse icon")),
-                       tags$h3(class = "landing-card-title", "Siloes"),
-                       tags$p(class = "landing-card-desc", "Manage silo inventory and configurations")
+                tags$a(class = "landing-card", href = "#/commodities",
+                       div(class = "landing-card-icon", tags$i(class = "fas fa-building-wheat")),
+                       tags$h3(class = "landing-card-title", "Commodities"),
+                       tags$p(class = "landing-card-desc", "Configure commodity types and attributes")
                 ),
-                tags$a(class = "landing-card", href = "#/containers",
-                       div(class = "landing-card-icon", tags$i(class = "boxes icon")),
-                       tags$h3(class = "landing-card-title", "Containers"),
-                       tags$p(class = "landing-card-desc", "Container types and specifications")
+                tags$a(class = "landing-card", href = "#/graingroups",
+                       div(class = "landing-card-icon", tags$i(class = "fas fa-jar-wheat")),
+                       tags$h3(class = "landing-card-title", "Grain Groups"),
+                       tags$p(class = "landing-card-desc", "Manage grain group classifications")
                 ),
-                tags$a(class = "landing-card", href = "#/shapes",
-                       div(class = "landing-card-icon", tags$i(class = "shapes icon")),
-                       tags$h3(class = "landing-card-title", "Shapes"),
-                       tags$p(class = "landing-card-desc", "Define shape templates and dimensions")
+                tags$a(class = "landing-card", href = "#/variants",
+                       div(class = "landing-card-icon", tags$i(class = "fas fa-wheat-awn")),
+                       tags$h3(class = "landing-card-title", "Variants"),
+                       tags$p(class = "landing-card-desc", "Define grain variants and their properties")
+                ),
+                tags$a(class = "landing-card", href = "#/auxdata",
+                       div(class = "landing-card-icon", tags$i(class = "database icon")),
+                       tags$h3(class = "landing-card-title", "Aux Data"),
+                       tags$p(class = "landing-card-desc", "Manage crop years and pools")
                 )
             )
         ),
 
-        # Visual Configuration
+        # Visuals
         div(class = "landing-group",
             div(class = "landing-group-title",
                 tags$i(class = "palette icon"),
-                "Visual Configuration"
+                "Visuals"
             ),
             div(class = "landing-cards",
-                tags$a(class = "landing-card", href = "#/icons",
-                       div(class = "landing-card-icon", tags$i(class = "icons icon")),
-                       tags$h3(class = "landing-card-title", "Icons"),
-                       tags$p(class = "landing-card-desc", "Manage icon library for UI elements")
-                ),
-                tags$a(class = "landing-card", href = "#/placements",
-                       div(class = "landing-card-icon", tags$i(class = "map marker alternate icon")),
-                       tags$h3(class = "landing-card-title", "Placements"),
-                       tags$p(class = "landing-card-desc", "Configure object placement rules")
+                tags$a(class = "landing-card", href = "#/shapes",
+                       div(class = "landing-card-icon", tags$i(class = "shapes icon")),
+                       tags$h3(class = "landing-card-title", "Shapes"),
+                       tags$p(class = "landing-card-desc", "Define shape templates and dimensions")
                 ),
                 tags$a(class = "landing-card", href = "#/canvases",
                        div(class = "landing-card-icon", tags$i(class = "image outline icon")),
                        tags$h3(class = "landing-card-title", "Canvases"),
                        tags$p(class = "landing-card-desc", "Design and manage visual layouts")
+                ),
+                tags$a(class = "landing-card", href = "#/icons",
+                       div(class = "landing-card-icon", tags$i(class = "icons icon")),
+                       tags$h3(class = "landing-card-title", "Icons"),
+                       tags$p(class = "landing-card-desc", "Manage icon library for UI elements")
                 )
             )
         )

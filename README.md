@@ -6,6 +6,7 @@ This repository contains two Shiny applications for the Silo system:
 
 ```
 Silo/
+├── .claude/            # Claude Code configuration
 ├── SiloAdmin/          # Admin application for configuration
 │   ├── app.R
 │   ├── global.R

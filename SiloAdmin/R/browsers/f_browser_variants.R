@@ -191,14 +191,12 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
         df <- data.frame()
       }
 
-      cat("[Variants Browser] Retrieved", nrow(df), "variants\n")
       df
     })
 
     # Transform data for compact list (id, icon, title, description)
     list_items <- reactive({
       df <- raw_variants()
-      cat("[Variants Browser] Transforming", nrow(df), "variants for list display\n")
 
       if (!nrow(df)) {
         return(data.frame(
@@ -243,7 +241,6 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
         stringsAsFactors = FALSE
       )
 
-      cat("[Variants Browser] Built list with", nrow(result), "items\n")
       result
     })
 
@@ -319,7 +316,6 @@ f_browser_variants_server <- function(id, pool, route = NULL) {
         ""
       }
 
-      cat("[Variants Browser] Loaded variant:", variant$VariantNo, "\n")
       variant
     })
 
